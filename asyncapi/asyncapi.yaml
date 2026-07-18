@@ -115,7 +115,9 @@ components:
               sha256: { type: string, pattern: "^[a-f0-9]{64}$" }
               licenseStatus:
                 { type: string, enum: [OPEN_REUSE, LIVE_ONLY, DEEPLINK_ONLY, APPROVAL_REQUIRED, PROHIBITED] }
-              verificationState: { type: string, enum: [SCHEMATIC, UNVERIFIED, VERIFIED, REJECTED] }
+              verificationState:
+                type: string
+                enum: [schematic, surveyed, campus-reviewed, verified, retired]
     CommunityReported:
       name: community.reported.v1
       title: Community content was reported for moderation

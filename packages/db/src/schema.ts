@@ -13,6 +13,12 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const campusIdEnum = pgEnum("campus_id", ["tc", "duluth", "crookston", "morris", "rochester"]);
+export const academicInstitutionCodeEnum = pgEnum("academic_institution_code", [
+  "UMNTC",
+  "UMNDL",
+  "UMNCR",
+  "UMNMO",
+]);
 export const licenseStatusEnum = pgEnum("license_status", [
   "OPEN_REUSE",
   "LIVE_ONLY",
@@ -22,10 +28,11 @@ export const licenseStatusEnum = pgEnum("license_status", [
 ]);
 export const freshnessStateEnum = pgEnum("freshness_state", ["FRESH", "STALE", "EXPIRED", "UNKNOWN"]);
 export const verificationStateEnum = pgEnum("verification_state", [
-  "SCHEMATIC",
-  "UNVERIFIED",
-  "VERIFIED",
-  "REJECTED",
+  "schematic",
+  "surveyed",
+  "campus-reviewed",
+  "verified",
+  "retired",
 ]);
 export const officialStatusEnum = pgEnum("official_status", [
   "UNVERIFIED",
@@ -46,6 +53,7 @@ export const campuses = pgTable("campuses", {
   cityEn: text("city_en").notNull(),
   cityZhCn: text("city_zh_cn").notNull(),
   timeZone: text("time_zone").notNull(),
+  academicInstitutionCode: academicInstitutionCodeEnum("academic_institution_code").notNull(),
   academicCalendarCampusId: campusIdEnum("academic_calendar_campus_id").notNull(),
   sourceUrl: text("source_url").notNull(),
   officialStatus: officialStatusEnum("official_status").notNull().default("UNVERIFIED"),
@@ -66,7 +74,7 @@ export const sources = pgTable(
     sourceUrl: text("source_url").notNull(),
     licenseStatus: licenseStatusEnum("license_status").notNull(),
     freshnessState: freshnessStateEnum("freshness_state").notNull().default("UNKNOWN"),
-    verificationState: verificationStateEnum("verification_state").notNull().default("UNVERIFIED"),
+    verificationState: verificationStateEnum("verification_state").notNull().default("surveyed"),
     officialStatus: officialStatusEnum("official_status").notNull().default("UNVERIFIED"),
     attribution: text("attribution").notNull(),
     cachePolicy: cachePolicyEnum("cache_policy").notNull(),

@@ -143,8 +143,8 @@ responses.
 - Secrets, protected records, and restricted source content must not be sent to
   a model provider without explicit approval.
 - Model output cannot verify a source, route, identity, or official relationship.
-- Campus and source records remain **UNVERIFIED** until evidence is reviewed.
-- Project-authored world geometry remains **SCHEMATIC** until a scoped review
+- Campus and source official status remains **UNVERIFIED** until authorization evidence is reviewed.
+- Project-authored world geometry remains **schematic** until a scoped review
   verifies a particular artifact and use.
 - Safety-critical routes, emergency-alert interpretation, and precise-location
   workflows remain disabled until separate safety and operational reviews.

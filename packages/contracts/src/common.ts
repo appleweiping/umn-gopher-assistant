@@ -23,7 +23,13 @@ export type LicenseStatus = z.infer<typeof LicenseStatusSchema>;
 export const FreshnessStateSchema = z.enum(["FRESH", "STALE", "EXPIRED", "UNKNOWN"]);
 export type FreshnessState = z.infer<typeof FreshnessStateSchema>;
 
-export const VerificationStateSchema = z.enum(["SCHEMATIC", "UNVERIFIED", "VERIFIED", "REJECTED"]);
+export const VerificationStateSchema = z.enum([
+  "schematic",
+  "surveyed",
+  "campus-reviewed",
+  "verified",
+  "retired",
+]);
 export type VerificationState = z.infer<typeof VerificationStateSchema>;
 
 export const OfficialStatusSchema = z.enum(["UNVERIFIED", "PUBLISHER_ASSERTED", "PARTNERSHIP_VERIFIED"]);

@@ -35,8 +35,8 @@ be committed to it.
 
 DATA AND ASSET STATUS
 
-Current campus and source records are marked UNVERIFIED. Initial 3D world
-content is SCHEMATIC: it is an approximation, not an official map, survey,
+Current campus and source records have official status UNVERIFIED. Initial 3D
+world content has verification state schematic: it is an approximation, not an official map, survey,
 accessible-route guarantee, emergency route, or live representation of campus
 conditions. Safety-critical routing and alert behavior remain disabled until a
 separate, current verification review is completed.

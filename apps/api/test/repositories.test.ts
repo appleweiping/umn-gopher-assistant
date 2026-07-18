@@ -9,6 +9,9 @@ describe("in-memory foundation repositories", () => {
     const campuses = await new InMemoryCampusRepository().list();
     expect(campuses).toHaveLength(5);
     expect(campuses.find((campus) => campus.id === "rochester")?.academicCalendarCampusId).toBe("tc");
+    expect(campuses.find((campus) => campus.id === "rochester")).toMatchObject({
+      academicInstitutionCode: "UMNTC",
+    });
   });
 
   it("filters provenance-bearing sources by campus", async () => {
@@ -20,7 +23,7 @@ describe("in-memory foundation repositories", () => {
 
   it("returns a schematic manifest only for configured campuses", async () => {
     const repository = new InMemoryWorldManifestRepository();
-    expect((await repository.findByCampusId("tc"))?.verificationState).toBe("SCHEMATIC");
+    expect((await repository.findByCampusId("tc"))?.verificationState).toBe("schematic");
     expect(await repository.findByCampusId("unsupported")).toBeNull();
   });
 });

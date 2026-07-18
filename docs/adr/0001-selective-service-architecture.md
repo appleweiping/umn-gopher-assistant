@@ -24,7 +24,7 @@ The project also has unusually important trust boundaries:
 - University and vendor connectors require explicit authorization;
 - public content can have restrictive reuse terms;
 - current official-status records are **UNVERIFIED**;
-- 3D worlds begin as **SCHEMATIC**;
+- 3D worlds begin as **schematic**;
 - safety-critical routing must remain disabled until separately verified.
 
 The architecture therefore needs strong internal boundaries without claiming

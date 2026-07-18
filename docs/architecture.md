@@ -8,7 +8,7 @@ implemented foundation behavior from contract-only or gated capabilities.
 UMN Gopher Assistant is an independent, unofficial project. It has no
 University of Minnesota production access or authorization by default. All
 institutional connectors are deny-by-default, all current official-status
-fields are **UNVERIFIED**, and the initial 3D content is **SCHEMATIC**.
+fields are **UNVERIFIED**, and the initial 3D content is **schematic**.
 
 ## Design goals
 
@@ -76,7 +76,7 @@ attribution.
 | apps/web               | Next.js 16.2 presentation layer and bilingual user experience    | Scaffolded; must display trust labels and source links                     |
 | apps/api               | NestJS 11 API using Fastify; composition root for domain modules | Health, campuses, sources, and world manifests use in-memory repositories  |
 | packages/contracts     | Zod schemas, identifiers, shared DTOs, and error shapes          | Contract authority shared by clients and servers                           |
-| packages/config        | Five-campus registry and source registry                         | Seed records are provenance-bearing and UNVERIFIED                         |
+| packages/config        | Five-campus registry and source registry                         | Seed records are surveyed, provenance-bearing, and officially UNVERIFIED   |
 | packages/db            | PostgreSQL schema, migrations, and repository adapters           | Foundation schema; adapters are not the default source of initial API data |
 | packages/testing       | Reusable Vitest configuration and test helpers                   | Workspace support                                                          |
 | openapi/openapi.yaml   | HTTP contract and compatibility boundary                         | OpenAPI 3.1; includes planned surfaces beyond the initial runtime          |
@@ -137,7 +137,9 @@ documented and tested.
 Campus identity is explicit on campus-scoped data. The supported identifiers
 are **tc**, **duluth**, **crookston**, **morris**, and **rochester**. Rochester
 currently maps academic-calendar behavior to Twin Cities only where the
-configuration says so; that mapping is not a general rule for other domains.
+configuration says so; that mapping is not a general rule for other domains. Academic institution identity is
+modeled independently: Rochester and Twin Cities map to **UMNTC**, Duluth to **UMNDL**, Crookston to **UMNCR**,
+and Morris to **UMNMO**. An institution code is not interchangeable with a campus ID or calendar routing rule.
 
 User-visible registry values carry both **en** and **zh-CN** strings. Machine
 identifiers, timestamps, coordinates, units, and source URLs are locale-neutral.
