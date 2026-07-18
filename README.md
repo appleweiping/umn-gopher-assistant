@@ -67,6 +67,23 @@ From the repository root:
     pnpm verify
     pnpm dev
 
+Local infrastructure binds published ports to `127.0.0.1` by default. Copy
+`infra/compose/.env.example` only for local development, then run Compose from
+the repository root. The database image is built from a digest-pinned PostGIS
+base with checksum-pinned pgvector source, and the foundation migration runs
+only when its data volume is first initialized.
+
+    docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up --build --wait
+
+`pnpm smoke:db` creates an isolated temporary Compose project, verifies PostGIS,
+pgvector, the migrated tables, and the HNSW index, then removes its volumes. It
+requires an available Docker engine and is intended for CI or a local runtime
+with Docker enabled.
+
+Setting `COMPOSE_BIND_ADDRESS=0.0.0.0` is an explicit remote-exposure opt-in.
+Do not do so with repository default credentials or without a host firewall and
+a reviewed network boundary.
+
 The development command starts workspace development tasks. Consult package
 scripts and the API contracts before assuming a planned endpoint is backed by a
 runtime implementation.

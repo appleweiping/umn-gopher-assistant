@@ -2,19 +2,30 @@ name: ${COMPOSE_PROJECT_NAME:-gopher-assistant}
 
 services:
   postgres:
-    image: postgis/postgis:17-3.5
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: gopher-assistant/postgres:17-postgis3.5-pgvector0.8.2
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-gopher}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
       POSTGRES_DB: ${POSTGRES_DB:-gopher}
     ports:
-      - "5432:5432"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+      - ../../packages/db/migrations/0000_foundation.sql:/docker-entrypoint-initdb.d/10-foundation.sql:ro
     healthcheck:
-      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      test:
+        - CMD-SHELL
+        - >-
+          pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" &&
+          psql -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -Atqc
+          "SELECT count(*) = 2 FROM pg_extension WHERE extname IN ('postgis', 'vector')" | grep -qx t &&
+          psql -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -Atqc
+          "SELECT to_regclass('public.campuses') IS NOT NULL" | grep -qx t
       interval: 10s
       timeout: 5s
       retries: 10
@@ -38,7 +49,7 @@ services:
       KC_METRICS_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
     ports:
-      - "8080:8080"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:8080:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
@@ -65,7 +76,7 @@ services:
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-local-redis-password-only}
     ports:
-      - "6379:6379"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -85,8 +96,8 @@ services:
       - --user=${NATS_USER:-gopher}
       - --pass=${NATS_PASSWORD:-local-nats-password-only}
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:4222:4222"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:8222:8222"
     volumes:
       - nats-data:/data
     healthcheck:
@@ -104,7 +115,7 @@ services:
       MEILI_NO_ANALYTICS: "true"
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-local-meilisearch-master-key-only}
     ports:
-      - "7700:7700"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:7700:7700"
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
@@ -122,8 +133,8 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dev-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-minio-password-only}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:9000:9000"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:9001:9001"
     volumes:
       - minio-data:/data
     healthcheck:
@@ -144,9 +155,9 @@ services:
       LIVEKIT_RTC_PORT_RANGE_END: 50010
       LIVEKIT_RTC_USE_EXTERNAL_IP: "false"
     ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "50000-50010:50000-50010/udp"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:7880:7880"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:7881:7881"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:50000-50010:50000-50010/udp"
     volumes:
       - livekit-data:/var/lib/livekit
     healthcheck:
@@ -169,7 +180,7 @@ services:
       BAO_ADDR: http://127.0.0.1:8200
     cap_add: [IPC_LOCK]
     ports:
-      - "8200:8200"
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:8200:8200"
     volumes:
       - openbao-data:/openbao/file
     healthcheck:

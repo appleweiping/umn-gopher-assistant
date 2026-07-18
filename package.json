@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "turbo run lint",
+    "smoke:db": "node scripts/smoke-foundation-db.mjs",
     "test": "turbo run test",
     "test:unit": "vitest run",
     "typecheck": "turbo run typecheck",

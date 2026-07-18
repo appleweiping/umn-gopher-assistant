@@ -3,7 +3,7 @@ import type { FastifyReply } from "fastify";
 import type { CampusMetadata } from "@umn-gopher-assistant/contracts";
 
 import { CAMPUS_REPOSITORY, type CampusRepository } from "../repositories/ports.js";
-import { createEntityTag } from "../http/entity-tag.js";
+import { createEntityTag, ifNoneMatchMatches } from "../http/entity-tag.js";
 
 @Controller("v1/campuses")
 export class CampusesController {
@@ -17,7 +17,7 @@ export class CampusesController {
     const campuses = await this.campusRepository.list();
     const etag = createEntityTag(campuses);
     reply.header("ETag", etag);
-    if (ifNoneMatch === etag) {
+    if (ifNoneMatchMatches(ifNoneMatch, etag)) {
       reply.status(304);
       return undefined;
     }

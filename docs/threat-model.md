@@ -113,6 +113,12 @@ string, source domain, or user claim.
 Keycloak in local Compose is a development identity service. It is not evidence
 of University single sign-on approval.
 
+Compose binds every published development port to `127.0.0.1`. Overriding
+`COMPOSE_BIND_ADDRESS` to a non-loopback address is an explicit remote-exposure
+opt-in and requires replacement credentials, a host firewall, and a reviewed
+network boundary. Repository default credentials must never be reachable from a
+shared or untrusted network.
+
 ### Secrets and connector abuse
 
 | Threat                                                        | Risk           | Required controls                                                                                             |

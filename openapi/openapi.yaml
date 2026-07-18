@@ -749,6 +749,14 @@ components:
           type: string
           enum: [CACHE_ALLOWED, METADATA_ONLY, NO_CONTENT_CACHE, NO_ACCESS]
         lastCheckedAt: { type: [string, "null"], format: date-time }
+      allOf:
+        - if:
+            required: [licenseStatus]
+            properties:
+              licenseStatus: { const: PROHIBITED }
+          then:
+            properties:
+              cachePolicy: { const: NO_ACCESS }
     SourcePage:
       allOf:
         - $ref: "#/components/schemas/PageEnvelope"
@@ -1147,6 +1155,25 @@ components:
           type: string
           enum: [CACHE_ALLOWED, METADATA_ONLY, NO_CONTENT_CACHE, NO_ACCESS]
         attribution: { type: string, minLength: 1 }
+      allOf:
+        - if:
+            required: [licenseStatus]
+            properties:
+              licenseStatus: { const: PROHIBITED }
+          then:
+            required: [cachePolicy]
+            properties:
+              cachePolicy: { const: NO_ACCESS }
+        - if:
+            required: [cachePolicy]
+            properties:
+              cachePolicy:
+                not: { const: NO_ACCESS }
+          then:
+            required: [licenseStatus]
+            properties:
+              licenseStatus:
+                not: { const: PROHIBITED }
     PageEnvelope:
       type: object
       required: [items, nextCursor]

@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
-import { APP_FILTER } from "@nestjs/core";
+import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 
 import { CampusesController } from "./campuses/campuses.controller.js";
 import { HealthController } from "./health/health.controller.js";
 import { HealthService } from "./health/health.service.js";
 import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
+import { RequestIdInterceptor } from "./http/request-id.interceptor.js";
 import { InMemoryCampusRepository } from "./repositories/in-memory-campus.repository.js";
 import { InMemorySourceRepository } from "./repositories/in-memory-source.repository.js";
 import { InMemoryWorldManifestRepository } from "./repositories/in-memory-world-manifest.repository.js";
@@ -20,6 +21,7 @@ import { WorldsController } from "./worlds/worlds.controller.js";
     { provide: SOURCE_REPOSITORY, useClass: InMemorySourceRepository },
     { provide: WORLD_MANIFEST_REPOSITORY, useClass: InMemoryWorldManifestRepository },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
+    { provide: APP_INTERCEPTOR, useClass: RequestIdInterceptor },
   ],
 })
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Nest modules are decorator metadata containers.
