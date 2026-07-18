@@ -1,0 +1,15 @@
+node_modules/
+.next/
+dist/
+coverage/
+.turbo/
+.cache/
+.env
+.env.*
+!.env.example
+.worktrees/
+world-artifacts/
+*.log
+.DS_Store
+Thumbs.db
+
