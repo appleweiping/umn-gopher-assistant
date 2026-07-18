@@ -20,7 +20,7 @@ CREATE TABLE campuses (
   academic_calendar_campus_id campus_id NOT NULL,
   source_url text NOT NULL,
   official_status official_status NOT NULL DEFAULT 'UNVERIFIED',
-  centroid geometry(Point, 4326),
+  centroid geometry(Point,4326),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT campuses_nonempty_check CHECK (char_length(btrim(name_en)) > 0 AND char_length(btrim(name_zh_cn)) > 0 AND char_length(btrim(city_en)) > 0 AND char_length(btrim(city_zh_cn)) > 0 AND char_length(btrim(time_zone)) > 0),
@@ -52,17 +52,17 @@ CREATE TABLE sources (
   last_checked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT sources_external_id_uidx UNIQUE (external_id),
   CONSTRAINT sources_nonempty_check CHECK (char_length(btrim(external_id)) > 0 AND char_length(btrim(name_en)) > 0 AND char_length(btrim(name_zh_cn)) > 0 AND char_length(btrim(publisher)) > 0 AND char_length(btrim(attribution)) > 0),
   CONSTRAINT sources_campus_ids_nonempty_check CHECK (cardinality(campus_ids) > 0),
   CONSTRAINT sources_source_url_https_check CHECK (source_url LIKE 'https://%'),
   CONSTRAINT prohibited_source_access_check CHECK (license_status <> 'PROHIBITED' OR cache_policy = 'NO_ACCESS')
 );
+CREATE UNIQUE INDEX sources_external_id_uidx ON sources (external_id);
 COMMENT ON TABLE sources IS 'owner: source-registry; connector policy and provenance, never credentials';
 
 CREATE TABLE source_snapshots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  source_id uuid NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+  source_id uuid NOT NULL,
   content_hash text NOT NULL,
   captured_at timestamptz NOT NULL,
   normalized_payload jsonb NOT NULL,
@@ -70,10 +70,11 @@ CREATE TABLE source_snapshots (
   parse_version text NOT NULL,
   embedding vector(1536),
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT source_snapshots_source_hash_uidx UNIQUE (source_id, content_hash),
+  CONSTRAINT source_snapshots_source_id_sources_id_fk FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE ON UPDATE NO ACTION,
   CONSTRAINT source_snapshots_content_hash_check CHECK (content_hash ~ '^[a-f0-9]{64}$'),
   CONSTRAINT source_snapshots_parse_version_nonempty_check CHECK (char_length(btrim(parse_version)) > 0)
 );
+CREATE UNIQUE INDEX source_snapshots_source_hash_uidx ON source_snapshots (source_id, content_hash);
 CREATE INDEX source_snapshots_source_captured_idx ON source_snapshots (source_id, captured_at DESC);
 CREATE INDEX source_snapshots_embedding_hnsw_idx ON source_snapshots USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
 COMMENT ON TABLE source_snapshots IS 'owner: ingestion; immutable normalized snapshots subject to source cache policy';
@@ -97,7 +98,7 @@ COMMENT ON TABLE outbox_events IS 'owner: platform-event-relay; transactional ou
 
 CREATE TABLE world_manifests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  campus_id campus_id NOT NULL REFERENCES campuses(id) ON DELETE RESTRICT,
+  campus_id campus_id NOT NULL,
   world_version text NOT NULL,
   revision integer NOT NULL,
   verification_state verification_state NOT NULL,
@@ -106,11 +107,12 @@ CREATE TABLE world_manifests (
   manifest jsonb NOT NULL,
   generated_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT world_manifests_campus_version_revision_uidx UNIQUE (campus_id, world_version, revision),
+  CONSTRAINT world_manifests_campus_id_campuses_id_fk FOREIGN KEY (campus_id) REFERENCES campuses(id) ON DELETE RESTRICT ON UPDATE NO ACTION,
   CONSTRAINT world_manifests_revision_check CHECK (revision > 0),
   CONSTRAINT world_manifests_nonempty_check CHECK (char_length(btrim(world_version)) > 0 AND char_length(btrim(etag)) > 0),
   CONSTRAINT world_manifests_source_ids_nonempty_check CHECK (jsonb_typeof(source_ids) = 'array' AND jsonb_array_length(source_ids) > 0)
 );
+CREATE UNIQUE INDEX world_manifests_campus_version_revision_uidx ON world_manifests (campus_id, world_version, revision);
 COMMENT ON TABLE world_manifests IS 'owner: world-catalog; signed metadata only, binary assets remain in object storage';
 
 CREATE TABLE audit_events (

@@ -13,6 +13,7 @@ const smokeEnvironment = {
   COMPOSE_PROJECT_NAME: projectName,
   POSTGRES_DB: "gopher",
   POSTGRES_PASSWORD: "local-postgres-password-only",
+  POSTGRES_PORT: "0",
   POSTGRES_USER: "gopher",
 };
 const commandLabel = "docker compose";

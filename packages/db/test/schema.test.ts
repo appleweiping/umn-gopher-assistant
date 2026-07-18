@@ -124,4 +124,25 @@ describe("foundation database schema", () => {
         ?.indexConfig?.order,
     ).toBe("desc");
   });
+
+  it("keeps geometry, unique indexes, and foreign keys identical to Drizzle DDL", () => {
+    expect(campuses.centroid.getSQLType()).toBe("geometry(Point,4326)");
+    expect(campuses.centroid.mapToDriverValue({ x: -93.2277, y: 44.974 })).toBe(
+      "SRID=4326;POINT(-93.2277 44.974)",
+    );
+    for (const indexName of [
+      "sources_external_id_uidx",
+      "source_snapshots_source_hash_uidx",
+      "world_manifests_campus_version_revision_uidx",
+    ]) {
+      expect(migration).toContain(`CREATE UNIQUE INDEX ${indexName}`);
+      expect(migration).not.toContain(`CONSTRAINT ${indexName} UNIQUE`);
+    }
+    expect(migration).toContain(
+      "CONSTRAINT source_snapshots_source_id_sources_id_fk FOREIGN KEY (source_id) REFERENCES sources(id) ON DELETE CASCADE ON UPDATE NO ACTION",
+    );
+    expect(migration).toContain(
+      "CONSTRAINT world_manifests_campus_id_campuses_id_fk FOREIGN KEY (campus_id) REFERENCES campuses(id) ON DELETE RESTRICT ON UPDATE NO ACTION",
+    );
+  });
 });

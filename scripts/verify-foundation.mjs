@@ -71,6 +71,7 @@ const requiredFiles = [
   "packages/db/src/schema.ts",
   "packages/db/src/database-url.ts",
   "packages/db/migrations/0000_foundation.sql",
+  "packages/db/migrations/meta/0000_snapshot.json",
   "packages/testing/package.json",
   "openapi/openapi.yaml",
   "asyncapi/asyncapi.yaml",
@@ -385,6 +386,7 @@ for (const invariant of [
   "context: ./postgres",
   "../../packages/db/migrations/0000_foundation.sql:/docker-entrypoint-initdb.d/10-foundation.sql:ro",
   "FROM pg_extension",
+  "${POSTGRES_PORT:-5432}:5432",
 ]) {
   assert.ok(compose.includes(invariant), `compose database invariant missing: ${invariant}`);
 }
@@ -400,9 +402,11 @@ for (const invariant of [
 
 const databaseUrlContract = await read("packages/db/src/database-url.ts");
 const environmentExample = await read("infra/compose/.env.example");
+const databaseSmoke = await read("scripts/smoke-foundation-db.mjs");
 const localDatabaseUrl = "postgres://gopher:local-postgres-password-only@127.0.0.1:5432/gopher";
 assert.ok(databaseUrlContract.includes(localDatabaseUrl), "database module local URL must match Compose");
 assert.ok(environmentExample.includes(localDatabaseUrl), "example DATABASE_URL must match Compose");
+assert.ok(databaseSmoke.includes('POSTGRES_PORT: "0"'), "database smoke must use an ephemeral host port");
 
 const drizzleSchemaText = await read("packages/db/src/schema.ts");
 const databaseMigrationText = await read("packages/db/migrations/0000_foundation.sql");
@@ -417,9 +421,43 @@ for (const invariant of [
   "outbox_events_unpublished_idx",
   "world_manifests_revision_check",
   "audit_events_outcome_check",
+  "geometry(Point,4326)",
+  "sources_external_id_uidx",
 ]) {
   assert.ok(drizzleSchemaText.includes(invariant), `Drizzle schema invariant missing: ${invariant}`);
   assert.ok(databaseMigrationText.includes(invariant), `database migration invariant missing: ${invariant}`);
+}
+
+const databaseSnapshot = JSON.parse(await read("packages/db/migrations/meta/0000_snapshot.json"));
+assert.equal(
+  databaseSnapshot.tables?.["public.campuses"]?.columns?.centroid?.type,
+  "geometry(Point,4326)",
+  "Drizzle baseline must retain Point SRID 4326",
+);
+for (const [tableName, indexName] of [
+  ["public.sources", "sources_external_id_uidx"],
+  ["public.source_snapshots", "source_snapshots_source_hash_uidx"],
+  ["public.world_manifests", "world_manifests_campus_version_revision_uidx"],
+]) {
+  assert.equal(
+    databaseSnapshot.tables?.[tableName]?.indexes?.[indexName]?.isUnique,
+    true,
+    `Drizzle baseline unique index missing: ${indexName}`,
+  );
+}
+for (const [tableName, foreignKeyName, onDelete] of [
+  ["public.source_snapshots", "source_snapshots_source_id_sources_id_fk", "cascade"],
+  ["public.world_manifests", "world_manifests_campus_id_campuses_id_fk", "restrict"],
+]) {
+  assert.equal(
+    databaseSnapshot.tables?.[tableName]?.foreignKeys?.[foreignKeyName]?.onDelete,
+    onDelete,
+    `Drizzle baseline foreign key missing: ${foreignKeyName}`,
+  );
+  assert.ok(
+    databaseMigrationText.includes(`CONSTRAINT ${foreignKeyName} FOREIGN KEY`),
+    `database migration foreign key missing: ${foreignKeyName}`,
+  );
 }
 
 const trackedText = await Promise.all(requiredFiles.map(read));
