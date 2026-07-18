@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
-  geometry,
+  customType,
   index,
   integer,
   jsonb,
@@ -13,6 +13,19 @@ import {
   uuid,
   vector,
 } from "drizzle-orm/pg-core";
+import { parseEWKB } from "drizzle-orm/pg-core/columns/postgis_extension/utils";
+
+const geometryPoint4326 = customType<{
+  data: { x: number; y: number };
+  driverData: string;
+}>({
+  dataType: () => "geometry(Point,4326)",
+  fromDriver: (value) => {
+    const [x, y] = parseEWKB(value);
+    return { x, y };
+  },
+  toDriver: ({ x, y }) => `SRID=4326;POINT(${String(x)} ${String(y)})`,
+});
 
 export const campusIdEnum = pgEnum("campus_id", ["tc", "duluth", "crookston", "morris", "rochester"]);
 export const academicInstitutionCodeEnum = pgEnum("academic_institution_code", [
@@ -61,7 +74,7 @@ export const campuses = pgTable(
     academicCalendarCampusId: campusIdEnum("academic_calendar_campus_id").notNull(),
     sourceUrl: text("source_url").notNull(),
     officialStatus: officialStatusEnum("official_status").notNull().default("UNVERIFIED"),
-    centroid: geometry("centroid", { type: "point", mode: "xy", srid: 4326 }),
+    centroid: geometryPoint4326("centroid"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

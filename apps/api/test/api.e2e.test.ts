@@ -1,9 +1,10 @@
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { SourceDescriptorSchema } from "@umn-gopher-assistant/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AppModule } from "../src/app.module.js";
+import { createFastifyAdapter } from "../src/http/fastify-adapter.js";
 
 interface SourcePageBody {
   readonly items: unknown[];
@@ -15,7 +16,9 @@ describe("foundation API", () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter(), { logger: false });
+    app = moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter({}), {
+      logger: false,
+    });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });
@@ -148,5 +151,38 @@ describe("foundation API", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.headers["x-request-id"]).toBe("request-e2e-123");
+  });
+
+  it("replaces missing or out-of-contract request IDs with unpredictable compliant values", async () => {
+    const missingOne = await app.inject({ method: "GET", url: "/v1/health" });
+    const missingTwo = await app.inject({ method: "GET", url: "/v1/health" });
+    const tooShort = await app.inject({
+      method: "GET",
+      url: "/v1/health",
+      headers: { "x-request-id": "short" },
+    });
+    const tooLongValue = "x".repeat(129);
+    const tooLong = await app.inject({
+      method: "GET",
+      url: "/v1/health",
+      headers: { "x-request-id": tooLongValue },
+    });
+    const generated = [missingOne, missingTwo, tooShort, tooLong].map((response) => {
+      const requestId = response.headers["x-request-id"];
+      expect(requestId).toBeTypeOf("string");
+      if (typeof requestId !== "string") {
+        throw new TypeError("Expected a string X-Request-Id response header");
+      }
+      return requestId;
+    });
+
+    for (const requestId of generated) {
+      expect(requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u);
+      expect(requestId.length).toBeGreaterThanOrEqual(8);
+      expect(requestId.length).toBeLessThanOrEqual(128);
+    }
+    expect(new Set(generated).size).toBe(generated.length);
+    expect(generated).not.toContain("short");
+    expect(generated).not.toContain(tooLongValue);
   });
 });

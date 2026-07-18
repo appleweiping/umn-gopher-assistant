@@ -32,6 +32,8 @@ describe("local infrastructure contract", () => {
     expect(smoke).toContain("docker compose");
     expect(smoke).toContain("postgis");
     expect(smoke).toContain("vector");
+    expect(compose).toContain('"${COMPOSE_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"');
+    expect(smoke).toContain('POSTGRES_PORT: "0"');
   });
 
   it("binds every published development port to loopback unless explicitly overridden", () => {

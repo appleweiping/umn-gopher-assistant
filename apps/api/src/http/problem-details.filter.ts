@@ -1,6 +1,8 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
+import { ensureRequestId } from "./request-id.interceptor.js";
+
 export interface ProblemDetails {
   readonly type: string;
   readonly title: string;
@@ -58,8 +60,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const context = host.switchToHttp();
     const request = context.getRequest<FastifyRequest>();
     const reply = context.getResponse<FastifyReply>();
-    const traceIdHeader = request.headers["x-request-id"];
-    const traceId = typeof traceIdHeader === "string" ? traceIdHeader : request.id;
+    const traceId = ensureRequestId(request);
     const problem = toProblemDetails(exception, request.url, traceId);
 
     void reply.status(problem.status).type("application/problem+json").send(problem);

@@ -2,18 +2,14 @@ import "reflect-metadata";
 
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 
 import { AppModule } from "./app.module.js";
+import { createFastifyAdapter } from "./http/fastify-adapter.js";
 import { parsePort } from "./runtime-config.js";
 
 async function bootstrap(): Promise<void> {
-  const adapter = new FastifyAdapter({
-    bodyLimit: 1_048_576,
-    ignoreTrailingSlash: false,
-    requestIdHeader: "x-request-id",
-    trustProxy: process.env["TRUST_PROXY"] === "true",
-  });
+  const adapter = createFastifyAdapter();
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
     bufferLogs: true,
   });
