@@ -40,9 +40,9 @@ Every source needs a stable registry record with:
 | Data classes          | Personal, sensitive, safety-critical, copyrighted, or public metadata   |
 | Owner and kill switch | Accountable maintainer and disable procedure                            |
 
-The initial registry entries for campus home pages are **DEEPLINK_ONLY**,
-**NO_CONTENT_CACHE**, and **UNVERIFIED**. Do not expand those permissions based
-only on technical accessibility.
+The initial registry entries for campus home pages are **DEEPLINK_ONLY** and **NO_CONTENT_CACHE**, with
+verification state **surveyed** and official status **UNVERIFIED**. Do not expand those permissions based only on
+technical accessibility.
 
 ## Licensing states
 
@@ -62,12 +62,13 @@ not, the asset remains excluded.
 
 These are separate axes. The contract uses these verification states:
 
-| State          | Meaning                                                                                           |
-| -------------- | ------------------------------------------------------------------------------------------------- |
-| **SCHEMATIC**  | Project-authored approximation; never a survey, official map, accessible route, or live condition |
-| **UNVERIFIED** | Provenance may be known, but the scoped accuracy or reviewer evidence is incomplete               |
-| **VERIFIED**   | The particular version, claim, and intended use passed a documented risk-appropriate review       |
-| **REJECTED**   | Review found the artifact unsuitable; it must not be served as approved for the same use          |
+| State               | Meaning                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| **schematic**       | Project-authored approximation; never a survey, official map, accessible route, or live condition |
+| **surveyed**        | Source or artifact was inventoried and basic provenance checks completed                          |
+| **campus-reviewed** | A named campus stakeholder reviewed the scoped version and use; this does not imply endorsement   |
+| **verified**        | The particular version, claim, and intended use passed a documented risk-appropriate review       |
+| **retired**         | The version is no longer eligible for active use and remains only for audit or migration          |
 
 Official relationship is tracked independently:
 
@@ -91,8 +92,8 @@ Freshness is also explicit:
 | **EXPIRED** | No longer eligible for current use; retain only for an approved historical purpose |
 | **UNKNOWN** | No reliable check time or freshness rule is available                              |
 
-At the foundation stage, current campus and source records remain
-**UNVERIFIED**, and world manifests are **SCHEMATIC**.
+At the foundation stage, current sources are **surveyed** with official status **UNVERIFIED**, and world manifests
+are **schematic**.
 
 ## Source acceptance workflow
 

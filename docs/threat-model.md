@@ -6,10 +6,9 @@ This is the foundation threat model for UMN Gopher Assistant. It records launch
 gates and required controls; it is not a certification or a claim that every
 planned control is already deployed.
 
-The project is independent and unofficial. It has no implicit trust relationship
-with University of Minnesota systems. All current institutional-source status is
-**UNVERIFIED**, connectors are disabled unless explicitly approved, world
-geometry is **SCHEMATIC**, and safety-critical routing is disabled.
+The project is independent and unofficial. It has no implicit trust relationship with University of Minnesota
+systems. All current institutional-source official status is **UNVERIFIED**, connectors are disabled unless
+explicitly approved, world geometry is **schematic**, and safety-critical routing is disabled.
 
 Review this model before enabling a connector, authentication flow, persistent
 community feature, AI provider, media workflow, or verified map or route.

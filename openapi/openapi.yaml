@@ -21,6 +21,11 @@ tags:
   - name: Worlds
   - name: Community
   - name: AI
+  - name: Academics
+  - name: Messages
+  - name: Live Events
+  - name: Moderation
+  - name: Admin
 security:
   - oauth2: []
 paths:
@@ -162,7 +167,7 @@ paths:
       summary: Calculate a provenance-bound campus route
       description: |
         Safety-critical and accessibility routing must return 503 until its topology and operating
-        procedure are verified. A SCHEMATIC response must never be presented as verified guidance.
+        procedure are verified. A schematic response must never be presented as verified guidance.
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -306,6 +311,207 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "503":
           $ref: "#/components/responses/ConnectorUnavailable"
+  /v1/academics/courses:
+    get:
+      tags: [Academics]
+      operationId: listAcademicCourses
+      summary: List institution-scoped academic course metadata
+      description: Contract-only until an approved academic connector is enabled.
+      security:
+        - oauth2: [campus:read]
+      parameters:
+        - $ref: "#/components/parameters/CampusQuery"
+        - $ref: "#/components/parameters/AcademicInstitutionQuery"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      responses:
+        "200":
+          description: Cursor page of course metadata
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcademicCoursePage"
+        "304":
+          $ref: "#/components/responses/NotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/ConnectorUnavailable"
+  /v1/messages:
+    get:
+      tags: [Messages]
+      operationId: listMessages
+      summary: List messages visible to the authenticated user
+      security:
+        - oauth2: [messages:read, personal:read]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      responses:
+        "200":
+          description: Cursor page of private messages
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePage"
+        "304":
+          $ref: "#/components/responses/NotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Messages]
+      operationId: createMessage
+      summary: Send a private message through the moderated delivery pipeline
+      security:
+        - oauth2: [messages:write, personal:write]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessage"
+      responses:
+        "201":
+          description: Message accepted for delivery
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/live-events/{eventId}/join:
+    post:
+      tags: [Live Events]
+      operationId: joinLiveEvent
+      summary: Issue a short-lived, device-bound live-event join ticket
+      security:
+        - oauth2: [world:write, personal:read]
+      parameters:
+        - $ref: "#/components/parameters/EventIdPath"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiveEventJoinRequest"
+      responses:
+        "200":
+          description: Short-lived join ticket
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorldJoinTicket"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /v1/moderation/cases:
+    get:
+      tags: [Moderation]
+      operationId: listModerationCases
+      summary: List moderation cases authorized for the reviewer
+      security:
+        - oauth2: [community:write, admin:read]
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor page of moderation cases
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModerationCasePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /v1/admin/sources/{sourceId}:
+    patch:
+      tags: [Admin]
+      operationId: updateSourcePolicy
+      summary: Update reviewed source-policy metadata
+      description: This operation cannot enable a connector or establish official status without external evidence.
+      security:
+        - oauth2: [admin:write, campus:write]
+      parameters:
+        - $ref: "#/components/parameters/SourceIdPath"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminSourcePolicyUpdate"
+      responses:
+        "200":
+          description: Updated source descriptor
+          headers:
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceDescriptor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
 components:
   securitySchemes:
     oauth2:
@@ -318,6 +524,18 @@ components:
           scopes:
             openid: OpenID Connect
             profile: Basic profile
+            campus:read: Read campus-scoped public and approved data
+            campus:write: Modify reviewed campus-scoped metadata
+            personal:read: Read the authenticated user's private data
+            personal:write: Modify the authenticated user's private data
+            community:read: Read authenticated community resources
+            community:write: Create or moderate community resources
+            messages:read: Read private messages for the authenticated user
+            messages:write: Send private messages as the authenticated user
+            world:read: Read authenticated world-session resources
+            world:write: Join or publish to authorized world sessions
+            admin:read: Read administrative review resources
+            admin:write: Modify administrative policy resources
   parameters:
     CampusPath:
       name: campusId
@@ -331,6 +549,22 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/CampusId"
+    AcademicInstitutionQuery:
+      name: academicInstitutionCode
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/AcademicInstitutionCode"
+    EventIdPath:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    SourceIdPath:
+      name: sourceId
+      in: path
+      required: true
+      schema: { type: string, minLength: 3, maxLength: 128 }
     Cursor:
       name: cursor
       in: query
@@ -380,6 +614,11 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: Authenticated principal lacks the required scope or resource authorization
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     NotFound:
       description: Resource was not found
       content:
@@ -420,6 +659,9 @@ components:
     CampusId:
       type: string
       enum: [tc, duluth, crookston, morris, rochester]
+    AcademicInstitutionCode:
+      type: string
+      enum: [UMNTC, UMNDL, UMNCR, UMNMO]
     BilingualText:
       type: object
       additionalProperties: false
@@ -435,7 +677,7 @@ components:
       enum: [FRESH, STALE, EXPIRED, UNKNOWN]
     VerificationState:
       type: string
-      enum: [SCHEMATIC, UNVERIFIED, VERIFIED, REJECTED]
+      enum: [schematic, surveyed, campus-reviewed, verified, retired]
     OfficialStatus:
       type: string
       enum: [UNVERIFIED, PUBLISHER_ASSERTED, PARTNERSHIP_VERIFIED]
@@ -451,12 +693,23 @@ components:
     Campus:
       type: object
       additionalProperties: false
-      required: [id, name, city, timeZone, academicCalendarCampusId, sourceUrl, officialStatus]
+      required:
+        [
+          id,
+          name,
+          city,
+          timeZone,
+          academicInstitutionCode,
+          academicCalendarCampusId,
+          sourceUrl,
+          officialStatus,
+        ]
       properties:
         id: { $ref: "#/components/schemas/CampusId" }
         name: { $ref: "#/components/schemas/BilingualText" }
         city: { $ref: "#/components/schemas/BilingualText" }
         timeZone: { type: string }
+        academicInstitutionCode: { $ref: "#/components/schemas/AcademicInstitutionCode" }
         academicCalendarCampusId: { $ref: "#/components/schemas/CampusId" }
         sourceUrl: { type: string, format: uri, pattern: "^https://" }
         officialStatus: { $ref: "#/components/schemas/OfficialStatus" }
@@ -728,6 +981,172 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Citation" }
         safetyNotice: { type: [string, "null"] }
+    AcademicCourse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          academicInstitutionCode,
+          campusIds,
+          subject,
+          catalogNumber,
+          title,
+          termCode,
+          sourceId,
+          verificationState,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        academicInstitutionCode: { $ref: "#/components/schemas/AcademicInstitutionCode" }
+        campusIds:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/CampusId" }
+        subject: { type: string, minLength: 2, maxLength: 16 }
+        catalogNumber: { type: string, minLength: 1, maxLength: 16 }
+        title: { $ref: "#/components/schemas/BilingualText" }
+        termCode: { type: string, minLength: 1, maxLength: 32 }
+        sourceId: { type: string, minLength: 1 }
+        verificationState: { $ref: "#/components/schemas/VerificationState" }
+    AcademicCoursePage:
+      allOf:
+        - $ref: "#/components/schemas/PageEnvelope"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/AcademicCourse" }
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, threadId, senderActorId, recipientActorId, body, createdAt, readAt]
+      properties:
+        id: { type: string, format: uuid }
+        threadId: { type: string, format: uuid }
+        senderActorId: { type: string, minLength: 1, maxLength: 256 }
+        recipientActorId: { type: string, minLength: 1, maxLength: 256 }
+        body: { type: string, minLength: 1, maxLength: 5000 }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, "null"], format: date-time }
+    CreateMessage:
+      type: object
+      additionalProperties: false
+      required: [recipientActorId, body]
+      properties:
+        recipientActorId: { type: string, minLength: 1, maxLength: 256 }
+        body: { type: string, minLength: 1, maxLength: 5000 }
+    MessagePage:
+      allOf:
+        - $ref: "#/components/schemas/PageEnvelope"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Message" }
+    LiveEventJoinRequest:
+      type: object
+      additionalProperties: false
+      required: [campusId, deviceBoundNonce, scopes]
+      properties:
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        deviceBoundNonce: { type: string, minLength: 8, maxLength: 256 }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string, enum: [world:join, presence:publish, media:publish] }
+    WorldJoinTicket:
+      type: object
+      additionalProperties: false
+      required:
+        [ticketId, campusId, participantId, roomName, token, deviceBoundNonce, scopes, issuedAt, expiresAt]
+      properties:
+        ticketId: { type: string, format: uuid }
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        participantId: { type: string, minLength: 1, maxLength: 128 }
+        roomName: { type: string, minLength: 1, maxLength: 128 }
+        token: { type: string, minLength: 16, maxLength: 4096, writeOnly: true }
+        deviceBoundNonce: { type: string, minLength: 8, maxLength: 256 }
+        scopes:
+          type: array
+          minItems: 1
+          items: { type: string, enum: [world:join, presence:publish, media:publish] }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ModerationTarget:
+      type: object
+      additionalProperties: false
+      required: [type, id]
+      properties:
+        type: { type: string, enum: [community_post, community_comment, live_session, user_profile] }
+        id: { type: string, minLength: 1, maxLength: 256 }
+    ModerationResolution:
+      type: object
+      additionalProperties: false
+      required: [action, rationale, resolvedBy, resolvedAt]
+      properties:
+        action: { type: string, enum: [NO_ACTION, CONTENT_REMOVED, USER_WARNED, USER_SUSPENDED, ESCALATED] }
+        rationale: { type: string, minLength: 1, maxLength: 2000 }
+        resolvedBy: { type: string, minLength: 1, maxLength: 256 }
+        resolvedAt: { type: string, format: date-time }
+    ModerationCase:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          kind,
+          state,
+          priority,
+          target,
+          reasonCodes,
+          reporterActorId,
+          assignedModeratorId,
+          resolution,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [COMMUNITY_REPORT, LIVE_SAFETY_REPORT, AUTOMATED_SIGNAL] }
+        state: { type: string, enum: [OPEN, IN_REVIEW, RESOLVED, DISMISSED] }
+        priority: { type: string, enum: [LOW, NORMAL, HIGH, URGENT] }
+        target: { $ref: "#/components/schemas/ModerationTarget" }
+        reasonCodes:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 64 }
+        reporterActorId: { type: [string, "null"], maxLength: 256 }
+        assignedModeratorId: { type: [string, "null"], maxLength: 256 }
+        resolution:
+          oneOf:
+            - $ref: "#/components/schemas/ModerationResolution"
+            - type: "null"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ModerationCasePage:
+      allOf:
+        - $ref: "#/components/schemas/PageEnvelope"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/ModerationCase" }
+    AdminSourcePolicyUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        licenseStatus: { $ref: "#/components/schemas/LicenseStatus" }
+        verificationState: { $ref: "#/components/schemas/VerificationState" }
+        cachePolicy:
+          type: string
+          enum: [CACHE_ALLOWED, METADATA_ONLY, NO_CONTENT_CACHE, NO_ACCESS]
+        attribution: { type: string, minLength: 1 }
     PageEnvelope:
       type: object
       required: [items, nextCursor]

@@ -16,7 +16,7 @@ const worldManifests = new Map<CampusId, CampusWorldManifest>(
       worldVersion,
       revision: 1,
       generatedAt: "2026-07-19T00:00:00.000Z",
-      verificationState: "SCHEMATIC",
+      verificationState: "schematic",
       etag: `"${worldVersion}-r1"`,
       sourceIds: [`${campus.id}-campus-home`],
       tiles: [],

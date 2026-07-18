@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import * as campusContracts from "../src/campus.js";
 import {
   ACADEMIC_CALENDAR_CAMPUS_MAP,
   AuditEventSchema,
@@ -11,6 +12,7 @@ import {
   ModerationCaseSchema,
   RouteSegmentSchema,
   SourceDescriptorSchema,
+  VerificationStateSchema,
   WorldJoinTicketSchema,
   resolveAcademicCalendarCampus,
 } from "../src/index.js";
@@ -23,7 +25,7 @@ const source = {
   sourceUrl: "https://twin-cities.umn.edu/",
   licenseStatus: "DEEPLINK_ONLY",
   freshnessState: "UNKNOWN",
-  verificationState: "UNVERIFIED",
+  verificationState: "surveyed",
   officialStatus: "UNVERIFIED",
   attribution: "Source link: University of Minnesota Twin Cities",
   cachePolicy: "NO_CONTENT_CACHE",
@@ -31,6 +33,11 @@ const source = {
 } as const;
 
 describe("campus contracts", () => {
+  const academicContracts = campusContracts as unknown as {
+    AcademicInstitutionCodeSchema?: { readonly options: readonly string[] };
+    resolveAcademicInstitution?: (campusId: string) => string;
+  };
+
   it("accepts the five campus identifiers", () => {
     expect(CampusIdSchema.options).toEqual(["tc", "duluth", "crookston", "morris", "rochester"]);
   });
@@ -42,6 +49,28 @@ describe("campus contracts", () => {
   it("maps Rochester academics to Twin Cities", () => {
     expect(ACADEMIC_CALENDAR_CAMPUS_MAP.rochester).toBe("tc");
     expect(resolveAcademicCalendarCampus("rochester")).toBe("tc");
+  });
+
+  it("models academic institutions separately and maps Rochester to UMNTC", () => {
+    expect(academicContracts.AcademicInstitutionCodeSchema?.options).toEqual([
+      "UMNTC",
+      "UMNDL",
+      "UMNCR",
+      "UMNMO",
+    ]);
+    expect(academicContracts.resolveAcademicInstitution?.("rochester")).toBe("UMNTC");
+  });
+});
+
+describe("verification contracts", () => {
+  it("uses the exact cross-stack verification lifecycle", () => {
+    expect(VerificationStateSchema.options).toEqual([
+      "schematic",
+      "surveyed",
+      "campus-reviewed",
+      "verified",
+      "retired",
+    ]);
   });
 });
 
@@ -67,7 +96,7 @@ describe("world and route contracts", () => {
     worldVersion: "tc-schematic-v1",
     revision: 1,
     generatedAt: "2026-07-19T00:00:00.000Z",
-    verificationState: "SCHEMATIC",
+    verificationState: "schematic",
     etag: '"tc-schematic-v1-r1"',
     sourceIds: ["tc-campus-home"],
     tiles: [
@@ -81,7 +110,7 @@ describe("world and route contracts", () => {
         sha256: "a".repeat(64),
         byteLength: 1024,
         licenseStatus: "OPEN_REUSE",
-        verificationState: "SCHEMATIC",
+        verificationState: "schematic",
       },
     ],
     portals: [
@@ -92,7 +121,7 @@ describe("world and route contracts", () => {
         toCampusId: "duluth",
         position: [-93.2277, 44.9739, 0],
         targetWorldVersion: "duluth-schematic-v1",
-        verificationState: "SCHEMATIC",
+        verificationState: "schematic",
       },
     ],
   } as const;
@@ -120,7 +149,7 @@ describe("world and route contracts", () => {
       distanceMeters: 75,
       durationSeconds: 90,
       instructions: { en: "Continue on the verified path", "zh-CN": "沿已核验路线前行" },
-      verificationState: "VERIFIED",
+      verificationState: "verified",
       safetyCritical: true,
       sourceIds: ["tc-accessibility"],
       validUntil: "2026-08-19T00:00:00.000Z",
@@ -137,7 +166,7 @@ describe("world and route contracts", () => {
         distanceMeters: 1,
         durationSeconds: 1,
         instructions: { en: "Move", "zh-CN": "前行" },
-        verificationState: "UNVERIFIED",
+        verificationState: "schematic",
         safetyCritical: false,
         sourceIds: ["tc-campus-home"],
         validUntil: null,

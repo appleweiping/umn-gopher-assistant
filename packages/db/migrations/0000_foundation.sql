@@ -2,9 +2,10 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TYPE campus_id AS ENUM ('tc', 'duluth', 'crookston', 'morris', 'rochester');
+CREATE TYPE academic_institution_code AS ENUM ('UMNTC', 'UMNDL', 'UMNCR', 'UMNMO');
 CREATE TYPE license_status AS ENUM ('OPEN_REUSE', 'LIVE_ONLY', 'DEEPLINK_ONLY', 'APPROVAL_REQUIRED', 'PROHIBITED');
 CREATE TYPE freshness_state AS ENUM ('FRESH', 'STALE', 'EXPIRED', 'UNKNOWN');
-CREATE TYPE verification_state AS ENUM ('SCHEMATIC', 'UNVERIFIED', 'VERIFIED', 'REJECTED');
+CREATE TYPE verification_state AS ENUM ('schematic', 'surveyed', 'campus-reviewed', 'verified', 'retired');
 CREATE TYPE official_status AS ENUM ('UNVERIFIED', 'PUBLISHER_ASSERTED', 'PARTNERSHIP_VERIFIED');
 CREATE TYPE cache_policy AS ENUM ('CACHE_ALLOWED', 'METADATA_ONLY', 'NO_CONTENT_CACHE', 'NO_ACCESS');
 
@@ -15,6 +16,7 @@ CREATE TABLE campuses (
   city_en text NOT NULL,
   city_zh_cn text NOT NULL,
   time_zone text NOT NULL,
+  academic_institution_code academic_institution_code NOT NULL,
   academic_calendar_campus_id campus_id NOT NULL,
   source_url text NOT NULL CHECK (source_url LIKE 'https://%'),
   official_status official_status NOT NULL DEFAULT 'UNVERIFIED',
@@ -35,7 +37,7 @@ CREATE TABLE sources (
   source_url text NOT NULL CHECK (source_url LIKE 'https://%'),
   license_status license_status NOT NULL,
   freshness_state freshness_state NOT NULL DEFAULT 'UNKNOWN',
-  verification_state verification_state NOT NULL DEFAULT 'UNVERIFIED',
+  verification_state verification_state NOT NULL DEFAULT 'surveyed',
   official_status official_status NOT NULL DEFAULT 'UNVERIFIED',
   attribution text NOT NULL,
   cache_policy cache_policy NOT NULL,

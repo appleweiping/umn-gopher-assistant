@@ -5,6 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AppModule } from "../src/app.module.js";
 
+interface SourcePageBody {
+  readonly items: unknown[];
+  readonly nextCursor: string | null;
+}
+
 describe("foundation API", () => {
   let app: NestFastifyApplication;
 
@@ -19,7 +24,7 @@ describe("foundation API", () => {
     await app.close();
   });
 
-  it("serves health and all five campuses", async () => {
+  it("serves health and all five campuses with conditional caching", async () => {
     const health = await app.inject({ method: "GET", url: "/v1/health" });
     expect(health.statusCode).toBe(200);
     expect(health.json()).toMatchObject({ status: "ok", service: "campus-api" });
@@ -27,17 +32,64 @@ describe("foundation API", () => {
     const campuses = await app.inject({ method: "GET", url: "/v1/campuses" });
     expect(campuses.statusCode).toBe(200);
     expect(campuses.json()).toHaveLength(5);
+    expect(campuses.headers.etag).toBeTypeOf("string");
+    if (typeof campuses.headers.etag !== "string") {
+      return;
+    }
+
+    const cachedCampuses = await app.inject({
+      method: "GET",
+      url: "/v1/campuses",
+      headers: { "if-none-match": campuses.headers.etag },
+    });
+    expect(cachedCampuses.statusCode).toBe(304);
   });
 
-  it("filters sources and preserves provenance", async () => {
+  it("filters sources and returns a cursor page with provenance", async () => {
     const response = await app.inject({ method: "GET", url: "/v1/sources?campusId=rochester" });
     expect(response.statusCode).toBe(200);
-    const body = SourceDescriptorSchema.array().parse(response.json());
-    expect(body[0]).toMatchObject({
+    const body = response.json<SourcePageBody>();
+    expect(body.nextCursor).toBeNull();
+    expect(SourceDescriptorSchema.array().parse(body.items)[0]).toMatchObject({
       id: "rochester-campus-home",
       officialStatus: "UNVERIFIED",
       sourceUrl: "https://r.umn.edu/",
     });
+  });
+
+  it("paginates sources and honors their ETag", async () => {
+    const first = await app.inject({ method: "GET", url: "/v1/sources?limit=2" });
+    expect(first.statusCode).toBe(200);
+    const firstPage = first.json<SourcePageBody>();
+    expect(firstPage.items).toHaveLength(2);
+    expect(firstPage.nextCursor).toBeTypeOf("string");
+    expect(first.headers.etag).toBeTypeOf("string");
+    if (typeof firstPage.nextCursor !== "string" || typeof first.headers.etag !== "string") {
+      return;
+    }
+
+    const second = await app.inject({
+      method: "GET",
+      url: `/v1/sources?limit=2&cursor=${encodeURIComponent(firstPage.nextCursor)}`,
+    });
+    expect(second.statusCode).toBe(200);
+    expect(second.json<SourcePageBody>().items).toHaveLength(2);
+
+    const cached = await app.inject({
+      method: "GET",
+      url: "/v1/sources?limit=2",
+      headers: { "if-none-match": first.headers.etag },
+    });
+    expect(cached.statusCode).toBe(304);
+  });
+
+  it("rejects invalid source pagination parameters with problem details", async () => {
+    const invalidLimit = await app.inject({ method: "GET", url: "/v1/sources?limit=0" });
+    expect(invalidLimit.statusCode).toBe(400);
+    expect(invalidLimit.headers["content-type"]).toContain("application/problem+json");
+
+    const invalidCursor = await app.inject({ method: "GET", url: "/v1/sources?cursor=not-a-cursor" });
+    expect(invalidCursor.statusCode).toBe(400);
   });
 
   it("returns ETags and honors If-None-Match for world manifests", async () => {

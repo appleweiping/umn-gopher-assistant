@@ -14,6 +14,8 @@ const requiredFiles = [
   "tsconfig.base.json",
   "apps/api/package.json",
   "apps/api/src/main.ts",
+  "apps/api/src/http/entity-tag.ts",
+  "apps/api/src/http/pagination.ts",
   "apps/web/package.json",
   "apps/web/app/page.tsx",
   "packages/contracts/package.json",
@@ -82,6 +84,20 @@ assert.equal(
   "tc",
   "Rochester must map to the Twin Cities academic calendar",
 );
+const expectedInstitutions = new Map([
+  ["tc", "UMNTC"],
+  ["duluth", "UMNDL"],
+  ["crookston", "UMNCR"],
+  ["morris", "UMNMO"],
+  ["rochester", "UMNTC"],
+]);
+for (const campus of campuses) {
+  assert.equal(
+    campus.academicInstitutionCode,
+    expectedInstitutions.get(campus.id),
+    `${campus.id} has an incorrect academic institution code`,
+  );
+}
 
 const allowedLicenses = new Set([
   "OPEN_REUSE",
@@ -91,6 +107,8 @@ const allowedLicenses = new Set([
   "PROHIBITED",
 ]);
 const sources = await readJson("packages/config/data/sources.json");
+const verificationStates = ["schematic", "surveyed", "campus-reviewed", "verified", "retired"];
+const allowedVerificationStates = new Set(verificationStates);
 assert.ok(sources.length >= 5, "at least one provenance-bearing source per campus is required");
 for (const source of sources) {
   assert.ok(
@@ -100,6 +118,10 @@ for (const source of sources) {
   assert.ok(source.sourceUrl?.startsWith("https://"), `${source.id} needs an HTTPS source URL`);
   assert.ok(allowedLicenses.has(source.licenseStatus), `${source.id} has an invalid license status`);
   assert.ok(source.attribution, `${source.id} needs attribution`);
+  assert.ok(
+    allowedVerificationStates.has(source.verificationState),
+    `${source.id} has an invalid verification state`,
+  );
   assert.equal(
     source.officialStatus,
     "UNVERIFIED",
@@ -119,12 +141,86 @@ for (const invariant of [
   "/v1/worlds/{campusId}/manifest:",
   "/v1/community/posts:",
   "/v1/ai/query:",
+  "/v1/academics/courses:",
+  "/v1/messages:",
+  "/v1/live-events/{eventId}/join:",
+  "/v1/moderation/cases:",
+  "/v1/admin/sources/{sourceId}:",
   "application/problem+json",
   "Idempotency-Key",
   "If-None-Match",
   "nextCursor",
+  "AcademicInstitutionCode",
+  "academicInstitutionCode",
 ]) {
   assert.ok(openapi.includes(invariant), `OpenAPI invariant missing: ${invariant}`);
+}
+for (const scope of [
+  "campus:read",
+  "campus:write",
+  "personal:read",
+  "personal:write",
+  "community:read",
+  "community:write",
+  "messages:read",
+  "messages:write",
+  "world:read",
+  "world:write",
+  "admin:read",
+  "admin:write",
+]) {
+  assert.ok(openapi.includes(`${scope}:`), `OpenAPI OAuth scope missing: ${scope}`);
+}
+
+const contractCommon = await read("packages/contracts/src/common.ts");
+const contractVerificationBlock = contractCommon.match(
+  /VerificationStateSchema\s*=\s*z\.enum\((\[[\s\S]*?\])\)/u,
+)?.[1];
+assert.ok(contractVerificationBlock, "contracts VerificationState schema is missing");
+assert.deepEqual(
+  [...contractVerificationBlock.matchAll(/"([^"]+)"/gu)].map((match) => match[1]),
+  verificationStates,
+  "contracts VerificationState must use the exact lifecycle",
+);
+
+for (const [path, label] of [
+  ["openapi/openapi.yaml", "OpenAPI"],
+  ["asyncapi/asyncapi.yaml", "AsyncAPI"],
+  ["packages/db/src/schema.ts", "Drizzle schema"],
+  ["packages/db/migrations/0000_foundation.sql", "database migration"],
+]) {
+  const text = await read(path);
+  for (const state of verificationStates) {
+    assert.ok(text.includes(state), `${label} verification state missing: ${state}`);
+  }
+  assert.doesNotMatch(text, /\b(?:SCHEMATIC|REJECTED)\b/u, `${label} contains a retired verification value`);
+}
+
+const campusContract = await read("packages/contracts/src/campus.ts");
+for (const invariant of [
+  "AcademicInstitutionCodeSchema",
+  "CAMPUS_ACADEMIC_INSTITUTION_MAP",
+  "resolveAcademicInstitution",
+  'rochester: "UMNTC"',
+]) {
+  assert.ok(campusContract.includes(invariant), `academic institution invariant missing: ${invariant}`);
+}
+
+const campusesController = await read("apps/api/src/campuses/campuses.controller.ts");
+for (const invariant of ["if-none-match", "ETag", "304"]) {
+  assert.ok(campusesController.includes(invariant), `campuses conditional response missing: ${invariant}`);
+}
+const sourcesController = await read("apps/api/src/sources/sources.controller.ts");
+const sourcesPageImplementation = `${sourcesController}\n${await read("apps/api/src/http/pagination.ts")}`;
+for (const invariant of [
+  '@Query("cursor")',
+  '@Query("limit")',
+  "nextCursor",
+  "if-none-match",
+  "ETag",
+  "304",
+]) {
+  assert.ok(sourcesPageImplementation.includes(invariant), `sources page invariant missing: ${invariant}`);
 }
 
 const asyncapi = await read("asyncapi/asyncapi.yaml");

@@ -152,8 +152,8 @@ A source pull request must include:
 All connectors remain disabled until both authorization evidence and runtime
 secret configuration are present. Missing approval must fail closed.
 
-Do not weaken **DEEPLINK_ONLY**, **NO_CONTENT_CACHE**, **UNVERIFIED**, or
-**SCHEMATIC** labels to make a demo appear more complete.
+Do not weaken **DEEPLINK_ONLY**, **NO_CONTENT_CACHE**, official status **UNVERIFIED**, or verification
+states such as **surveyed** and **schematic** to make a demo appear more complete.
 
 ## Maps, routes, and assets
 
