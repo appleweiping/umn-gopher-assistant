@@ -1,0 +1,26 @@
+{
+  "name": "@umn-gopher-assistant/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./campuses.json": "./data/campuses.json",
+    "./sources.json": "./data/sources.json"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@umn-gopher-assistant/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.4",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,193 @@
+name: ${COMPOSE_PROJECT_NAME:-gopher-assistant}
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gopher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
+      POSTGRES_DB: ${POSTGRES_DB:-gopher}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [platform]
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.5
+    restart: unless-stopped
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-dev-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-keycloak-admin-password-only}
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_URL_PORT: 5432
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-gopher}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '200 OK' <&3
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [platform]
+
+  redis:
+    image: redis:8.2.1-alpine
+    restart: unless-stopped
+    command:
+      [redis-server, --appendonly, "yes", --requirepass, "${REDIS_PASSWORD:-local-redis-password-only}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-local-redis-password-only}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD-SHELL, 'redis-cli -a "$${REDIS_PASSWORD}" ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+  nats:
+    image: nats:2.12.2-alpine
+    restart: unless-stopped
+    command:
+      - --jetstream
+      - --store_dir=/data
+      - --http_port=8222
+      - --user=${NATS_USER:-gopher}
+      - --pass=${NATS_PASSWORD:-local-nats-password-only}
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O - http://127.0.0.1:8222/healthz | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.32.0
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-local-meilisearch-master-key-only}
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: [CMD-SHELL, "curl --fail --silent http://127.0.0.1:7700/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: [server, /data, --console-address, ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dev-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-local-minio-password-only}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: [CMD-SHELL, "curl --fail --silent http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+  livekit:
+    image: livekit/livekit-server:v1.9.10
+    restart: unless-stopped
+    command: [--bind, 0.0.0.0]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-local-livekit-secret-with-at-least-32-characters}"
+      LIVEKIT_RTC_TCP_PORT: 7881
+      LIVEKIT_RTC_PORT_RANGE_START: 50000
+      LIVEKIT_RTC_PORT_RANGE_END: 50010
+      LIVEKIT_RTC_USE_EXTERNAL_IP: "false"
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50010:50000-50010/udp"
+    volumes:
+      - livekit-data:/var/lib/livekit
+    healthcheck:
+      test: [CMD-SHELL, "wget --quiet --spider http://127.0.0.1:7880/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks: [platform]
+
+  openbao:
+    image: openbao/openbao:2.4.4
+    restart: unless-stopped
+    command:
+      - server
+      - -dev
+      - -dev-root-token-id=${OPENBAO_DEV_ROOT_TOKEN_ID:-local-openbao-root-token-only}
+      - -dev-listen-address=0.0.0.0:8200
+    environment:
+      BAO_ADDR: http://127.0.0.1:8200
+    cap_add: [IPC_LOCK]
+    ports:
+      - "8200:8200"
+    volumes:
+      - openbao-data:/openbao/file
+    healthcheck:
+      test: [CMD-SHELL, "bao status -address=http://127.0.0.1:8200 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [platform]
+
+networks:
+  platform:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  meilisearch-data:
+  minio-data:
+  livekit-data:
+  openbao-data:

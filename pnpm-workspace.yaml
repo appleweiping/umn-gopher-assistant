@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalog:
+  zod: 4.4.3
+
+onlyBuiltDependencies:
+  - "@nestjs/core"
+  - esbuild
+  - sharp

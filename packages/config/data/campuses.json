@@ -1,0 +1,47 @@
+[
+  {
+    "id": "tc",
+    "name": { "en": "Twin Cities", "zh-CN": "双城校区" },
+    "city": { "en": "Minneapolis and Saint Paul", "zh-CN": "明尼阿波利斯与圣保罗" },
+    "timeZone": "America/Chicago",
+    "academicCalendarCampusId": "tc",
+    "sourceUrl": "https://twin-cities.umn.edu/",
+    "officialStatus": "UNVERIFIED"
+  },
+  {
+    "id": "duluth",
+    "name": { "en": "Duluth", "zh-CN": "德卢斯校区" },
+    "city": { "en": "Duluth", "zh-CN": "德卢斯" },
+    "timeZone": "America/Chicago",
+    "academicCalendarCampusId": "duluth",
+    "sourceUrl": "https://www.d.umn.edu/",
+    "officialStatus": "UNVERIFIED"
+  },
+  {
+    "id": "crookston",
+    "name": { "en": "Crookston", "zh-CN": "克鲁克斯顿校区" },
+    "city": { "en": "Crookston", "zh-CN": "克鲁克斯顿" },
+    "timeZone": "America/Chicago",
+    "academicCalendarCampusId": "crookston",
+    "sourceUrl": "https://crk.umn.edu/",
+    "officialStatus": "UNVERIFIED"
+  },
+  {
+    "id": "morris",
+    "name": { "en": "Morris", "zh-CN": "莫里斯校区" },
+    "city": { "en": "Morris", "zh-CN": "莫里斯" },
+    "timeZone": "America/Chicago",
+    "academicCalendarCampusId": "morris",
+    "sourceUrl": "https://morris.umn.edu/",
+    "officialStatus": "UNVERIFIED"
+  },
+  {
+    "id": "rochester",
+    "name": { "en": "Rochester", "zh-CN": "罗切斯特校区" },
+    "city": { "en": "Rochester", "zh-CN": "罗切斯特" },
+    "timeZone": "America/Chicago",
+    "academicCalendarCampusId": "tc",
+    "sourceUrl": "https://r.umn.edu/",
+    "officialStatus": "UNVERIFIED"
+  }
+]
