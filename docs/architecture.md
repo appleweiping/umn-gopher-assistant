@@ -268,6 +268,13 @@ backups, key management, audit logging, recovery objectives, regional
 availability, privacy notices, and operator ownership. No production readiness
 is claimed by this foundation.
 
+All Compose-published ports bind to `127.0.0.1` by default. Changing
+`COMPOSE_BIND_ADDRESS` is an explicit exposure decision, not a deployment
+default. The local PostgreSQL image uses a digest-pinned PostGIS base and a
+checksum-pinned pgvector source; an empty data volume applies the foundation
+migration before PostgreSQL becomes healthy. `pnpm smoke:db` exercises that
+empty-database path when a Docker engine is available.
+
 ## Known foundation limitations
 
 - Initial repositories are in memory and do not provide durable application

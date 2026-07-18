@@ -3,7 +3,7 @@ import type { FastifyReply } from "fastify";
 import { CampusIdSchema, type SourceDescriptor } from "@umn-gopher-assistant/contracts";
 
 import { SOURCE_REPOSITORY, type SourceRepository } from "../repositories/ports.js";
-import { createEntityTag } from "../http/entity-tag.js";
+import { createEntityTag, ifNoneMatchMatches } from "../http/entity-tag.js";
 import { paginateCursorPage, parsePageLimit, type CursorPage } from "../http/pagination.js";
 
 @Controller("v1/sources")
@@ -27,7 +27,7 @@ export class SourcesController {
     const page = paginateCursorPage(sources, cursor, limit, "sources");
     const etag = createEntityTag(page);
     reply.header("ETag", etag);
-    if (ifNoneMatch === etag) {
+    if (ifNoneMatchMatches(ifNoneMatch, etag)) {
       reply.status(304);
       return undefined;
     }

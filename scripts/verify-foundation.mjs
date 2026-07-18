@@ -69,12 +69,14 @@ const requiredFiles = [
   "packages/config/data/campuses.json",
   "packages/config/data/sources.json",
   "packages/db/src/schema.ts",
+  "packages/db/src/database-url.ts",
   "packages/db/migrations/0000_foundation.sql",
   "packages/testing/package.json",
   "openapi/openapi.yaml",
   "asyncapi/asyncapi.yaml",
   "infra/compose/docker-compose.yml",
   "infra/compose/.env.example",
+  "infra/compose/postgres/Dockerfile",
   "infra/compose/keycloak/realm-export.json",
   "docs/architecture.md",
   "docs/data-source-policy.md",
@@ -84,6 +86,7 @@ const requiredFiles = [
   "SECURITY.md",
   "CODE_OF_CONDUCT.md",
   "NOTICE",
+  "scripts/smoke-foundation-db.mjs",
 ];
 
 const read = async (path) => readFile(resolve(root, path), "utf8");
@@ -244,6 +247,27 @@ assert.deepEqual(
   "OpenAPI VerificationState must use the exact lifecycle",
 );
 
+const sourceDescriptorContract = extractUniqueYamlBlock(
+  openApiSchemas,
+  "SourceDescriptor",
+  "OpenAPI schemas",
+);
+assert.match(
+  sourceDescriptorContract,
+  /allOf:[\s\S]*?if:[\s\S]*?required:\s*\[licenseStatus\][\s\S]*?licenseStatus:\s*\{\s*const:\s*PROHIBITED\s*\}[\s\S]*?then:[\s\S]*?cachePolicy:\s*\{\s*const:\s*NO_ACCESS\s*\}/u,
+  "OpenAPI SourceDescriptor must require PROHIBITED sources to use NO_ACCESS",
+);
+const adminSourcePolicyContract = extractUniqueYamlBlock(
+  openApiSchemas,
+  "AdminSourcePolicyUpdate",
+  "OpenAPI schemas",
+);
+assert.match(
+  adminSourcePolicyContract,
+  /allOf:[\s\S]*?if:[\s\S]*?licenseStatus:\s*\{\s*const:\s*PROHIBITED\s*\}[\s\S]*?then:[\s\S]*?required:\s*\[cachePolicy\][\s\S]*?cachePolicy:\s*\{\s*const:\s*NO_ACCESS\s*\}/u,
+  "OpenAPI admin policy must atomically pair PROHIBITED with NO_ACCESS",
+);
+
 const asyncapi = await read("asyncapi/asyncapi.yaml");
 const asyncApiMessages = extractUniqueYamlBlock(
   extractUniqueYamlBlock(asyncapi, "components", "AsyncAPI"),
@@ -351,6 +375,52 @@ for (const service of [
   assert.match(compose, new RegExp(`\\n  ${service}:`), `compose service missing: ${service}`);
 }
 assert.ok((compose.match(/healthcheck:/g) ?? []).length >= 8, "every compose service needs a healthcheck");
+const publishedPorts = [...compose.matchAll(/^\s+- "([^"\n]*:\d[^"\n]*)"$/gmu)].map((match) => match[1]);
+assert.ok(publishedPorts.length > 0, "compose must publish local development ports");
+assert.ok(
+  publishedPorts.every((mapping) => mapping.startsWith("${COMPOSE_BIND_ADDRESS:-127.0.0.1}:")),
+  "compose published ports must default to loopback",
+);
+for (const invariant of [
+  "context: ./postgres",
+  "../../packages/db/migrations/0000_foundation.sql:/docker-entrypoint-initdb.d/10-foundation.sql:ro",
+  "FROM pg_extension",
+]) {
+  assert.ok(compose.includes(invariant), `compose database invariant missing: ${invariant}`);
+}
+
+const postgresDockerfile = await read("infra/compose/postgres/Dockerfile");
+for (const invariant of [
+  "postgis/postgis:17-3.5@sha256:4e8c30197f7ce4190cf11a1b8c44bea35a58507558cffa48570814beba77b099",
+  "PGVECTOR_VERSION=0.8.2",
+  "69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa",
+]) {
+  assert.ok(postgresDockerfile.includes(invariant), `Postgres image invariant missing: ${invariant}`);
+}
+
+const databaseUrlContract = await read("packages/db/src/database-url.ts");
+const environmentExample = await read("infra/compose/.env.example");
+const localDatabaseUrl = "postgres://gopher:local-postgres-password-only@127.0.0.1:5432/gopher";
+assert.ok(databaseUrlContract.includes(localDatabaseUrl), "database module local URL must match Compose");
+assert.ok(environmentExample.includes(localDatabaseUrl), "example DATABASE_URL must match Compose");
+
+const drizzleSchemaText = await read("packages/db/src/schema.ts");
+const databaseMigrationText = await read("packages/db/migrations/0000_foundation.sql");
+for (const invariant of [
+  "campuses_academic_mapping_check",
+  "campuses_source_url_https_check",
+  "sources_campus_ids_nonempty_check",
+  "prohibited_source_access_check",
+  "source_snapshots_content_hash_check",
+  "source_snapshots_embedding_hnsw_idx",
+  "outbox_events_attempts_check",
+  "outbox_events_unpublished_idx",
+  "world_manifests_revision_check",
+  "audit_events_outcome_check",
+]) {
+  assert.ok(drizzleSchemaText.includes(invariant), `Drizzle schema invariant missing: ${invariant}`);
+  assert.ok(databaseMigrationText.includes(invariant), `database migration invariant missing: ${invariant}`);
+}
 
 const trackedText = await Promise.all(requiredFiles.map(read));
 const combined = trackedText.join("\n");

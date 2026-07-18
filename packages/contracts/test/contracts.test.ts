@@ -5,6 +5,7 @@ import {
   ACADEMIC_CALENDAR_CAMPUS_MAP,
   AuditEventSchema,
   CampusIdSchema,
+  CampusMetadataSchema,
   CampusWorldManifestSchema,
   DeviceKeyEnvelopeSchema,
   EncryptedVaultEnvelopeSchema,
@@ -16,6 +17,8 @@ import {
   WorldJoinTicketSchema,
   resolveAcademicCalendarCampus,
 } from "../src/index.js";
+
+const encodedBytes = (length: number): string => Buffer.alloc(length, 7).toString("base64url");
 
 const source = {
   id: "tc-campus-home",
@@ -59,6 +62,27 @@ describe("campus contracts", () => {
       "UMNMO",
     ]);
     expect(academicContracts.resolveAcademicInstitution?.("rochester")).toBe("UMNTC");
+  });
+
+  it("rejects campus metadata whose institution or calendar mapping is inconsistent", () => {
+    const rochester = {
+      id: "rochester",
+      name: { en: "Rochester", "zh-CN": "罗切斯特校区" },
+      city: { en: "Rochester", "zh-CN": "罗切斯特" },
+      timeZone: "America/Chicago",
+      academicInstitutionCode: "UMNTC",
+      academicCalendarCampusId: "tc",
+      sourceUrl: "https://r.umn.edu/",
+      officialStatus: "UNVERIFIED",
+    } as const;
+
+    expect(CampusMetadataSchema.safeParse(rochester).success).toBe(true);
+    expect(CampusMetadataSchema.safeParse({ ...rochester, academicInstitutionCode: "UMNMO" }).success).toBe(
+      false,
+    );
+    expect(
+      CampusMetadataSchema.safeParse({ ...rochester, academicCalendarCampusId: "rochester" }).success,
+    ).toBe(false);
   });
 });
 
@@ -227,9 +251,9 @@ describe("live and encrypted state contracts", () => {
       deviceId: "device-1",
       keyId: "vault-key-1",
       algorithm: "X25519_XCHACHA20_POLY1305",
-      ephemeralPublicKey: "QmFzZTY0dXJsS2V5",
+      ephemeralPublicKey: encodedBytes(32),
       wrappedKey: "V3JhcHBlZEtleQ",
-      nonce: "Tm9uY2U",
+      nonce: encodedBytes(24),
       createdAt: "2026-07-19T00:00:00.000Z",
     });
     expect(
@@ -238,12 +262,86 @@ describe("live and encrypted state contracts", () => {
         algorithm: "XCHACHA20_POLY1305",
         keyId: "vault-key-1",
         ciphertext: "RW5jcnlwdGVkVmF1bHQ",
-        nonce: "Tm9uY2U",
+        nonce: encodedBytes(24),
         aad: "VmF1bHQtMQ",
         deviceEnvelopes: [deviceEnvelope],
         createdAt: "2026-07-19T00:00:00.000Z",
       }).success,
     ).toBe(true);
+  });
+
+  it("enforces X25519 and XChaCha20-Poly1305 byte lengths", () => {
+    const baseEnvelope = {
+      deviceId: "device-1",
+      keyId: "vault-key-1",
+      algorithm: "X25519_XCHACHA20_POLY1305",
+      ephemeralPublicKey: encodedBytes(32),
+      wrappedKey: "V3JhcHBlZEtleQ",
+      nonce: encodedBytes(24),
+      createdAt: "2026-07-19T00:00:00.000Z",
+    } as const;
+
+    expect(DeviceKeyEnvelopeSchema.safeParse(baseEnvelope).success).toBe(true);
+    for (const length of [31, 33]) {
+      expect(
+        DeviceKeyEnvelopeSchema.safeParse({ ...baseEnvelope, ephemeralPublicKey: encodedBytes(length) })
+          .success,
+      ).toBe(false);
+    }
+    for (const length of [23, 25]) {
+      expect(
+        DeviceKeyEnvelopeSchema.safeParse({ ...baseEnvelope, nonce: encodedBytes(length) }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("uses algorithm-specific encrypted-vault nonce lengths", () => {
+    const deviceEnvelope = DeviceKeyEnvelopeSchema.parse({
+      deviceId: "device-1",
+      keyId: "vault-key-1",
+      algorithm: "X25519_XCHACHA20_POLY1305",
+      ephemeralPublicKey: encodedBytes(32),
+      wrappedKey: "V3JhcHBlZEtleQ",
+      nonce: encodedBytes(24),
+      createdAt: "2026-07-19T00:00:00.000Z",
+    });
+    const baseVault = {
+      version: 1,
+      keyId: "vault-key-1",
+      ciphertext: "RW5jcnlwdGVkVmF1bHQ",
+      aad: "VmF1bHQtMQ",
+      deviceEnvelopes: [deviceEnvelope],
+      createdAt: "2026-07-19T00:00:00.000Z",
+    } as const;
+
+    expect(
+      EncryptedVaultEnvelopeSchema.safeParse({
+        ...baseVault,
+        algorithm: "XCHACHA20_POLY1305",
+        nonce: encodedBytes(24),
+      }).success,
+    ).toBe(true);
+    expect(
+      EncryptedVaultEnvelopeSchema.safeParse({
+        ...baseVault,
+        algorithm: "XCHACHA20_POLY1305",
+        nonce: encodedBytes(12),
+      }).success,
+    ).toBe(false);
+    expect(
+      EncryptedVaultEnvelopeSchema.safeParse({
+        ...baseVault,
+        algorithm: "AES_256_GCM",
+        nonce: encodedBytes(12),
+      }).success,
+    ).toBe(true);
+    expect(
+      EncryptedVaultEnvelopeSchema.safeParse({
+        ...baseVault,
+        algorithm: "AES_256_GCM",
+        nonce: encodedBytes(24),
+      }).success,
+    ).toBe(false);
   });
 });
 

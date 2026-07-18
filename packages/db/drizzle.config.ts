@@ -1,11 +1,13 @@
 import { defineConfig } from "drizzle-kit";
 
+import { resolveDatabaseUrl } from "./src/database-url.js";
+
 export default defineConfig({
   dialect: "postgresql",
   out: "./migrations",
   schema: "./src/schema.ts",
   dbCredentials: {
-    url: process.env["DATABASE_URL"] ?? "postgres://gopher:gopher-local@localhost:5432/gopher",
+    url: resolveDatabaseUrl(),
   },
   strict: true,
   verbose: true,

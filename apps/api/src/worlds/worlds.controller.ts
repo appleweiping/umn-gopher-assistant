@@ -2,6 +2,7 @@ import { Controller, Get, Header, Headers, Inject, NotFoundException, Param, Res
 import type { FastifyReply } from "fastify";
 import { CampusIdSchema, type CampusWorldManifest } from "@umn-gopher-assistant/contracts";
 
+import { ifNoneMatchMatches } from "../http/entity-tag.js";
 import { WORLD_MANIFEST_REPOSITORY, type WorldManifestRepository } from "../repositories/ports.js";
 
 @Controller("v1/worlds")
@@ -28,7 +29,7 @@ export class WorldsController {
     }
 
     reply.header("ETag", manifest.etag);
-    if (ifNoneMatch === manifest.etag) {
+    if (ifNoneMatchMatches(ifNoneMatch, manifest.etag)) {
       reply.status(304);
       return undefined;
     }

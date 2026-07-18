@@ -115,4 +115,38 @@ describe("foundation API", () => {
     expect(response.headers["content-type"]).toContain("application/problem+json");
     expect(response.json()).toMatchObject({ status: 404, title: "Not Found" });
   });
+
+  it("uses weak If-None-Match comparison for lists, wildcard, and multiple tags", async () => {
+    for (const url of ["/v1/campuses", "/v1/sources?limit=2", "/v1/worlds/tc/manifest"]) {
+      const original = await app.inject({ method: "GET", url });
+      const etag = original.headers.etag;
+      expect(original.statusCode).toBe(200);
+      if (typeof etag !== "string") {
+        throw new TypeError(`Expected ${url} to return an ETag`);
+      }
+
+      for (const ifNoneMatch of [`W/${etag}`, `"unrelated", W/${etag}`, "*"]) {
+        const cached = await app.inject({ method: "GET", url, headers: { "if-none-match": ifNoneMatch } });
+        expect(cached.statusCode, `${url} with ${ifNoneMatch}`).toBe(304);
+      }
+
+      const changed = await app.inject({
+        method: "GET",
+        url,
+        headers: { "if-none-match": 'W/"unrelated"' },
+      });
+      expect(changed.statusCode).toBe(200);
+    }
+  });
+
+  it("echoes a reusable request ID on successful responses", async () => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/health",
+      headers: { "x-request-id": "request-e2e-123" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["x-request-id"]).toBe("request-e2e-123");
+  });
 });

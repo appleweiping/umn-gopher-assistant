@@ -17,7 +17,23 @@ export const CampusMetadataSchema = z
     sourceUrl: z.url().refine((url) => url.startsWith("https://"), "Expected an HTTPS URL"),
     officialStatus: OfficialStatusSchema,
   })
-  .strict();
+  .strict()
+  .superRefine((campus, context) => {
+    if (campus.academicInstitutionCode !== CAMPUS_ACADEMIC_INSTITUTION_MAP[campus.id]) {
+      context.addIssue({
+        code: "custom",
+        message: "academicInstitutionCode must match the campus mapping",
+        path: ["academicInstitutionCode"],
+      });
+    }
+    if (campus.academicCalendarCampusId !== ACADEMIC_CALENDAR_CAMPUS_MAP[campus.id]) {
+      context.addIssue({
+        code: "custom",
+        message: "academicCalendarCampusId must match the campus mapping",
+        path: ["academicCalendarCampusId"],
+      });
+    }
+  });
 export type CampusMetadata = z.infer<typeof CampusMetadataSchema>;
 
 export const ACADEMIC_CALENDAR_CAMPUS_MAP = Object.freeze({

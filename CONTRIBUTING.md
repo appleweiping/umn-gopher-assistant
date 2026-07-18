@@ -61,6 +61,10 @@ environment file before starting them. Local default identities and passwords
 must never be exposed to a shared or production network and must never be
 reused for a deployment.
 
+Published Compose ports bind to `127.0.0.1` unless `COMPOSE_BIND_ADDRESS` is
+explicitly overridden. Run `pnpm smoke:db` with an available Docker engine when
+changing the PostgreSQL image, extensions, schema, or initial migration.
+
 ## Working agreement
 
 1. Create a focused feature branch.
