@@ -1,0 +1,48 @@
+{
+  "realm": "gopher-assistant-dev",
+  "displayName": "Campus Assistant Local Development",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "campus-user", "description": "Local development user" },
+      { "name": "community-moderator", "description": "Local moderation test role" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "gopher-web",
+      "name": "Campus Assistant Local Web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"]
+    },
+    {
+      "clientId": "gopher-api",
+      "name": "Campus Assistant Local API",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    }
+  ],
+  "identityProviders": [],
+  "users": []
+}

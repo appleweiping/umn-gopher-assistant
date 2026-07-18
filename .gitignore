@@ -10,6 +10,6 @@ coverage/
 .worktrees/
 world-artifacts/
 *.log
+*.tsbuildinfo
 .DS_Store
 Thumbs.db
-

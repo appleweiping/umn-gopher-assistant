@@ -1,0 +1,72 @@
+[
+  {
+    "id": "tc-campus-home",
+    "campusIds": ["tc"],
+    "name": { "en": "Twin Cities campus website", "zh-CN": "双城校区网站" },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://twin-cities.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "freshnessState": "UNKNOWN",
+    "verificationState": "UNVERIFIED",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Source link: University of Minnesota Twin Cities",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "lastCheckedAt": null
+  },
+  {
+    "id": "duluth-campus-home",
+    "campusIds": ["duluth"],
+    "name": { "en": "Duluth campus website", "zh-CN": "德卢斯校区网站" },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://www.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "freshnessState": "UNKNOWN",
+    "verificationState": "UNVERIFIED",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Source link: University of Minnesota Duluth",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "lastCheckedAt": null
+  },
+  {
+    "id": "crookston-campus-home",
+    "campusIds": ["crookston"],
+    "name": { "en": "Crookston campus website", "zh-CN": "克鲁克斯顿校区网站" },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "freshnessState": "UNKNOWN",
+    "verificationState": "UNVERIFIED",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Source link: University of Minnesota Crookston",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "lastCheckedAt": null
+  },
+  {
+    "id": "morris-campus-home",
+    "campusIds": ["morris"],
+    "name": { "en": "Morris campus website", "zh-CN": "莫里斯校区网站" },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://morris.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "freshnessState": "UNKNOWN",
+    "verificationState": "UNVERIFIED",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Source link: University of Minnesota Morris",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "lastCheckedAt": null
+  },
+  {
+    "id": "rochester-campus-home",
+    "campusIds": ["rochester"],
+    "name": { "en": "Rochester campus website", "zh-CN": "罗切斯特校区网站" },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "freshnessState": "UNKNOWN",
+    "verificationState": "UNVERIFIED",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Source link: University of Minnesota Rochester",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "lastCheckedAt": null
+  }
+]
