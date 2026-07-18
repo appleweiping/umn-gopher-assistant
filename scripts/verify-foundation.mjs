@@ -7,6 +7,51 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+function escapeRegularExpression(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function extractUniqueYamlBlock(text, key, label) {
+  const lines = text.split(/\r?\n/u);
+  const keyPattern = new RegExp(`^(\\s*)${escapeRegularExpression(key)}:\\s*(?:#.*)?$`, "u");
+  const matches = lines.flatMap((line, index) => {
+    const match = keyPattern.exec(line);
+    return match === null ? [] : [{ index, indentation: match[1].length }];
+  });
+  assert.equal(matches.length, 1, `${label} must contain exactly one ${key} block`);
+
+  const [{ index: startIndex, indentation }] = matches;
+  let endIndex = startIndex + 1;
+  while (endIndex < lines.length) {
+    const line = lines[endIndex];
+    if (line.trim() === "") {
+      endIndex += 1;
+      continue;
+    }
+    const lineIndentation = /^\s*/u.exec(line)?.[0].length ?? 0;
+    if (lineIndentation <= indentation) {
+      break;
+    }
+    endIndex += 1;
+  }
+
+  return lines.slice(startIndex + 1, endIndex).join("\n");
+}
+
+function extractYamlInlineEnum(text, label) {
+  const enumPattern = /^\s*enum:\s*\[([^\]]*)\]\s*(?:#.*)?$/u;
+  const matches = text.split(/\r?\n/u).flatMap((line) => {
+    const match = enumPattern.exec(line);
+    return match === null ? [] : [match[1]];
+  });
+  assert.equal(matches.length, 1, `${label} must contain exactly one inline enum`);
+  return matches[0].split(",").map((value) => value.trim().replace(/^(["'])(.*)\1$/u, "$2"));
+}
+
+function extractQuotedValues(text, quotePattern) {
+  return [...text.matchAll(quotePattern)].map((match) => match[2]);
+}
+
 const requiredFiles = [
   "package.json",
   "pnpm-workspace.yaml",
@@ -183,18 +228,77 @@ assert.deepEqual(
   "contracts VerificationState must use the exact lifecycle",
 );
 
-for (const [path, label] of [
-  ["openapi/openapi.yaml", "OpenAPI"],
-  ["asyncapi/asyncapi.yaml", "AsyncAPI"],
-  ["packages/db/src/schema.ts", "Drizzle schema"],
-  ["packages/db/migrations/0000_foundation.sql", "database migration"],
-]) {
-  const text = await read(path);
-  for (const state of verificationStates) {
-    assert.ok(text.includes(state), `${label} verification state missing: ${state}`);
-  }
-  assert.doesNotMatch(text, /\b(?:SCHEMATIC|REJECTED)\b/u, `${label} contains a retired verification value`);
-}
+const openApiSchemas = extractUniqueYamlBlock(
+  extractUniqueYamlBlock(openapi, "components", "OpenAPI"),
+  "schemas",
+  "OpenAPI components",
+);
+const openApiVerificationState = extractUniqueYamlBlock(
+  openApiSchemas,
+  "VerificationState",
+  "OpenAPI schemas",
+);
+assert.deepEqual(
+  extractYamlInlineEnum(openApiVerificationState, "OpenAPI VerificationState"),
+  verificationStates,
+  "OpenAPI VerificationState must use the exact lifecycle",
+);
+
+const asyncapi = await read("asyncapi/asyncapi.yaml");
+const asyncApiMessages = extractUniqueYamlBlock(
+  extractUniqueYamlBlock(asyncapi, "components", "AsyncAPI"),
+  "messages",
+  "AsyncAPI components",
+);
+const worldAssetPublished = extractUniqueYamlBlock(
+  asyncApiMessages,
+  "WorldAssetPublished",
+  "AsyncAPI messages",
+);
+const asyncApiVerificationState = extractUniqueYamlBlock(
+  worldAssetPublished,
+  "verificationState",
+  "AsyncAPI WorldAssetPublished",
+);
+assert.deepEqual(
+  extractYamlInlineEnum(asyncApiVerificationState, "AsyncAPI VerificationState"),
+  verificationStates,
+  "AsyncAPI VerificationState must use the exact lifecycle",
+);
+
+const drizzleSchema = await read("packages/db/src/schema.ts");
+const drizzleVerificationMatches = [
+  ...drizzleSchema.matchAll(
+    /export\s+const\s+verificationStateEnum\s*=\s*pgEnum\(\s*(["'])verification_state\1\s*,\s*\[([\s\S]*?)\]\s*\);/gu,
+  ),
+];
+assert.equal(
+  drizzleVerificationMatches.length,
+  1,
+  "Drizzle schema must contain exactly one verification_state enum",
+);
+assert.deepEqual(
+  extractQuotedValues(drizzleVerificationMatches[0][2], /(["'])(.*?)\1/gu),
+  verificationStates,
+  "Drizzle schema VerificationState must use the exact lifecycle",
+);
+
+const databaseMigration = await read("packages/db/migrations/0000_foundation.sql");
+const migrationVerificationMatches = [
+  ...databaseMigration.matchAll(/CREATE\s+TYPE\s+verification_state\s+AS\s+ENUM\s*\(([\s\S]*?)\)\s*;/giu),
+];
+assert.equal(
+  migrationVerificationMatches.length,
+  1,
+  "database migration must contain exactly one verification_state enum",
+);
+assert.deepEqual(
+  extractQuotedValues(migrationVerificationMatches[0][1], /(')((?:''|[^'])*)\1/gu).map((value) =>
+    value.replace(/''/gu, "'"),
+  ),
+  verificationStates,
+  "database migration VerificationState must use the exact lifecycle",
+);
 
 const campusContract = await read("packages/contracts/src/campus.ts");
 for (const invariant of [
@@ -223,7 +327,6 @@ for (const invariant of [
   assert.ok(sourcesPageImplementation.includes(invariant), `sources page invariant missing: ${invariant}`);
 }
 
-const asyncapi = await read("asyncapi/asyncapi.yaml");
 for (const eventName of [
   "source.updated.v1",
   "notification.requested.v1",
