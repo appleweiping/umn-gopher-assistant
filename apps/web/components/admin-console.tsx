@@ -9,10 +9,22 @@ import { demoRecords } from "../lib/data/registry";
 import { usePreferences } from "./preferences";
 
 const queue = [
-  { id: "mod-104", risk: "medium", reason: "Possible duplicate housing listing", age: "18m" },
-  { id: "mod-103", risk: "high", reason: "External payment request", age: "42m" },
-  { id: "mod-101", risk: "low", reason: "Category mismatch", age: "2h" },
+  {
+    age: { en: "18m", "zh-CN": "18 分钟" },
+    id: "mod-104",
+    reasonKey: "reasonDuplicate",
+    risk: "medium",
+  },
+  {
+    age: { en: "42m", "zh-CN": "42 分钟" },
+    id: "mod-103",
+    reasonKey: "reasonPayment",
+    risk: "high",
+  },
+  { age: { en: "2h", "zh-CN": "2 小时" }, id: "mod-101", reasonKey: "reasonCategory", risk: "low" },
 ] as const;
+
+const riskKeys = { high: "riskHigh", low: "riskLow", medium: "riskMedium" } as const;
 
 export function AdminConsole() {
   const t = useTranslations("admin");
@@ -53,9 +65,9 @@ export function AdminConsole() {
                 <thead>
                   <tr>
                     <th scope="col">ID</th>
-                    <th scope="col">Campus</th>
+                    <th scope="col">{t("campus")}</th>
                     <th scope="col">{t("license")}</th>
-                    <th scope="col">Freshness</th>
+                    <th scope="col">{t("freshness")}</th>
                     <th scope="col">{t("breaker")}</th>
                   </tr>
                 </thead>
@@ -67,8 +79,8 @@ export function AdminConsole() {
                       <td>
                         <span className="mono-chip">{record.licensing}</span>
                       </td>
-                      <td>{record.freshness}</td>
-                      <td>{record.freshness === "stale" ? "OPEN" : "CLOSED"}</td>
+                      <td>{tCommon(record.freshness)}</td>
+                      <td>{record.freshness === "stale" ? t("open") : t("closed")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -80,16 +92,16 @@ export function AdminConsole() {
           <section className="panel">
             <div className="section-heading">
               <h2>{t("moderation")}</h2>
-              <span className="trust-tag">{queue.length} pending</span>
+              <span className="trust-tag">{t("pending", { count: queue.length })}</span>
             </div>
             <ul className="queue-list">
               {queue.map((item) => (
                 <li key={item.id}>
                   <div>
-                    <span className={`risk risk-${item.risk}`}>{item.risk}</span>
-                    <strong>{item.reason}</strong>
+                    <span className={`risk risk-${item.risk}`}>{t(riskKeys[item.risk])}</span>
+                    <strong>{t(item.reasonKey)}</strong>
                     <small>
-                      {item.id} · {item.age}
+                      {item.id} · {item.age[locale]}
                     </small>
                   </div>
                   <button
@@ -127,13 +139,13 @@ export function AdminConsole() {
             </p>
             <ul className="status-list">
               <li>
-                tc/world-v0.1 <span>ready</span>
+                tc/world-v0.1 <span>{locale === "zh-CN" ? "就绪" : "ready"}</span>
               </li>
               <li>
-                duluth/world-v0.1 <span>ready</span>
+                duluth/world-v0.1 <span>{locale === "zh-CN" ? "就绪" : "ready"}</span>
               </li>
               <li>
-                rochester/world-v0.1 <span>review</span>
+                rochester/world-v0.1 <span>{locale === "zh-CN" ? "待复核" : "review"}</span>
               </li>
             </ul>
           </section>
@@ -158,7 +170,7 @@ export function AdminConsole() {
                 <time>10:31</time>
                 <span>demo.viewer</span>
                 <strong>moderation.queue.preview</strong>
-                <code>read only</code>
+                <code>{locale === "zh-CN" ? "只读" : "read only"}</code>
               </li>
             </ol>
           </section>
@@ -185,15 +197,15 @@ export function AdminConsole() {
                 </button>
               </Dialog.Close>
             </div>
-            <Dialog.Description>{selected?.reason}</Dialog.Description>
+            <Dialog.Description>{selected === undefined ? "" : t(selected.reasonKey)}</Dialog.Description>
             <dl className="detail-list">
               <div>
-                <dt>Risk</dt>
-                <dd>{selected?.risk}</dd>
+                <dt>{t("risk")}</dt>
+                <dd>{selected === undefined ? "" : t(riskKeys[selected.risk])}</dd>
               </div>
               <div>
-                <dt>Mode</dt>
-                <dd>read-only demo</dd>
+                <dt>{t("mode")}</dt>
+                <dd>{t("readOnlyDemo")}</dd>
               </div>
             </dl>
             <p className="notice notice-warning">

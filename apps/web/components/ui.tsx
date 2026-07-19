@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { createElement } from "react";
 
 import type { Freshness } from "../lib/data/registry";
@@ -8,15 +11,16 @@ export function SourceBadge(props: {
   readonly updatedLabel: string;
   readonly url: string;
 }) {
+  const t = useTranslations("common");
   return createElement(
     "span",
     { className: `source-badge source-${props.freshness}` },
-    createElement("span", null, props.freshness),
+    createElement("span", null, t(props.freshness)),
     createElement("span", { "aria-hidden": "true" }, "·"),
     createElement(
       "a",
       {
-        "aria-label": `${props.label} (opens in a new tab)`,
+        "aria-label": t("newTabLabel", { label: props.label }),
         className: "source-link",
         href: props.url,
         rel: "noopener noreferrer",
@@ -38,6 +42,7 @@ export function SchematicMap(props: {
     readonly y: number;
   }[];
 }) {
+  const t = useTranslations("common");
   return createElement(
     "div",
     { className: "schematic-map" },
@@ -67,7 +72,7 @@ export function SchematicMap(props: {
     ),
     createElement(
       "ul",
-      { "aria-label": `${props.label} locations`, className: "schematic-map-list" },
+      { "aria-label": t("locationsLabel", { label: props.label }), className: "schematic-map-list" },
       props.points.map((point) => createElement("li", { key: point.id }, point.label)),
     ),
   );

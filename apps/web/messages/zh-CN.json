@@ -46,7 +46,9 @@
     "officialLink": "打开官方来源",
     "unverified": "未核验",
     "schematic": "示意",
-    "readOnly": "只读演示"
+    "readOnly": "只读演示",
+    "newTabLabel": "{label}（在新标签页打开）",
+    "locationsLabel": "{label} 地点"
   },
   "today": {
     "eyebrow": "每日简报",
@@ -129,7 +131,21 @@
     "publishing": "校园世界发布",
     "audit": "审计记录",
     "breaker": "熔断器",
-    "license": "许可状态"
+    "license": "许可状态",
+    "campus": "校区",
+    "freshness": "来源状态",
+    "open": "已开启",
+    "closed": "已关闭",
+    "pending": "{count} 项待处理",
+    "riskLow": "低风险",
+    "riskMedium": "中风险",
+    "riskHigh": "高风险",
+    "reasonDuplicate": "可能重复的住房信息",
+    "reasonPayment": "请求站外付款",
+    "reasonCategory": "类别不匹配",
+    "risk": "风险",
+    "mode": "模式",
+    "readOnlyDemo": "只读演示"
   },
   "developer": {
     "eyebrow": "开发者界面",
@@ -143,7 +159,9 @@
     "mcp": "MCP",
     "preview": "预览操作",
     "confirm": "确认本地演示",
-    "confirmed": "已在本地确认演示操作；没有发生外部写入。"
+    "confirmed": "已在本地确认演示操作；没有发生外部写入。",
+    "sdkDescription": "稍后生成",
+    "cliDescription": "仅预览的命令语义"
   },
   "offline": {
     "eyebrow": "离线外壳",

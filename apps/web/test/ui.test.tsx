@@ -252,7 +252,7 @@ function renderWithProviders(children: ReactNode) {
 
 describe("shared design components", () => {
   it("communicates freshness with text and links to provenance", async () => {
-    render(
+    renderWithProviders(
       createElement(SourceBadge, {
         freshness: "aging",
         label: "One Stop",
@@ -261,7 +261,7 @@ describe("shared design components", () => {
       }),
     );
 
-    expect(screen.getByText(/aging/u)).toBeInTheDocument();
+    expect(screen.getByText("Aging")).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /one stop/iu });
     expect(link).toHaveAttribute("href", "https://onestop.umn.edu/");
     expect(link).toHaveAttribute("target", "_blank");
@@ -270,7 +270,7 @@ describe("shared design components", () => {
   });
 
   it("gives a schematic map a text list equivalent instead of exposing only graphics", async () => {
-    render(
+    renderWithProviders(
       createElement(SchematicMap, {
         label: "Twin Cities schematic",
         points: [{ id: "lib", label: "Library", x: 20, y: 40 }],
@@ -324,11 +324,11 @@ describe("design system layout contracts", () => {
 
   it("keeps the standalone preview aligned to mobile navigation and canonical breakpoints", () => {
     expect(preview).toContain('class="mobile-nav"');
-    expect(preview).toContain("font-size:clamp(36px,6vw,56px)");
-    expect(preview).toContain("max-width:90rem");
-    expect(preview).toMatch(/@media\s*\(max-width:72rem\)/u);
-    expect(preview).toMatch(/@media\s*\(max-width:52rem\)/u);
-    expect(preview).toMatch(/@media\s*\(max-width:40rem\)/u);
+    expect(preview).toMatch(/font-size:\s*clamp\(36px,\s*6vw,\s*56px\)/u);
+    expect(preview).toMatch(/max-width:\s*90rem/u);
+    expect(preview).toMatch(/@media\s*\(max-width:\s*72rem\)/u);
+    expect(preview).toMatch(/@media\s*\(max-width:\s*52rem\)/u);
+    expect(preview).toMatch(/@media\s*\(max-width:\s*40rem\)/u);
     expect(preview).not.toContain("760px");
 
     for (const [light, dark] of [
