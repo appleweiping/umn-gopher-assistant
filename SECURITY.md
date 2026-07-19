@@ -122,6 +122,10 @@ grant authorization on another organization's behalf.
 No real credential belongs in Git history, a client bundle, issue, log, fixture,
 container image, screenshot, model prompt, or documentation example.
 
+Known dependency advisories and their time-bounded compensating controls are
+tracked in the [dependency risk register](docs/dependency-risk-register.md).
+An unrecorded production dependency finding is a release failure.
+
 - Runtime secrets belong in the approved secret store, such as OpenBao.
 - Service identities must be unique, least privilege, and independently
   revocable.

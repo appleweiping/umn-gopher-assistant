@@ -92,8 +92,10 @@ describe("Chinese localization completeness", () => {
   it("localizes developer SDK and CLI descriptions", () => {
     renderChinese(createElement(DeveloperConsole));
 
-    expect(screen.getByText("TypeScript · 稍后生成")).toBeInTheDocument();
-    expect(screen.getByText("仅预览的命令语义")).toBeInTheDocument();
-    expect(document.body).not.toHaveTextContent(/generated later|Preview-only command semantics/u);
+    expect(screen.getByText("TypeScript · 由 OpenAPI 契约生成")).toBeInTheDocument();
+    expect(screen.getByText("RFC 8628 登录与已实现读取命令")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(
+      /generated from the OpenAPI contract|RFC 8628 login and implemented read commands/u,
+    );
   });
 });

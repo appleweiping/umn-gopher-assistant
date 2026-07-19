@@ -55,7 +55,7 @@ Follow current official University and emergency-service guidance instead.
 
 Prerequisites:
 
-- Node.js 24.11.1 (the repository pins the Node 24 line);
+- Node.js `>=24 <25` (CI and local evidence use 24.11.1);
 - pnpm 10 through Corepack, using the exact packageManager version in
   package.json;
 - Docker with Compose only when running the local infrastructure stack.
@@ -66,6 +66,11 @@ From the repository root:
     pnpm install
     pnpm verify
     pnpm dev
+
+The repository sets `engine-strict=true`; installation fails outside the
+supported Node 24 line. `pnpm verify:node-policy` checks the root and every
+workspace manifest, and the published `uga` binary repeats this check before it
+loads configuration or credentials.
 
 Local infrastructure binds published ports to `127.0.0.1` by default. Copy
 `infra/compose/.env.example` only for local development, then run Compose from
@@ -80,6 +85,45 @@ pgvector, the migrated tables, and the HNSW index, then removes its volumes. It
 requires an available Docker engine and is intended for CI or a local runtime
 with Docker enabled.
 
+The default smoke rebuilds the checksum-pinned database recipe. If a registry is
+temporarily unavailable and the locally tagged development image was already
+built from that recipe, set `SMOKE_DB_REUSE_IMAGE=true` to use `--no-build`;
+this recovery mode verifies the required tag exists but does not claim remote
+digest provenance. The command fails rather than silently substituting an
+absent image.
+
+With Keycloak running, `pnpm smoke:identity` verifies OIDC discovery, mandatory
+PKCE S256 support, and a real RFC 8628 device-authorization response without
+printing the device or user codes. Set both `KEYCLOAK_ADMIN` and
+`KEYCLOAK_ADMIN_PASSWORD` to additionally verify the four imported clients,
+password-grant and service-account denial, API/MCP audience separation, and the
+exact local MCP audience mapper through the Keycloak Admin API. The script never
+prints the administrator or access tokens.
+
+For an explicit token-level negative escalation check, export the same two
+administrator variables and run `pnpm smoke:identity:device`. It creates and
+then deletes a synthetic complete-profile user, completes the real device login
+headlessly, and proves that a requested `admin:write` scope and the MCP audience
+do not enter the CLI access token while the exact `gopher-api` audience remains.
+The token signature, issuer, and `gopher-cli` authorized-client claim are also
+verified against the discovery JWKS. Sensitive values are never printed or
+inherited by the browser process, and exact-username cleanup is audited.
+
+After building the API and MCP server, `pnpm smoke:mcp:oauth` starts both on
+loopback, creates two synthetic same-realm service clients, and verifies exact
+MCP scope and audience handling. It proves that a valid API-audience token, a
+master-realm administrator token, and a missing token are all rejected while
+the MCP-audience token can call the three read-only tools and obtain the exact
+five-campus data. Both clients and both listeners are audited as removed in the
+bounded cleanup path. Set `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD`; the
+script does not print or pass those credentials to either runtime.
+
+After `pnpm build`, `pnpm smoke:api` starts the compiled API on an ephemeral
+loopback port and verifies health, all five campus records, source filtering,
+schematic world labeling, ETags, and the fail-closed contract-only event route.
+This specifically checks that workspace package runtime exports work after
+compilation; typechecking alone is not accepted as runtime evidence.
+
 Setting `COMPOSE_BIND_ADDRESS=0.0.0.0` is an explicit remote-exposure opt-in.
 Do not do so with repository default credentials or without a host firewall and
 a reviewed network boundary.
@@ -88,7 +132,7 @@ The development command starts workspace development tasks. Consult package
 scripts and the API contracts before assuming a planned endpoint is backed by a
 runtime implementation.
 
-## Identity and TypeScript SDK
+## Identity and developer tools
 
 The imported Keycloak realm is synthetic and local-only. It provides PKCE
 browser login, RFC 8628 CLI device authorization, separate API/MCP audiences,
@@ -105,6 +149,22 @@ committed artifacts with:
 Every OpenAPI operation has an `x-runtime-status`. Only health, campus metadata,
 source metadata, and schematic world manifests are currently marked
 `implemented`; the other public contract surfaces remain `contract-only`.
+
+The `uga` CLI uses the same implemented operation catalog, RFC 8628 device
+authorization, exact exit codes, JSON envelopes, and operating-system keychain
+storage with no plaintext token fallback. The remote Streamable HTTP MCP server
+verifies the exact MCP audience and currently registers only
+`campuses_list`, `sources_list`, and `world_manifest_get`; it never forwards an
+inbound MCP token to the Core API.
+
+    pnpm --filter @umn-gopher-assistant/cli build
+    node apps/cli/dist/bin.js --json doctor
+    pnpm --filter @umn-gopher-assistant/mcp-server dev
+
+See the package READMEs for endpoint and OAuth configuration. No live CLI or
+MCP write tool is registered. Future writes must first become implemented API
+operations and pass the preview, explicit-confirmation, idempotency, and
+authorization gates.
 
 ## Web field guide and PWA
 
@@ -173,6 +233,8 @@ assertions rather than fixed sleeps.
 | ------------------ | -------------------------------------------------------- |
 | apps/web           | Next.js web client                                       |
 | apps/api           | NestJS/Fastify API                                       |
+| apps/cli           | RFC 8628 command-line client and guarded read commands   |
+| apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server        |
 | packages/contracts | Shared schemas and public contract types                 |
 | packages/config    | Campus and source registries with provenance             |
 | packages/db        | Database schema, migrations, and persistence adapters    |

@@ -198,6 +198,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
+      "fullScopeAllowed": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -218,19 +219,7 @@
         "gopher-api-audience",
         "campus:read"
       ],
-      "optionalClientScopes": [
-        "campus:write",
-        "personal:read",
-        "personal:write",
-        "community:read",
-        "community:write",
-        "messages:read",
-        "messages:write",
-        "world:read",
-        "world:write",
-        "admin:read",
-        "admin:write"
-      ]
+      "optionalClientScopes": []
     },
     {
       "clientId": "gopher-cli",
@@ -238,6 +227,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
+      "fullScopeAllowed": false,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -254,20 +244,7 @@
         "gopher-api-audience",
         "campus:read"
       ],
-      "optionalClientScopes": [
-        "campus:write",
-        "personal:read",
-        "personal:write",
-        "community:read",
-        "community:write",
-        "messages:read",
-        "messages:write",
-        "world:read",
-        "world:write",
-        "admin:read",
-        "admin:write",
-        "offline_access"
-      ]
+      "optionalClientScopes": ["offline_access"]
     },
     {
       "clientId": "gopher-mcp",
@@ -276,6 +253,7 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
+      "fullScopeAllowed": false,
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
@@ -287,19 +265,7 @@
         "post.logout.redirect.uris": "http://127.0.0.1:4100/"
       },
       "defaultClientScopes": ["acr", "profile", "roles", "basic", "gopher-mcp-audience", "campus:read"],
-      "optionalClientScopes": [
-        "campus:write",
-        "personal:read",
-        "personal:write",
-        "community:read",
-        "community:write",
-        "messages:read",
-        "messages:write",
-        "world:read",
-        "world:write",
-        "admin:read",
-        "admin:write"
-      ]
+      "optionalClientScopes": []
     },
     {
       "clientId": "gopher-api",
@@ -307,11 +273,14 @@
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": false,
+      "fullScopeAllowed": false,
       "bearerOnly": true,
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false
+      "serviceAccountsEnabled": false,
+      "defaultClientScopes": [],
+      "optionalClientScopes": []
     }
   ],
   "identityProviders": [],

@@ -40,11 +40,46 @@ request offline access for an operating-system keychain-backed session.
 The realm exposes the API scopes as named Keycloak client scopes:
 `campus:*`, `personal:*`, `community:*`, `messages:*`, `world:*`, and
 `admin:*`. Read and write scopes stay separate so a client can request only the
-capability needed for one operation. Realm roles (`visitor`,
+capability needed for one operation. Defining a scope does not grant it to a
+client: the current web and MCP clients receive only `campus:read`, while the
+CLI additionally permits `offline_access` for keychain-backed refresh. No
+current public client may request a write or administrator scope. Realm roles (`visitor`,
 `campus-verified`, `moderator`, `admin`, and `security-reviewer`) express local
 test personas; production role-to-scope policy belongs to reviewed server-side
 authorization configuration. The `anonymous` role is vocabulary for product
 policy and is never assigned to a token.
+
+## Runtime verification
+
+After the Compose Keycloak service is healthy, run `pnpm smoke:identity`. The
+default check reads the live discovery document and starts RFC 8628 device
+authorization for `gopher-cli`; it validates the response shape but deliberately
+does not print the sensitive device or user codes. Supplying both
+`KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD` enables the Admin API assertions
+for client types, disabled password and service-account grants, default audience
+scope separation, and the exact MCP custom-audience mapper. Supplying only one
+administrator variable fails closed. No token value is written to stdout.
+
+`pnpm smoke:identity:device` is the explicit, opt-in token-level escalation
+check. It requires both administrator variables, creates one synthetic user
+with a complete profile and a random non-temporary password, and drives the
+real `gopher-cli` RFC 8628 login in a headless browser. The request includes
+`admin:write`, but the issued access token must retain `campus:read`, omit
+`admin:write`, contain the exact `gopher-api` audience, and omit the exact
+`http://127.0.0.1:4100/mcp` MCP audience. It obtains `jwks_uri` from discovery,
+verifies the RS256 signature, and requires the exact issuer and `gopher-cli`
+authorized client before trusting those claims.
+
+Browser and temporary-user cleanup run independently with time bounds. User
+cleanup retries with fresh administrator authentication and audits that an
+exact-username lookup is empty before reporting success, including when the
+creation response was ambiguous. No administrator credential, synthetic
+username or password, device code, user code, or token is printed or inherited
+by Chrome. If Playwright Chromium is not installed, the script automatically
+uses an installed Google Chrome; set `PLAYWRIGHT_CHROME_EXECUTABLE` only when
+Chrome is in a nonstandard location. `IDENTITY_BASE_URL` accepts HTTPS, or HTTP
+only on an explicit loopback host, and rejects credentials, queries, and
+fragments.
 
 ## MCP protocol limitation
 

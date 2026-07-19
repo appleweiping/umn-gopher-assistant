@@ -3,15 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "build": "next build",
     "clean": "node -e \"require('node:fs').rmSync('.next',{recursive:true,force:true})\"",
     "dev": "next dev",
     "lint": "eslint .",
+    "smoke:identity:device": "node scripts/smoke-identity-device.mjs",
     "start": "next start",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests && node --test scripts/smoke-identity-device.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:list": "playwright test --list",
+    "test:identity:device": "node --test scripts/smoke-identity-device.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -10,6 +10,7 @@ interface RealmClient {
   defaultClientScopes?: string[];
   directAccessGrantsEnabled?: boolean;
   enabled?: boolean;
+  fullScopeAllowed?: boolean;
   optionalClientScopes?: string[];
   protocol?: string;
   publicClient?: boolean;
@@ -70,6 +71,7 @@ describe("local Keycloak realm", () => {
     expect(realmSource).not.toMatch(/umn.*saml|shibboleth/iu);
     expect(realm.clients.every((value) => value.directAccessGrantsEnabled === false)).toBe(true);
     expect(realm.clients.every((value) => value.serviceAccountsEnabled === false)).toBe(true);
+    expect(realm.clients.every((value) => value.fullScopeAllowed === false)).toBe(true);
   });
 
   it("defines the least-privilege realm roles", () => {
@@ -111,7 +113,7 @@ describe("local Keycloak realm", () => {
     expect(web.attributes?.["post.logout.redirect.uris"]).toBe(
       "http://localhost:3000/##http://127.0.0.1:3000/",
     );
-    expect(web.optionalClientScopes).not.toContain("offline_access");
+    expect(web.optionalClientScopes).toEqual([]);
   });
 
   it("enables RFC 8628 only on the public CLI client", () => {
@@ -121,11 +123,11 @@ describe("local Keycloak realm", () => {
     expect(cli.standardFlowEnabled).toBe(false);
     expect(cli.attributes?.["oauth2.device.authorization.grant.enabled"]).toBe("true");
     expect(cli.defaultClientScopes).toContain("campus:read");
-    expect([...(cli.defaultClientScopes ?? []), ...(cli.optionalClientScopes ?? [])]).toEqual(
-      expect.arrayContaining([...requiredScopes]),
-    );
     expect(cli.defaultClientScopes?.filter((scope) => cli.optionalClientScopes?.includes(scope))).toEqual([]);
-    expect(cli.optionalClientScopes).toContain("offline_access");
+    expect(cli.optionalClientScopes).toEqual(["offline_access"]);
+    expect([...(cli.defaultClientScopes ?? []), ...(cli.optionalClientScopes ?? [])]).not.toEqual(
+      expect.arrayContaining(["campus:write", "personal:read", "community:write", "admin:write"]),
+    );
   });
 
   it("keeps MCP public/PKCE and the API bearer-only", () => {
@@ -141,6 +143,7 @@ describe("local Keycloak realm", () => {
     expect(mcp.defaultClientScopes).toContain("campus:read");
     expect(mcp.defaultClientScopes).toContain("gopher-mcp-audience");
     expect(mcp.defaultClientScopes).not.toContain("gopher-api-audience");
+    expect(mcp.optionalClientScopes).toEqual([]);
     expect(api.bearerOnly).toBe(true);
     expect(api.publicClient).toBe(false);
     expect(api.standardFlowEnabled).toBe(false);

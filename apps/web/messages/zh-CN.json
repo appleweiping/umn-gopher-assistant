@@ -150,7 +150,7 @@
   "developer": {
     "eyebrow": "开发者界面",
     "title": "先有契约，再接连接器",
-    "summary": "查看模式、权限范围与预览优先的工具语义，同时不暗示规划中的端点已经上线。",
+    "summary": "使用已生成的 SDK、需认证的 CLI 和只读 MCP，同时明确区分仅有契约的规划操作。",
     "openapi": "OpenAPI 契约",
     "asyncapi": "AsyncAPI 契约",
     "scopes": "权限范围",
@@ -160,8 +160,8 @@
     "preview": "预览操作",
     "confirm": "确认本地演示",
     "confirmed": "已在本地确认演示操作；没有发生外部写入。",
-    "sdkDescription": "稍后生成",
-    "cliDescription": "仅预览的命令语义"
+    "sdkDescription": "由 OpenAPI 契约生成",
+    "cliDescription": "RFC 8628 登录与已实现读取命令"
   },
   "offline": {
     "eyebrow": "离线外壳",

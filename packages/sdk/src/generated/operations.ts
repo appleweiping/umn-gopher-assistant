@@ -10,6 +10,7 @@ export interface OperationDefinition {
   readonly method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
   readonly path: string;
   readonly public: boolean;
+  readonly queryParameterNames: readonly string[];
   readonly requiredScopes: readonly string[];
   readonly runtimeStatus: "contract-only" | "implemented";
   readonly successMediaTypes: readonly string[];
@@ -23,6 +24,7 @@ export const operationDefinitions = {
     "method": "POST",
     "path": "/v1/routes",
     "public": true,
+    "queryParameterNames": [],
     "requiredScopes": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
@@ -38,6 +40,7 @@ export const operationDefinitions = {
     "method": "POST",
     "path": "/v1/community/posts",
     "public": false,
+    "queryParameterNames": [],
     "requiredScopes": [
       "community:write"
     ],
@@ -55,6 +58,7 @@ export const operationDefinitions = {
     "method": "POST",
     "path": "/v1/messages",
     "public": false,
+    "queryParameterNames": [],
     "requiredScopes": [
       "messages:write"
     ],
@@ -72,6 +76,7 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/health",
     "public": true,
+    "queryParameterNames": [],
     "requiredScopes": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
@@ -87,6 +92,7 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/worlds/{campusId}/manifest",
     "public": true,
+    "queryParameterNames": [],
     "requiredScopes": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
@@ -102,6 +108,7 @@ export const operationDefinitions = {
     "method": "POST",
     "path": "/v1/live-events/{eventId}/join",
     "public": false,
+    "queryParameterNames": [],
     "requiredScopes": [
       "world:write"
     ],
@@ -119,6 +126,12 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/academics/courses",
     "public": false,
+    "queryParameterNames": [
+      "academicInstitutionCode",
+      "campusId",
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [
       "campus:read"
     ],
@@ -136,6 +149,7 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/campuses",
     "public": true,
+    "queryParameterNames": [],
     "requiredScopes": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
@@ -151,6 +165,11 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/community/posts",
     "public": true,
+    "queryParameterNames": [
+      "campusId",
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
@@ -166,6 +185,11 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/events",
     "public": true,
+    "queryParameterNames": [
+      "campusId",
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
@@ -181,6 +205,10 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/messages",
     "public": false,
+    "queryParameterNames": [
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [
       "messages:read"
     ],
@@ -198,6 +226,10 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/moderation/cases",
     "public": false,
+    "queryParameterNames": [
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [
       "admin:read"
     ],
@@ -215,6 +247,12 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/places",
     "public": true,
+    "queryParameterNames": [
+      "campusId",
+      "cursor",
+      "limit",
+      "query"
+    ],
     "requiredScopes": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
@@ -230,6 +268,11 @@ export const operationDefinitions = {
     "method": "GET",
     "path": "/v1/sources",
     "public": true,
+    "queryParameterNames": [
+      "campusId",
+      "cursor",
+      "limit"
+    ],
     "requiredScopes": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
@@ -245,6 +288,7 @@ export const operationDefinitions = {
     "method": "POST",
     "path": "/v1/ai/query",
     "public": false,
+    "queryParameterNames": [],
     "requiredScopes": [
       "campus:read"
     ],
@@ -262,6 +306,7 @@ export const operationDefinitions = {
     "method": "PATCH",
     "path": "/v1/admin/sources/{sourceId}",
     "public": false,
+    "queryParameterNames": [],
     "requiredScopes": [
       "admin:write"
     ],

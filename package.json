@@ -7,7 +7,7 @@
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "engines": {
-    "node": "24.11.1"
+    "node": ">=24 <25"
   },
   "scripts": {
     "build": "turbo run build",
@@ -18,12 +18,24 @@
     "generate": "turbo run generate",
     "check:generated": "turbo run check:generated",
     "lint": "turbo run lint",
+    "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:db": "node scripts/smoke-foundation-db.mjs",
-    "test": "turbo run test",
+    "smoke:identity": "node scripts/smoke-identity.mjs",
+    "smoke:identity:device": "node apps/web/scripts/smoke-identity-device.mjs",
+    "smoke:mcp:oauth": "node scripts/smoke-mcp-oauth.mjs",
+    "test": "turbo run test && node --test scripts/smoke-mcp-oauth.test.mjs",
+    "test:identity:device": "node --test apps/web/scripts/smoke-identity-device.test.mjs",
+    "test:mcp:oauth": "node --test scripts/smoke-mcp-oauth.test.mjs",
     "test:unit": "vitest run",
     "typecheck": "turbo run typecheck",
-    "verify": "pnpm verify:foundation && pnpm check:generated && pnpm lint && pnpm typecheck && pnpm test",
-    "verify:foundation": "node scripts/verify-foundation.mjs"
+    "verify": "pnpm verify:node-policy && pnpm verify:foundation && pnpm check:generated && pnpm lint && pnpm typecheck && pnpm test",
+    "verify:foundation": "node scripts/verify-foundation.mjs",
+    "verify:node-policy": "node scripts/verify-node-policy.mjs"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.19"
+    }
   },
   "devDependencies": {
     "@eslint/js": "9.39.2",
