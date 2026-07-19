@@ -26,6 +26,30 @@ const dayLabels = {
   "zh-CN": { mon: "周一", tue: "周二", wed: "周三", thu: "周四", fri: "周五" },
 } as const;
 
+const routeLocationLabels = {
+  en: {
+    diningHall: "Dining hall",
+    library: "Library",
+    oneStop: "One Stop",
+    scienceBuilding: "Science building",
+    studentCenter: "Student center",
+    transitStop: "Transit stop",
+  },
+  "zh-CN": {
+    diningHall: "食堂",
+    library: "图书馆",
+    oneStop: "一站式学生服务",
+    scienceBuilding: "科学楼",
+    studentCenter: "学生中心",
+    transitStop: "公交站",
+  },
+} as const;
+
+type RouteLocation = keyof (typeof routeLocationLabels)["en"];
+
+const startLocations = ["library", "studentCenter", "transitStop"] as const;
+const destinationLocations = ["scienceBuilding", "oneStop", "diningHall"] as const;
+
 function minutes(value: number): string {
   const hour = Math.floor(value / 60);
   const minute = value % 60;
@@ -35,8 +59,8 @@ function minutes(value: number): string {
 export function PlanWorkspace() {
   const t = useTranslations("plan");
   const { locale } = usePreferences();
-  const [start, setStart] = useState("Library");
-  const [destination, setDestination] = useState("Science building");
+  const [start, setStart] = useState<RouteLocation>("library");
+  const [destination, setDestination] = useState<RouteLocation>("scienceBuilding");
   const [status, setStatus] = useState("");
   const conflicts = findScheduleConflicts(blocks);
   const days = ["mon", "tue", "wed", "thu", "fri"] as const;
@@ -129,18 +153,25 @@ export function PlanWorkspace() {
         <div className="route-fields">
           <label>
             {locale === "zh-CN" ? "起点" : "Start"}
-            <select onChange={(event) => setStart(event.target.value)} value={start}>
-              <option>Library</option>
-              <option>Student center</option>
-              <option>Transit stop</option>
+            <select onChange={(event) => setStart(event.target.value as RouteLocation)} value={start}>
+              {startLocations.map((location) => (
+                <option key={location} value={location}>
+                  {routeLocationLabels[locale][location]}
+                </option>
+              ))}
             </select>
           </label>
           <label>
             {locale === "zh-CN" ? "终点" : "Destination"}
-            <select onChange={(event) => setDestination(event.target.value)} value={destination}>
-              <option>Science building</option>
-              <option>One Stop</option>
-              <option>Dining hall</option>
+            <select
+              onChange={(event) => setDestination(event.target.value as RouteLocation)}
+              value={destination}
+            >
+              {destinationLocations.map((location) => (
+                <option key={location} value={location}>
+                  {routeLocationLabels[locale][location]}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -149,7 +180,9 @@ export function PlanWorkspace() {
             <span>1</span>
             <div>
               <strong>
-                {locale === "zh-CN" ? `从${start}主入口出发` : `Leave from the main ${start} entrance`}
+                {locale === "zh-CN"
+                  ? `从${routeLocationLabels[locale][start]}主入口出发`
+                  : `Leave from the main ${routeLocationLabels[locale][start]} entrance`}
               </strong>
               <p>{locale === "zh-CN" ? "确认当前开放的出口。" : "Confirm the exit is currently open."}</p>
             </div>
@@ -172,8 +205,8 @@ export function PlanWorkspace() {
             <div>
               <strong>
                 {locale === "zh-CN"
-                  ? `在${destination}标识处停下核对`
-                  : `Stop at the ${destination} sign and verify`}
+                  ? `在${routeLocationLabels[locale][destination]}标识处停下核对`
+                  : `Stop at the ${routeLocationLabels[locale][destination]} sign and verify`}
               </strong>
               <p>
                 {locale === "zh-CN"

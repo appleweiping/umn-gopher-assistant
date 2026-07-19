@@ -65,7 +65,7 @@ test("serves strict security headers, a same-origin theme bootstrap, and cookie-
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
-test("keeps visited project pages and every offline-shell chunk available offline", async ({
+test("keeps visited project pages and the Chinese offline shell available offline", async ({
   context,
   page,
 }) => {
@@ -79,21 +79,32 @@ test("keeps visited project pages and every offline-shell chunk available offlin
 
   await expect.poll(() => page.evaluate(async () => Boolean(await caches.match("/explore")))).toBe(true);
   const shellCacheState = await page.evaluate(async () => {
-    const shell = await caches.match("/__campus-field-guide-offline-shell");
-    if (!shell) return { chunkCount: 0, missing: ["offline shell"] };
-    const html = await shell.clone().text();
-    const chunkUrls = [
-      ...new Set(
-        [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/gu)]
-          .map((match) => match[1])
-          .filter((chunkUrl): chunkUrl is string => chunkUrl !== undefined),
-      ),
-    ];
-    const missing = [];
-    for (const chunkUrl of chunkUrls) {
-      if (!(await caches.match(chunkUrl.replaceAll("&amp;", "&")))) missing.push(chunkUrl);
+    const shellKeys = ["/__campus-field-guide-offline-shell-en", "/__campus-field-guide-offline-shell-zh-CN"];
+    const missing: string[] = [];
+    let chunkCount = 0;
+
+    for (const shellKey of shellKeys) {
+      const shell = await caches.match(shellKey);
+      if (!shell) {
+        missing.push(shellKey);
+        continue;
+      }
+      const html = await shell.clone().text();
+      const chunkUrls = [
+        ...new Set(
+          [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/gu)]
+            .map((match) => match[1])
+            .filter((chunkUrl): chunkUrl is string => chunkUrl !== undefined),
+        ),
+      ];
+      chunkCount += chunkUrls.length;
+      for (const chunkUrl of chunkUrls) {
+        if (!(await caches.match(chunkUrl.replaceAll("&amp;", "&")))) {
+          missing.push(`${shellKey}:${chunkUrl}`);
+        }
+      }
     }
-    return { chunkCount: chunkUrls.length, missing };
+    return { chunkCount, missing };
   });
   expect(shellCacheState.chunkCount).toBeGreaterThan(0);
   expect(shellCacheState.missing).toEqual([]);
@@ -104,8 +115,26 @@ test("keeps visited project pages and every offline-shell chunk available offlin
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("查找地点、服务、活动或课程");
 
     await page.goto("/not-previously-visited", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("校园指南仍可打开");
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(page).toHaveTitle("校园随身指南");
+  } finally {
+    await context.setOffline(false);
+  }
+});
+
+test("uses the English offline shell for an unvisited page", async ({ context, page }) => {
+  await page.goto("/today");
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+
+  await context.setOffline(true);
+  try {
+    await page.goto("/another-unvisited-page", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("The field guide is still here");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await expect(page).toHaveTitle("Campus Field Guide");
   } finally {
     await context.setOffline(false);
   }

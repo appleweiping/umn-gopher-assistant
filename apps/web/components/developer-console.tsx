@@ -82,14 +82,14 @@ export function DeveloperConsole() {
       <section className="tooling-grid" aria-label={locale === "zh-CN" ? "工具" : "Tooling"}>
         <article>
           <h2>{t("sdk")}</h2>
-          <p>TypeScript · generated later</p>
+          <p>TypeScript · {t("sdkDescription")}</p>
           <code>
             import {"{"} campuses {"}"} from &quot;@uga/sdk&quot;
           </code>
         </article>
         <article>
           <h2>{t("cli")}</h2>
-          <p>Preview-only command semantics</p>
+          <p>{t("cliDescription")}</p>
           <code>uga sources list --campus tc</code>
         </article>
         <article>

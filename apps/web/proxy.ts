@@ -21,6 +21,12 @@ export function proxy(request: NextRequest) {
   ].join("; ");
 
   const requestHeaders = new Headers(request.headers);
+  const offlineLocale =
+    request.nextUrl.pathname === "/offline" ? request.nextUrl.searchParams.get("locale") : null;
+  requestHeaders.delete("x-offline-locale");
+  if (offlineLocale === "en" || offlineLocale === "zh-CN") {
+    requestHeaders.set("x-offline-locale", offlineLocale);
+  }
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy);
 

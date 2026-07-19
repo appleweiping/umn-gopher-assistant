@@ -37,13 +37,17 @@ function readLocale(value: string | undefined): Locale {
   return value === "zh-CN" ? "zh-CN" : "en";
 }
 
+function readRequestLocale(cookieLocale: string | undefined, offlineLocale: string | null): Locale {
+  return offlineLocale === "en" || offlineLocale === "zh-CN" ? offlineLocale : readLocale(cookieLocale);
+}
+
 function readTheme(value: string | undefined): ThemePreference {
   return value === "light" || value === "dark" ? value : "system";
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies();
-  const locale = readLocale(cookieStore.get("locale")?.value);
+  const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
+  const locale = readRequestLocale(cookieStore.get("locale")?.value, headerStore.get("x-offline-locale"));
   const content = localizedMetadata[locale];
   return {
     title: { default: content.title, template: `%s · ${content.title}` },
@@ -59,7 +63,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const campus = readCampus(cookieStore.get("campus")?.value);
-  const locale = readLocale(cookieStore.get("locale")?.value);
+  const locale = readRequestLocale(cookieStore.get("locale")?.value, headerStore.get("x-offline-locale"));
   const theme = readTheme(cookieStore.get("theme")?.value);
   const nonce = headerStore.get("x-nonce");
 

@@ -46,7 +46,9 @@
     "officialLink": "Open official source",
     "unverified": "Unverified",
     "schematic": "Schematic",
-    "readOnly": "Read-only demo"
+    "readOnly": "Read-only demo",
+    "newTabLabel": "{label} (opens in a new tab)",
+    "locationsLabel": "{label} locations"
   },
   "today": {
     "eyebrow": "Daily brief",
@@ -129,7 +131,21 @@
     "publishing": "World publishing",
     "audit": "Audit trail",
     "breaker": "Circuit breaker",
-    "license": "License state"
+    "license": "License state",
+    "campus": "Campus",
+    "freshness": "Freshness",
+    "open": "OPEN",
+    "closed": "CLOSED",
+    "pending": "{count} pending",
+    "riskLow": "low",
+    "riskMedium": "medium",
+    "riskHigh": "high",
+    "reasonDuplicate": "Possible duplicate housing listing",
+    "reasonPayment": "External payment request",
+    "reasonCategory": "Category mismatch",
+    "risk": "Risk",
+    "mode": "Mode",
+    "readOnlyDemo": "read-only demo"
   },
   "developer": {
     "eyebrow": "Developer surface",
@@ -143,7 +159,9 @@
     "mcp": "MCP",
     "preview": "Preview operation",
     "confirm": "Confirm local demo",
-    "confirmed": "Demo operation confirmed locally; no external write occurred."
+    "confirmed": "Demo operation confirmed locally; no external write occurred.",
+    "sdkDescription": "generated later",
+    "cliDescription": "Preview-only command semantics"
   },
   "offline": {
     "eyebrow": "Offline shell",
