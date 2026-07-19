@@ -1,0 +1,39 @@
+{
+  "name": "@umn-gopher-assistant/sdk",
+  "version": "0.1.0",
+  "description": "OpenAPI-derived TypeScript SDK for UMN Gopher Assistant",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./generated/schema": {
+      "types": "./dist/generated/schema.d.ts",
+      "import": "./dist/generated/schema.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check:generated": "node scripts/check-generated.mjs",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "generate": "node scripts/generate.mjs",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.4",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "yaml": "2.9.0"
+  }
+}

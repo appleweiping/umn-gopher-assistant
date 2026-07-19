@@ -11,6 +11,7 @@ import {
   EncryptedVaultEnvelopeSchema,
   LiveEventPolicySchema,
   ModerationCaseSchema,
+  RouteProfileSchema,
   RouteSegmentSchema,
   SourceDescriptorSchema,
   VerificationStateSchema,
@@ -165,7 +166,7 @@ describe("world and route contracts", () => {
   it("accepts a verified route segment", () => {
     const result = RouteSegmentSchema.safeParse({
       id: "segment-1",
-      profile: "WHEELCHAIR",
+      profile: "wheelchair",
       geometry: [
         [-93.2277, 44.9739],
         [-93.227, 44.974],
@@ -185,7 +186,7 @@ describe("world and route contracts", () => {
     expect(
       RouteSegmentSchema.safeParse({
         id: "segment-1",
-        profile: "WALK",
+        profile: "walking",
         geometry: [[-93.2277, 44.9739]],
         distanceMeters: 1,
         durationSeconds: 1,
@@ -196,6 +197,12 @@ describe("world and route contracts", () => {
         validUntil: null,
       }).success,
     ).toBe(false);
+  });
+
+  it("limits the first route contract to walking and wheelchair profiles", () => {
+    expect(RouteProfileSchema.options).toEqual(["walking", "wheelchair"]);
+    expect(RouteProfileSchema.safeParse("bicycle").success).toBe(false);
+    expect(RouteProfileSchema.safeParse("TRANSIT").success).toBe(false);
   });
 });
 

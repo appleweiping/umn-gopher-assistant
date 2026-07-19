@@ -4,7 +4,15 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/.next/**", "**/coverage/**", "**/dist/**", "**/node_modules/**"] },
+  {
+    ignores: [
+      "**/.next/**",
+      "**/coverage/**",
+      "**/dist/**",
+      "**/node_modules/**",
+      "packages/sdk/src/generated/**",
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.strictTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
@@ -37,7 +45,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["vitest.workspace.ts"],
+    files: ["vitest.workspace.ts", "**/vitest.config.ts"],
     ...tseslint.configs.disableTypeChecked,
     languageOptions: {
       ...tseslint.configs.disableTypeChecked.languageOptions,

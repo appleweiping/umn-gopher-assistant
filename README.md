@@ -88,6 +88,24 @@ The development command starts workspace development tasks. Consult package
 scripts and the API contracts before assuming a planned endpoint is backed by a
 runtime implementation.
 
+## Identity and TypeScript SDK
+
+The imported Keycloak realm is synthetic and local-only. It provides PKCE
+browser login, RFC 8628 CLI device authorization, separate API/MCP audiences,
+least-privilege scopes, and empty test personas without enabling UMN SAML. See
+the [identity boundary and production enablement gate](docs/identity.md).
+
+The `@umn-gopher-assistant/sdk` package derives both its TypeScript types and
+runtime operation map from `openapi/openapi.yaml`. Regenerate and verify the
+committed artifacts with:
+
+    pnpm generate
+    pnpm check:generated
+
+Every OpenAPI operation has an `x-runtime-status`. Only health, campus metadata,
+source metadata, and schematic world manifests are currently marked
+`implemented`; the other public contract surfaces remain `contract-only`.
+
 ## Web field guide and PWA
 
 The web app is an installable, responsive field guide for all five campuses. It
@@ -159,6 +177,7 @@ assertions rather than fixed sleeps.
 | packages/config    | Campus and source registries with provenance             |
 | packages/db        | Database schema, migrations, and persistence adapters    |
 | packages/testing   | Shared test configuration and utilities                  |
+| packages/sdk       | OpenAPI-generated TypeScript SDK and native fetch client |
 | openapi            | HTTP API contract                                        |
 | asyncapi           | Event contract                                           |
 | infra/compose      | Local-only supporting infrastructure                     |
@@ -182,6 +201,7 @@ permission to republish the target.
 - [Architecture](docs/architecture.md)
 - [Data source policy](docs/data-source-policy.md)
 - [Threat model](docs/threat-model.md)
+- [Identity and authorization boundary](docs/identity.md)
 - [Selective service architecture decision](docs/adr/0001-selective-service-architecture.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
