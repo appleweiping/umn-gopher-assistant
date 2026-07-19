@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Campus Field Guide path mark</title>
+  <desc id="desc">An abstract path crossing a four-point compass.</desc>
+  <rect width="512" height="512" rx="72" fill="#174f44"/>
+  <path d="M256 72 294 218 440 256 294 294 256 440 218 294 72 256 218 218Z" fill="#f4f1e8" opacity=".96"/>
+  <path d="M132 390c67-91 109-52 151-118 35-55 43-111 97-150" fill="none" stroke="#d56f48" stroke-linecap="round" stroke-width="36"/>
+  <circle cx="256" cy="256" r="22" fill="#11667a"/>
+</svg>

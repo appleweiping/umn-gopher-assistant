@@ -13,3 +13,5 @@ world-artifacts/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+playwright-report/
+test-results/

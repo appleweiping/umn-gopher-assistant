@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Campus Field Guide — design preview</title>
+    <style>
+      :root {
+        --canvas: #f4f1e8;
+        --surface: #fffcf5;
+        --raised: #fff;
+        --strong: #e7ece6;
+        --text: #172521;
+        --muted: #52645e;
+        --line: #c4cec7;
+        --pine: #174f44;
+        --pine2: #0f3b34;
+        --soft: #ddeae5;
+        --lake: #11667a;
+        --lake-soft: #d9ebee;
+        --clay: #a44a31;
+        --clay-soft: #f4ded5;
+        --success: #256b45;
+        --warning: #8a5b12;
+        --danger: #a33232;
+        --focus: #c54f20;
+        --display: Georgia, "Times New Roman", serif;
+        --body: Inter, ui-sans-serif, system-ui, sans-serif;
+        color-scheme: light;
+      }
+      [data-theme="dark"] {
+        --canvas: #0f1917;
+        --surface: #16231f;
+        --raised: #1c2c27;
+        --strong: #263a34;
+        --text: #f1f4ec;
+        --muted: #b7c5bd;
+        --line: #40554d;
+        --pine: #78c3ac;
+        --pine2: #a8ddcd;
+        --soft: #1e4439;
+        --lake: #71c3d2;
+        --lake-soft: #173b43;
+        --clay: #f09b7d;
+        --clay-soft: #4c2a20;
+        --success: #73c793;
+        --warning: #e3bd6b;
+        --danger: #f28a8a;
+        --focus: #ffb08e;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--text);
+        font: 16px/1.55 var(--body);
+      }
+      button,
+      a,
+      input {
+        font: inherit;
+      }
+      button,
+      a {
+        min-height: 44px;
+      }
+      button {
+        cursor: pointer;
+      }
+      a {
+        color: var(--lake);
+      }
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .shell {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        min-height: 100vh;
+      }
+      .side {
+        padding: 24px 16px;
+        background: var(--pine2);
+        color: var(--surface);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 32px;
+      }
+      .brand svg {
+        width: 42px;
+      }
+      .brand strong {
+        font-family: var(--display);
+      }
+      .brand small {
+        display: block;
+        color: color-mix(in srgb, currentColor 72%, transparent);
+      }
+      .nav {
+        display: grid;
+        gap: 4px;
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 8px 12px;
+        border-left: 3px solid transparent;
+        color: inherit;
+        text-decoration: none;
+      }
+      .nav a[aria-current="page"] {
+        border-left-color: var(--clay);
+        background: color-mix(in srgb, currentColor 12%, transparent);
+      }
+      .main {
+        min-width: 0;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 28px;
+        border-bottom: 1px solid var(--line);
+        background: var(--canvas);
+      }
+      .theme {
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: var(--surface);
+        color: var(--text);
+      }
+      main {
+        max-width: 90rem;
+        margin: auto;
+        padding: 44px 32px;
+      }
+      .eyebrow {
+        color: var(--clay);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      h1,
+      h2 {
+        font-family: var(--display);
+        line-height: 1.1;
+      }
+      h1 {
+        max-width: 18ch;
+        margin: 0.25rem 0 12px;
+        font-size: clamp(36px, 6vw, 56px);
+      }
+      .lede {
+        max-width: 68ch;
+        color: var(--muted);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin: 32px 0;
+      }
+      .card {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--pine);
+        background: var(--surface);
+      }
+      .card:nth-child(2) {
+        border-top-color: var(--lake);
+      }
+      .card:nth-child(3) {
+        border-top-color: var(--clay);
+      }
+      .card p {
+        color: var(--muted);
+      }
+      .badge {
+        display: inline-flex;
+        gap: 7px;
+        align-items: center;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .badge b {
+        padding-left: 6px;
+        border-left: 3px solid var(--warning);
+        color: var(--text);
+      }
+      .palette {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+      }
+      .swatch {
+        min-height: 92px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        background: var(--sw);
+        color: var(--ink);
+        font-size: 12px;
+      }
+      .components {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 32px;
+      }
+      .panel {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 14px;
+        border: 1px solid var(--pine);
+        border-radius: 4px;
+        background: var(--pine);
+        color: var(--surface);
+        font-weight: 700;
+      }
+      .quiet {
+        border-color: var(--line);
+        background: var(--surface);
+        color: var(--text);
+      }
+      .notice {
+        padding: 12px 16px;
+        border-left: 4px solid var(--warning);
+        background: color-mix(in srgb, var(--warning) 13%, var(--surface));
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+        margin: 16px 0;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .field input {
+        min-height: 44px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: var(--raised);
+        color: var(--text);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        padding: 10px;
+        border: 1px solid var(--line);
+        text-align: left;
+      }
+      th {
+        background: var(--strong);
+      }
+      .status {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .status span {
+        padding: 5px 8px;
+        border-left: 4px solid var(--tone);
+        background: var(--strong);
+        font-size: 12px;
+      }
+      .mobile-nav {
+        display: none;
+      }
+      @media (max-width: 72rem) {
+        .grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .palette {
+          grid-template-columns: repeat(3, 1fr);
+        }
+      }
+      @media (max-width: 52rem) {
+        body {
+          padding-bottom: 72px;
+        }
+        .shell {
+          display: block;
+        }
+        .side {
+          display: none;
+        }
+        .components {
+          grid-template-columns: 1fr;
+        }
+        main {
+          padding: 28px 16px;
+        }
+        .bar {
+          padding: 10px 16px;
+        }
+        .mobile-nav {
+          position: fixed;
+          z-index: 3;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+          border-top: 1px solid var(--line);
+          background: var(--raised);
+          box-shadow: 0 -8px 24px rgb(15 33 28 / 12%);
+        }
+        .mobile-nav a {
+          display: grid;
+          min-width: 0;
+          min-height: 56px;
+          place-items: center;
+          padding: 4px;
+          color: var(--muted);
+          font-size: 12px;
+          text-decoration: none;
+        }
+        .mobile-nav a[aria-current="page"] {
+          color: var(--pine);
+          font-weight: 700;
+        }
+      }
+      @media (max-width: 40rem) {
+        .grid,
+        .palette {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="side">
+        <div class="brand">
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            <path
+              d="M24 2.5 27.4 20.6 45.5 24 27.4 27.4 24 45.5 20.6 27.4 2.5 24 20.6 20.6Z"
+              fill="currentColor"
+            />
+            <path
+              d="M11.5 38C17.7 28.9 22.7 32 27 24.9c3.7-6.2 4.3-10.3 10.3-15"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-width="3.4"
+            />
+          </svg>
+          <span><strong>Campus Field Guide</strong><small>Independent · unofficial</small></span>
+        </div>
+        <nav class="nav" aria-label="Preview navigation">
+          <a aria-current="page" href="#preview-main">Today</a>
+          <a href="#palette">Explore</a>
+          <a href="#components">Plan</a>
+          <a href="#components">Community</a>
+          <a href="#palette">World</a>
+          <a href="#components">Ask</a>
+        </nav>
+      </aside>
+      <div class="main">
+        <header class="bar">
+          <strong>Design system preview</strong>
+          <button class="theme" id="theme" type="button" aria-pressed="false">Switch to dark</button>
+        </header>
+        <main id="preview-main">
+          <p class="eyebrow">Campus field guide + operations desk</p>
+          <h1>A grounded system for five campus contexts.</h1>
+          <p class="lede">
+            Warm paper, deep pine, lake blue, and terracotta support a dense daily interface. This preview is
+            self-contained and uses no University or competitor assets.
+          </p>
+          <section aria-labelledby="palette">
+            <h2 id="palette">Semantic palette</h2>
+            <div class="palette">
+              <div class="swatch" style="--sw: var(--pine); --ink: var(--surface)">
+                Primary<br /><span data-dark="#78C3AC" data-light="#174F44">#174F44</span>
+              </div>
+              <div class="swatch" style="--sw: var(--lake); --ink: var(--surface)">
+                Lake<br /><span data-dark="#71C3D2" data-light="#11667A">#11667A</span>
+              </div>
+              <div class="swatch" style="--sw: var(--clay); --ink: var(--surface)">
+                Terracotta<br /><span data-dark="#F09B7D" data-light="#A44A31">#A44A31</span>
+              </div>
+              <div class="swatch" style="--sw: var(--canvas); --ink: var(--text)">
+                Canvas<br /><span data-dark="#0F1917" data-light="#F4F1E8">#F4F1E8</span>
+              </div>
+              <div class="swatch" style="--sw: var(--surface); --ink: var(--text)">
+                Surface<br /><span data-dark="#16231F" data-light="#FFFCF5">#FFFCF5</span>
+              </div>
+              <div class="swatch" style="--sw: var(--strong); --ink: var(--text)">
+                Strong<br /><span data-dark="#263A34" data-light="#E7ECE6">#E7ECE6</span>
+              </div>
+            </div>
+          </section>
+          <section class="grid" aria-label="Status cards">
+            <article class="card">
+              <div class="badge"><b>FRESH</b> official source</div>
+              <h2>Library hours</h2>
+              <p>Source-aware daily information with a compact provenance line.</p>
+              <a href="#components">Inspect components</a>
+            </article>
+            <article class="card">
+              <div class="badge"><b>DEMO</b> authored scenario</div>
+              <h2>Transit signal</h2>
+              <p>Live-looking facts are never presented without an explicit limitation.</p>
+              <button class="button quiet" type="button">View details</button>
+            </article>
+            <article class="card">
+              <div class="badge"><b>SCHEMATIC</b> text equivalent</div>
+              <h2>Campus world</h2>
+              <p>Visual orientation always retains a searchable DOM list path.</p>
+              <button class="button" type="button">Open 2D</button>
+            </article>
+          </section>
+          <section class="components" id="components">
+            <div class="panel">
+              <h2>Controls and focus</h2>
+              <label class="field"
+                >Search campus index<input placeholder="Library, transit, One Stop"
+              /></label>
+              <p>
+                <button class="button" type="button">Primary action</button>
+                <button class="button quiet" type="button">Secondary</button>
+              </p>
+              <p class="notice">
+                <strong>Source may be aging.</strong><br />Open the provenance link before relying on hours.
+              </p>
+            </div>
+            <div class="panel">
+              <h2>Operational data</h2>
+              <div class="status">
+                <span style="--tone: var(--success)">Healthy</span
+                ><span style="--tone: var(--warning)">Aging</span
+                ><span style="--tone: var(--danger)">Circuit open</span>
+              </div>
+              <table>
+                <caption class="sr-only">
+                  Example source health data
+                </caption>
+                <thead>
+                  <tr>
+                    <th>Source</th>
+                    <th>License</th>
+                    <th>State</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>events feed</td>
+                    <td>OPEN_REUSE</td>
+                    <td>fresh</td>
+                  </tr>
+                  <tr>
+                    <td>dining</td>
+                    <td>DEEPLINK_ONLY</td>
+                    <td>unknown</td>
+                  </tr>
+                  <tr>
+                    <td>SAFE-U</td>
+                    <td>LIVE_ONLY</td>
+                    <td>live channel</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+    <nav class="mobile-nav" aria-label="Mobile preview navigation">
+      <a aria-current="page" href="#preview-main">Today</a>
+      <a href="#palette">Explore</a>
+      <a href="#components">Plan</a>
+      <a href="#components">Ask</a>
+      <a href="#palette">More</a>
+    </nav>
+    <script>
+      const root = document.documentElement;
+      const button = document.querySelector("#theme");
+      const values = document.querySelectorAll("[data-dark][data-light]");
+      button.addEventListener("click", () => {
+        const dark = root.dataset.theme !== "dark";
+        root.dataset.theme = dark ? "dark" : "light";
+        button.textContent = dark ? "Switch to light" : "Switch to dark";
+        button.setAttribute("aria-pressed", String(dark));
+        values.forEach((value) => {
+          value.textContent = value.dataset[dark ? "dark" : "light"];
+        });
+      });
+    </script>
+  </body>
+</html>
