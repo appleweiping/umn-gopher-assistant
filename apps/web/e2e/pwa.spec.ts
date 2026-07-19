@@ -139,3 +139,23 @@ test("uses the English offline shell for an unvisited page", async ({ context, p
     await context.setOffline(false);
   }
 });
+
+test("does not reuse an English page after switching to Chinese offline", async ({ context, page }) => {
+  const app = new CampusFieldGuidePage(page);
+  await app.open("/explore");
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+  await expect(app.mainHeading).toHaveText("Find a place, service, event, or course");
+
+  await app.languageToggle.click();
+  await expect(app.mainHeading).toHaveText("查找地点、服务、活动或课程");
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(app.mainHeading).toHaveText("校园指南仍可打开");
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+  } finally {
+    await context.setOffline(false);
+  }
+});
