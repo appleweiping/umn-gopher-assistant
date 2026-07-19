@@ -88,6 +88,67 @@ The development command starts workspace development tasks. Consult package
 scripts and the API contracts before assuming a planned endpoint is backed by a
 runtime implementation.
 
+## Web field guide and PWA
+
+The web app is an installable, responsive field guide for all five campuses. It
+provides English and Simplified Chinese interfaces for Today, Explore, Plan,
+Community, World, Ask, Operations, and Developer routes. Campus, language, and
+theme preferences are stored in first-party cookies so the initial server render
+matches the browser state. Demo tasks and assistant settings remain local to the
+browser.
+
+Run the web app alone from the repository root with:
+
+    pnpm --filter @umn-gopher-assistant/web dev
+
+The service worker is registered only by a production build. It precaches the
+offline shell and project-owned icons, then caches same-origin Next.js static
+assets as they are used. It does not intercept cross-origin requests or paths
+under `/api/` and `/v1/`. To exercise the production PWA locally:
+
+    pnpm --filter @umn-gopher-assistant/web build
+    pnpm --filter @umn-gopher-assistant/web start
+
+The PWA preserves access to project-authored demo material when offline. It does
+not make external official sources, live schedules, safety alerts, registration,
+or campus systems available offline.
+
+## Web tests
+
+Component and domain tests run in Vitest:
+
+    pnpm --filter @umn-gopher-assistant/web test
+
+Playwright covers English-to-Chinese switching, all five persisted campus
+choices, the Today-to-Explore-to-Plan journey, mobile and keyboard navigation,
+the production offline fallback, manifest and service-worker policy, and
+automated WCAG A/AA checks. Install the pinned Chromium binary once, then run:
+
+    pnpm --filter @umn-gopher-assistant/web exec playwright install chromium
+    pnpm --filter @umn-gopher-assistant/web test:e2e
+
+The Playwright configuration builds and serves the production app when
+`PLAYWRIGHT_BASE_URL` is not set. Set that variable to test an already running
+instance. Failed runs retain a trace, screenshot, and video under the ignored
+`apps/web/test-results` directory; the HTML report is written to the ignored
+`apps/web/playwright-report` directory. Tests rely on browser events and web
+assertions rather than fixed sleeps.
+
+### Current web limitations
+
+- Entries, weather, routes, schedules, community posts, moderation items, and
+  assistant answers are authored demonstrations unless a provenance link says
+  otherwise.
+- Official links leave the app and require a network connection. Their content,
+  availability, accessibility, and licensing remain the source owner's
+  responsibility.
+- The schematic map is paired with a text list and is not an official map,
+  accessible-route guarantee, emergency route, or live navigation system.
+- Browser storage is not an account, synchronization service, private vault, or
+  institutional record. Clearing site data removes local preferences and tasks.
+- Installability and offline behavior require a supported browser and a secure
+  context (localhost is accepted for development).
+
 ## Repository map
 
 | Path               | Purpose                                                  |
