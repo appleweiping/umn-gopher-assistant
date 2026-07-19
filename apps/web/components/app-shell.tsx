@@ -73,9 +73,7 @@ function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const quickQueries =
-    locale === "zh-CN"
-      ? { library: "图书馆", oneStop: "办事指南", transit: "交通" }
-      : { library: "library", oneStop: "one stop", transit: "transit" };
+    locale === "zh-CN" ? { library: "图书馆", transit: "交通" } : { library: "library", transit: "transit" };
   const exploreQuery = (value: string) => `/explore?q=${encodeURIComponent(value)}`;
   useEffect(() => {
     const openWithShortcut = (event: KeyboardEvent) => {
@@ -142,7 +140,7 @@ function GlobalSearch() {
             <Link href={exploreQuery(quickQueries.transit)} onClick={() => setOpen(false)}>
               {t("quickTransit")}
             </Link>
-            <Link href={exploreQuery(quickQueries.oneStop)} onClick={() => setOpen(false)}>
+            <Link href="/explore?kind=service" onClick={() => setOpen(false)}>
               {t("quickOneStop")}
             </Link>
           </div>
