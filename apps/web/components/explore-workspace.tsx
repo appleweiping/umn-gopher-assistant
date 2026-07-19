@@ -31,7 +31,10 @@ export function ExploreWorkspace() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   useEffect(() => setQuery(searchParams.get("q") ?? ""), [searchParams]);
 
-  const sourceRecords = demoRecords.filter((record) => record.campus === campus);
+  const requestedKind = searchParams.get("kind");
+  const sourceRecords = demoRecords.filter(
+    (record) => record.campus === campus && (requestedKind !== "service" || record.kind === "service"),
+  );
   const items = useMemo(
     () =>
       sourceRecords.map<ExploreItem>((record) => ({
