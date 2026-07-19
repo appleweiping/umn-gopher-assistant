@@ -15,12 +15,14 @@
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "generate": "turbo run generate",
+    "check:generated": "turbo run check:generated",
     "lint": "turbo run lint",
     "smoke:db": "node scripts/smoke-foundation-db.mjs",
     "test": "turbo run test",
     "test:unit": "vitest run",
     "typecheck": "turbo run typecheck",
-    "verify": "pnpm verify:foundation && pnpm lint && pnpm typecheck && pnpm test",
+    "verify": "pnpm verify:foundation && pnpm check:generated && pnpm lint && pnpm typecheck && pnpm test",
     "verify:foundation": "node scripts/verify-foundation.mjs"
   },
   "devDependencies": {

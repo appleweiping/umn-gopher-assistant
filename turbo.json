@@ -11,6 +11,12 @@
       "cache": false,
       "persistent": true
     },
+    "generate": {
+      "cache": false
+    },
+    "check:generated": {
+      "cache": false
+    },
     "lint": {
       "dependsOn": ["^lint"],
       "outputs": []

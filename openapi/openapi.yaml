@@ -26,13 +26,12 @@ tags:
   - name: Live Events
   - name: Moderation
   - name: Admin
-security:
-  - oauth2: []
 paths:
   /v1/health:
     get:
       tags: [System]
       operationId: getHealth
+      x-runtime-status: implemented
       summary: Return process health
       security: []
       responses:
@@ -53,6 +52,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: listCampuses
+      x-runtime-status: implemented
       summary: List supported campuses and academic-calendar mappings
       security: []
       parameters:
@@ -79,6 +79,7 @@ paths:
     get:
       tags: [Catalog]
       operationId: listSources
+      x-runtime-status: implemented
       summary: List provenance and connector-policy descriptors
       security: []
       parameters:
@@ -108,8 +109,10 @@ paths:
     get:
       tags: [Catalog]
       operationId: listEvents
+      x-runtime-status: contract-only
       summary: List normalized public events
       description: Contract-only until an approved connector is enabled.
+      security: []
       parameters:
         - $ref: "#/components/parameters/CampusQuery"
         - $ref: "#/components/parameters/Cursor"
@@ -135,7 +138,9 @@ paths:
     get:
       tags: [Catalog]
       operationId: listPlaces
+      x-runtime-status: contract-only
       summary: List public places with provenance and verification state
+      security: []
       parameters:
         - $ref: "#/components/parameters/CampusQuery"
         - name: query
@@ -164,10 +169,12 @@ paths:
     post:
       tags: [Routing]
       operationId: calculateRoute
+      x-runtime-status: contract-only
       summary: Calculate a provenance-bound campus route
       description: |
         Safety-critical and accessibility routing must return 503 until its topology and operating
         procedure are verified. A schematic response must never be presented as verified guidance.
+      security: []
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -198,6 +205,7 @@ paths:
     get:
       tags: [Worlds]
       operationId: getWorldManifest
+      x-runtime-status: implemented
       summary: Return a versioned schematic or verified world manifest
       security: []
       parameters:
@@ -225,7 +233,9 @@ paths:
     get:
       tags: [Community]
       operationId: listCommunityPosts
+      x-runtime-status: contract-only
       summary: List moderated community posts
+      security: []
       parameters:
         - $ref: "#/components/parameters/CampusQuery"
         - $ref: "#/components/parameters/Cursor"
@@ -244,7 +254,10 @@ paths:
     post:
       tags: [Community]
       operationId: createCommunityPost
+      x-runtime-status: contract-only
       summary: Submit a post to the moderation pipeline
+      security:
+        - oauth2: [community:write]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -279,8 +292,11 @@ paths:
     post:
       tags: [AI]
       operationId: queryAssistant
+      x-runtime-status: contract-only
       summary: Query the bilingual retrieval assistant
       description: Answers must expose citations and must not elevate unverified data to official fact.
+      security:
+        - oauth2: [campus:read]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -315,6 +331,7 @@ paths:
     get:
       tags: [Academics]
       operationId: listAcademicCourses
+      x-runtime-status: contract-only
       summary: List institution-scoped academic course metadata
       description: Contract-only until an approved academic connector is enabled.
       security:
@@ -349,9 +366,10 @@ paths:
     get:
       tags: [Messages]
       operationId: listMessages
+      x-runtime-status: contract-only
       summary: List messages visible to the authenticated user
       security:
-        - oauth2: [messages:read, personal:read]
+        - oauth2: [messages:read]
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -377,9 +395,10 @@ paths:
     post:
       tags: [Messages]
       operationId: createMessage
+      x-runtime-status: contract-only
       summary: Send a private message through the moderated delivery pipeline
       security:
-        - oauth2: [messages:write, personal:write]
+        - oauth2: [messages:write]
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -414,9 +433,10 @@ paths:
     post:
       tags: [Live Events]
       operationId: joinLiveEvent
+      x-runtime-status: contract-only
       summary: Issue a short-lived, device-bound live-event join ticket
       security:
-        - oauth2: [world:write, personal:read]
+        - oauth2: [world:write]
       parameters:
         - $ref: "#/components/parameters/EventIdPath"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -454,9 +474,10 @@ paths:
     get:
       tags: [Moderation]
       operationId: listModerationCases
+      x-runtime-status: contract-only
       summary: List moderation cases authorized for the reviewer
       security:
-        - oauth2: [community:write, admin:read]
+        - oauth2: [admin:read]
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -477,10 +498,11 @@ paths:
     patch:
       tags: [Admin]
       operationId: updateSourcePolicy
+      x-runtime-status: contract-only
       summary: Update reviewed source-policy metadata
       description: This operation cannot enable a connector or establish official status without external evidence.
       security:
-        - oauth2: [admin:write, campus:write]
+        - oauth2: [admin:write]
       parameters:
         - $ref: "#/components/parameters/SourceIdPath"
         - $ref: "#/components/parameters/IdempotencyKey"
@@ -516,11 +538,18 @@ components:
   securitySchemes:
     oauth2:
       type: oauth2
-      description: Local Keycloak in development; production issuer is deployment-specific.
+      description: |
+        Local Keycloak in development; the production issuer is deployment-specific. Browser and
+        remote-client authorization uses authorization code with PKCE S256. The local CLI uses the
+        Keycloak RFC 8628 device authorization endpoint. RFC 8707 resource indicators are not supported
+        by Keycloak 26.5.5, so this realm must not be described as fully compatible with MCP
+        authorization specifications newer than 2025-03-26.
+      x-device-authorization-url: http://localhost:8080/realms/gopher-assistant-dev/protocol/openid-connect/auth/device
       flows:
         authorizationCode:
           authorizationUrl: http://localhost:8080/realms/gopher-assistant-dev/protocol/openid-connect/auth
           tokenUrl: http://localhost:8080/realms/gopher-assistant-dev/protocol/openid-connect/token
+          x-pkce-required: true
           scopes:
             openid: OpenID Connect
             profile: Basic profile
@@ -818,6 +847,9 @@ components:
             items:
               type: array
               items: { $ref: "#/components/schemas/Place" }
+    RouteProfile:
+      type: string
+      enum: [walking, wheelchair]
     RouteRequest:
       type: object
       additionalProperties: false
@@ -826,9 +858,7 @@ components:
         campusId: { $ref: "#/components/schemas/CampusId" }
         origin: { $ref: "#/components/schemas/GeoPoint" }
         destination: { $ref: "#/components/schemas/GeoPoint" }
-        profile:
-          type: string
-          enum: [WALK, WHEELCHAIR, BICYCLE, TRANSIT]
+        profile: { $ref: "#/components/schemas/RouteProfile" }
     RouteSegment:
       type: object
       additionalProperties: false
@@ -847,7 +877,7 @@ components:
         ]
       properties:
         id: { type: string }
-        profile: { type: string, enum: [WALK, WHEELCHAIR, BICYCLE, TRANSIT] }
+        profile: { $ref: "#/components/schemas/RouteProfile" }
         geometry:
           type: array
           minItems: 2
@@ -869,7 +899,7 @@ components:
       properties:
         routeId: { type: string, format: uuid }
         campusId: { $ref: "#/components/schemas/CampusId" }
-        profile: { type: string, enum: [WALK, WHEELCHAIR, BICYCLE, TRANSIT] }
+        profile: { $ref: "#/components/schemas/RouteProfile" }
         segments:
           type: array
           minItems: 1

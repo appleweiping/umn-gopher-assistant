@@ -9,10 +9,188 @@
   "bruteForceProtected": true,
   "roles": {
     "realm": [
-      { "name": "campus-user", "description": "Local development user" },
-      { "name": "community-moderator", "description": "Local moderation test role" }
+      {
+        "name": "anonymous",
+        "description": "Authorization vocabulary for unauthenticated product access; not assigned to tokens"
+      },
+      {
+        "name": "visitor",
+        "description": "Authenticated local visitor with no campus verification claim"
+      },
+      {
+        "name": "campus-verified",
+        "description": "Synthetic local role used to test campus verification boundaries"
+      },
+      {
+        "name": "moderator",
+        "description": "Synthetic local community moderation role"
+      },
+      {
+        "name": "admin",
+        "description": "Synthetic local platform administration role"
+      },
+      {
+        "name": "security-reviewer",
+        "description": "Synthetic local role for dual-control security review"
+      }
     ]
   },
+  "clientScopes": [
+    {
+      "name": "gopher-api-audience",
+      "description": "Adds the local API audience to access tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "gopher-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "gopher-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "gopher-mcp-audience",
+      "description": "Adds only the local canonical MCP resource audience to access tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "gopher-mcp-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "http://127.0.0.1:4100/mcp",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "lightweight.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "campus:read",
+      "description": "Read campus-scoped public and approved data",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "campus:write",
+      "description": "Modify reviewed campus-scoped metadata",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "personal:read",
+      "description": "Read the authenticated user's private records",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "personal:write",
+      "description": "Modify the authenticated user's private records",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "community:read",
+      "description": "Read authenticated community resources",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "community:write",
+      "description": "Create or moderate community resources",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "messages:read",
+      "description": "Read private messages for the authenticated user",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "messages:write",
+      "description": "Send private messages as the authenticated user",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "world:read",
+      "description": "Read authenticated world-session resources",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "world:write",
+      "description": "Join or publish to authorized world sessions",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "admin:read",
+      "description": "Read administrative review resources",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    },
+    {
+      "name": "admin:write",
+      "description": "Modify administrative policy resources",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      }
+    }
+  ],
   "clients": [
     {
       "clientId": "gopher-web",
@@ -21,15 +199,107 @@
       "protocol": "openid-connect",
       "publicClient": true,
       "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["http://localhost:3000/*"],
-      "webOrigins": ["http://localhost:3000"],
+      "redirectUris": ["http://localhost:3000/auth/callback", "http://127.0.0.1:3000/auth/callback"],
+      "webOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:3000/*"
+        "post.logout.redirect.uris": "http://localhost:3000/##http://127.0.0.1:3000/"
       },
-      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "basic", "email"]
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "basic",
+        "email",
+        "gopher-api-audience",
+        "campus:read"
+      ],
+      "optionalClientScopes": [
+        "campus:write",
+        "personal:read",
+        "personal:write",
+        "community:read",
+        "community:write",
+        "messages:read",
+        "messages:write",
+        "world:read",
+        "world:write",
+        "admin:read",
+        "admin:write"
+      ]
+    },
+    {
+      "clientId": "gopher-cli",
+      "name": "Campus Assistant Local CLI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "defaultClientScopes": [
+        "acr",
+        "profile",
+        "roles",
+        "basic",
+        "email",
+        "gopher-api-audience",
+        "campus:read"
+      ],
+      "optionalClientScopes": [
+        "campus:write",
+        "personal:read",
+        "personal:write",
+        "community:read",
+        "community:write",
+        "messages:read",
+        "messages:write",
+        "world:read",
+        "world:write",
+        "admin:read",
+        "admin:write",
+        "offline_access"
+      ]
+    },
+    {
+      "clientId": "gopher-mcp",
+      "name": "Campus Assistant Local MCP Authorization Client",
+      "description": "Local PKCE client only; Keycloak 26.5.5 cannot provide RFC 8707 resource indicators",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://127.0.0.1:4100/oauth/callback"],
+      "webOrigins": ["http://127.0.0.1:4100"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1:4100/"
+      },
+      "defaultClientScopes": ["acr", "profile", "roles", "basic", "gopher-mcp-audience", "campus:read"],
+      "optionalClientScopes": [
+        "campus:write",
+        "personal:read",
+        "personal:write",
+        "community:read",
+        "community:write",
+        "messages:read",
+        "messages:write",
+        "world:read",
+        "world:write",
+        "admin:read",
+        "admin:write"
+      ]
     },
     {
       "clientId": "gopher-api",
@@ -39,6 +309,7 @@
       "publicClient": false,
       "bearerOnly": true,
       "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false
     }

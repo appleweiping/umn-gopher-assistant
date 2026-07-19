@@ -7,7 +7,7 @@ import {
   VerificationStateSchema,
 } from "./common.js";
 
-export const RouteProfileSchema = z.enum(["WALK", "WHEELCHAIR", "BICYCLE", "TRANSIT"]);
+export const RouteProfileSchema = z.enum(["walking", "wheelchair"]);
 export type RouteProfile = z.infer<typeof RouteProfileSchema>;
 
 export const RouteSegmentSchema = z
