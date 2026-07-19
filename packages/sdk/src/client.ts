@@ -1,11 +1,14 @@
 import { operationDefinitions } from "./generated/operations.js";
 import type { OperationDefinition, OperationId } from "./generated/operations.js";
 import type { components, operations } from "./generated/schema.js";
+import { validateImplementedSuccessBody } from "./generated/validators.js";
 
 export type AccessTokenProvider = () => Promise<string | undefined> | string | undefined;
 export type ProblemDetails = components["schemas"]["Problem"];
 export type ProtocolErrorCode =
+  | "invalid-success-body"
   | "malformed-success-json"
+  | "response-body-too-large"
   | "unexpected-error-status"
   | "unexpected-not-modified"
   | "unexpected-success-content-type"
@@ -138,7 +141,15 @@ export interface GopherClientOptions {
   readonly baseUrl: string | URL;
   /** Native fetch-compatible implementation, primarily for runtimes and tests. */
   readonly fetch?: typeof fetch;
+  /** Maximum decoded RFC 9457 error body size. Defaults to 64 KiB. */
+  readonly maxErrorResponseBodyBytes?: number;
+  /** Maximum decoded successful JSON body size. Defaults to 2 MiB. */
+  readonly maxSuccessResponseBodyBytes?: number;
 }
+
+export const DEFAULT_MAX_ERROR_RESPONSE_BODY_BYTES = 64 * 1024;
+export const DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES = 2 * 1024 * 1024;
+export const ABSOLUTE_MAX_RESPONSE_BODY_BYTES = 8 * 1024 * 1024;
 
 // Additional headers are intentionally allowlisted. Authentication, routing,
 // method override, proxy, framing, cache validators, and correlation headers
@@ -209,12 +220,92 @@ function isProblemDetails(value: unknown, expectedStatus: number): value is Prob
 }
 
 interface ParsedJson {
+  readonly tooLarge?: boolean;
   readonly valid: boolean;
   readonly value?: unknown;
 }
 
-async function parseJson(response: Response): Promise<ParsedJson> {
-  const text = await response.text();
+function normalizeResponseBodyLimit(value: number | undefined, fallback: number, optionName: string): number {
+  const limit = value ?? fallback;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > ABSOLUTE_MAX_RESPONSE_BODY_BYTES) {
+    throw new RangeError(
+      `${optionName} must be an integer between 1 and ${ABSOLUTE_MAX_RESPONSE_BODY_BYTES}`,
+    );
+  }
+  return limit;
+}
+
+function declaredBodyExceedsLimit(response: Response, limit: number): boolean {
+  const contentEncoding = response.headers.get("content-encoding");
+  if (contentEncoding !== null) {
+    const codings = contentEncoding.split(",").map((coding) => coding.trim().toLowerCase());
+    if (codings.some((coding) => coding !== "identity")) return false;
+  }
+
+  const rawLength = response.headers.get("content-length");
+  if (rawLength === null || !/^\d+$/u.test(rawLength)) return false;
+
+  const declaredLength = Number(rawLength);
+  // Any all-digit value that cannot be represented safely is necessarily far
+  // beyond the configurable cap (except arbitrary leading zeroes, which Number
+  // normalizes safely to zero).
+  return !Number.isSafeInteger(declaredLength) || declaredLength > limit;
+}
+
+function ignoreCancellation(cancellation: Promise<void>): void {
+  void cancellation.catch(() => undefined);
+}
+
+function cancelUnlockedBody(response: Response): void {
+  if (response.body === null) return;
+  try {
+    ignoreCancellation(response.body.cancel());
+  } catch {
+    // Cancellation is best-effort and must not replace the stable SDK error.
+  }
+}
+
+async function parseJson(response: Response, limit: number): Promise<ParsedJson> {
+  if (declaredBodyExceedsLimit(response, limit)) {
+    cancelUnlockedBody(response);
+    return { tooLarge: true, valid: false };
+  }
+
+  if (response.body === null) return { valid: false };
+
+  const reader = response.body.getReader();
+  let bytes = new Uint8Array(Math.min(limit, 8 * 1024));
+  let byteLength = 0;
+  try {
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      const nextByteLength = byteLength + chunk.value.byteLength;
+      if (nextByteLength > limit) {
+        try {
+          ignoreCancellation(reader.cancel());
+        } catch {
+          // Cancellation is best-effort and must not replace the stable SDK error.
+        }
+        return { tooLarge: true, valid: false };
+      }
+      if (nextByteLength > bytes.byteLength) {
+        let nextCapacity = bytes.byteLength;
+        while (nextCapacity < nextByteLength) {
+          nextCapacity = Math.min(limit, Math.max(nextByteLength, Math.max(1, nextCapacity * 2)));
+        }
+        const expanded = new Uint8Array(nextCapacity);
+        expanded.set(bytes.subarray(0, byteLength));
+        bytes = expanded;
+      }
+      bytes.set(chunk.value, byteLength);
+      byteLength = nextByteLength;
+      chunk = await reader.read();
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const text = new TextDecoder().decode(bytes.subarray(0, byteLength));
   if (!text) return { valid: false };
   try {
     return { valid: true, value: JSON.parse(text) as unknown };
@@ -290,11 +381,23 @@ export class GopherClient {
   readonly #accessToken: AccessTokenProvider | string | undefined;
   readonly #baseUrl: URL;
   readonly #fetch: typeof fetch;
+  readonly #maxErrorResponseBodyBytes: number;
+  readonly #maxSuccessResponseBodyBytes: number;
 
   constructor(options: GopherClientOptions) {
     this.#baseUrl = normalizeBaseUrl(options.baseUrl);
     this.#accessToken = options.accessToken;
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+    this.#maxErrorResponseBodyBytes = normalizeResponseBodyLimit(
+      options.maxErrorResponseBodyBytes,
+      DEFAULT_MAX_ERROR_RESPONSE_BODY_BYTES,
+      "maxErrorResponseBodyBytes",
+    );
+    this.#maxSuccessResponseBodyBytes = normalizeResponseBodyLimit(
+      options.maxSuccessResponseBodyBytes,
+      DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES,
+      "maxSuccessResponseBodyBytes",
+    );
   }
 
   async request<Id extends OperationId>(
@@ -354,6 +457,7 @@ export class GopherClient {
 
     if (response.status === 304) {
       if (!definition.supportsNotModified || !options.etag) {
+        cancelUnlockedBody(response);
         throw new GopherProtocolError("unexpected-not-modified", operationId, response.status, requestId);
       }
       const result: NotModifiedResult = {
@@ -365,12 +469,21 @@ export class GopherClient {
       return result as OperationResult<Id>;
     }
 
-    const parsed = await parseJson(response);
     if (!response.ok) {
       if (response.status < 400 || response.status > 599) {
+        cancelUnlockedBody(response);
         throw new GopherProtocolError("unexpected-error-status", operationId, response.status, requestId);
       }
       const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+      let parsed: ParsedJson = { valid: false };
+      if (contentType === "application/problem+json") {
+        parsed = await parseJson(response, this.#maxErrorResponseBodyBytes);
+      } else {
+        cancelUnlockedBody(response);
+      }
+      if (parsed.tooLarge) {
+        throw new GopherProtocolError("response-body-too-large", operationId, response.status, requestId);
+      }
       const problem: ProblemDetails =
         contentType === "application/problem+json" &&
         parsed.valid &&
@@ -388,11 +501,13 @@ export class GopherClient {
     }
 
     if (!definition.successStatuses.includes(response.status)) {
+      cancelUnlockedBody(response);
       throw new GopherProtocolError("unexpected-success-status", operationId, response.status, requestId);
     }
 
     const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (contentType === undefined || !definition.successMediaTypes.includes(contentType)) {
+      cancelUnlockedBody(response);
       throw new GopherProtocolError(
         "unexpected-success-content-type",
         operationId,
@@ -400,12 +515,25 @@ export class GopherClient {
         requestId,
       );
     }
+    const parsed = await parseJson(response, this.#maxSuccessResponseBodyBytes);
+    if (parsed.tooLarge) {
+      throw new GopherProtocolError("response-body-too-large", operationId, response.status, requestId);
+    }
     if (!parsed.valid) {
       throw new GopherProtocolError("malformed-success-json", operationId, response.status, requestId);
     }
 
+    let successBody = parsed.value;
+    if (definition.runtimeStatus === "implemented") {
+      const validation = validateImplementedSuccessBody(operationId, response.status, successBody);
+      if (!validation.success) {
+        throw new GopherProtocolError("invalid-success-body", operationId, response.status, requestId);
+      }
+      successBody = validation.data;
+    }
+
     return {
-      data: parsed.value as JsonContent<SuccessfulResponseFor<Id>>,
+      data: successBody as JsonContent<SuccessfulResponseFor<Id>>,
       ...(etag === undefined ? {} : { etag }),
       notModified: false,
       ...(requestId === undefined ? {} : { requestId }),

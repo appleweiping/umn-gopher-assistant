@@ -8,36 +8,33 @@ import { usePreferences } from "./preferences";
 export function DeveloperConsole() {
   const t = useTranslations("developer");
   const { campus, locale } = usePreferences();
-  const [operation, setOperation] = useState("campus.resources.read");
+  const [operation, setOperation] = useState("campuses_list");
   const [resource, setResource] = useState<string>(campus);
   const [preview, setPreview] = useState<string | null>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [status, setStatus] = useState("");
 
   useEffect(() => {
     setResource(campus);
     setPreview(null);
-    setAcknowledged(false);
-    setStatus("");
   }, [campus]);
 
   const makePreview: SubmitEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
     setPreview(
       JSON.stringify(
-        { operation, resource, mode: "LOCAL_DEMO", externalWrite: false, confirmationRequired: true },
+        {
+          arguments: operation === "campuses_list" ? {} : { campusId: resource },
+          externalWrite: false,
+          mode: "READ_ONLY_PREVIEW",
+          tool: operation,
+        },
         null,
         2,
       ),
     );
-    setAcknowledged(false);
-    setStatus("");
   };
 
   const resetPreview = () => {
     setPreview(null);
-    setAcknowledged(false);
-    setStatus("");
   };
 
   return (
@@ -72,9 +69,11 @@ export function DeveloperConsole() {
           <h2>{t("scopes")}</h2>
           <ul className="mono-list">
             <li>campus:read</li>
-            <li>source:read</li>
-            <li>community:report</li>
-            <li>world:publish</li>
+            <li>personal:read / personal:write</li>
+            <li>community:read / community:write</li>
+            <li>messages:read / messages:write</li>
+            <li>world:read / world:write</li>
+            <li>admin:read / admin:write</li>
           </ul>
         </article>
       </section>
@@ -84,7 +83,7 @@ export function DeveloperConsole() {
           <h2>{t("sdk")}</h2>
           <p>TypeScript · {t("sdkDescription")}</p>
           <code>
-            import {"{"} campuses {"}"} from &quot;@uga/sdk&quot;
+            import {"{"} GopherClient {"}"} from &quot;@umn-gopher-assistant/sdk&quot;
           </code>
         </article>
         <article>
@@ -96,20 +95,20 @@ export function DeveloperConsole() {
           <h2>{t("mcp")}</h2>
           <p>
             {locale === "zh-CN"
-              ? "读取可直接执行；写入必须先预览，再明确确认。"
-              : "Reads may execute directly. Writes require preview, then explicit confirmation."}
+              ? "远程 Streamable HTTP 服务当前只注册三个校园读取工具，不注册写工具。"
+              : "The remote Streamable HTTP server currently registers exactly three campus read tools and no writes."}
           </p>
-          <code>preview → confirm → audit</code>
+          <code>campuses_list · sources_list · world_manifest_get</code>
         </article>
       </section>
 
       <section className="panel mcp-lab" aria-labelledby="mcp-lab-title">
         <div className="section-heading">
           <div>
-            <p className="section-kicker">{locale === "zh-CN" ? "MCP 语义实验室" : "MCP semantics lab"}</p>
-            <h2 id="mcp-lab-title">{locale === "zh-CN" ? "预览 → 确认" : "preview → confirm"}</h2>
+            <p className="section-kicker">{locale === "zh-CN" ? "MCP 读取工具" : "MCP read tools"}</p>
+            <h2 id="mcp-lab-title">{locale === "zh-CN" ? "只读请求预览" : "Read-only request preview"}</h2>
           </div>
-          <span className="trust-tag">{locale === "zh-CN" ? "仅限本地" : "local only"}</span>
+          <span className="trust-tag">{locale === "zh-CN" ? "无写入" : "no writes"}</span>
         </div>
         <form className="mcp-form" onSubmit={makePreview}>
           <label>
@@ -121,9 +120,9 @@ export function DeveloperConsole() {
               }}
               value={operation}
             >
-              <option>campus.resources.read</option>
-              <option>community.report.preview</option>
-              <option>world.publish.preview</option>
+              <option>campuses_list</option>
+              <option>sources_list</option>
+              <option>world_manifest_get</option>
             </select>
           </label>
           <label>
@@ -142,36 +141,22 @@ export function DeveloperConsole() {
         </form>
         {preview === null ? (
           <p className="empty-inline">
-            {locale === "zh-CN" ? "先生成结构化预览。" : "Generate a structured preview first."}
+            {locale === "zh-CN"
+              ? "生成结构化参数预览；此页面不会调用 MCP 服务器。"
+              : "Generate a structured argument preview; this page does not call the MCP server."}
           </p>
         ) : (
           <div className="operation-preview">
             <pre>
               <code>{preview}</code>
             </pre>
-            <label className="check-row">
-              <input
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.target.checked)}
-                type="checkbox"
-              />
+            <p className="empty-inline">
               {locale === "zh-CN"
-                ? "我理解这只是本地演示，不会执行外部写入。"
-                : "I understand this is a local demo and performs no external write."}
-            </label>
-            <button
-              className="button"
-              disabled={!acknowledged}
-              onClick={() => setStatus(t("confirmed"))}
-              type="button"
-            >
-              {t("confirm")}
-            </button>
+                ? "当前服务器没有写工具；未来写工具必须采用预览、明确确认和幂等键。"
+                : "No write tools are registered. Future writes must require preview, explicit confirmation, and an idempotency key."}
+            </p>
           </div>
         )}
-        <p role="status" aria-live="polite">
-          {status}
-        </p>
       </section>
     </div>
   );

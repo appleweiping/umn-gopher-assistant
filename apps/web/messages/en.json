@@ -150,7 +150,7 @@
   "developer": {
     "eyebrow": "Developer surface",
     "title": "Contracts before connectors",
-    "summary": "Inspect schemas, scopes, and preview-first tool semantics without implying that planned endpoints are live.",
+    "summary": "Use the generated SDK, authenticated CLI, and read-only MCP surface while keeping contract-only operations visibly separate.",
     "openapi": "OpenAPI contract",
     "asyncapi": "AsyncAPI contract",
     "scopes": "Scopes",
@@ -160,8 +160,8 @@
     "preview": "Preview operation",
     "confirm": "Confirm local demo",
     "confirmed": "Demo operation confirmed locally; no external write occurred.",
-    "sdkDescription": "generated later",
-    "cliDescription": "Preview-only command semantics"
+    "sdkDescription": "generated from the OpenAPI contract",
+    "cliDescription": "RFC 8628 login and implemented read commands"
   },
   "offline": {
     "eyebrow": "Offline shell",

@@ -1,0 +1,53 @@
+UMN Gopher Assistant
+Copyright 2026 UMN Gopher Assistant contributors
+
+This product includes software and documentation developed for the independent
+UMN Gopher Assistant project and licensed under the Apache License, Version 2.0.
+
+INDEPENDENT AND UNOFFICIAL PROJECT
+
+UMN Gopher Assistant is an independent, student-built project. It is not
+operated, sponsored, endorsed, approved, or supported by the University of
+Minnesota. References to the University and its campuses identify the intended
+subject matter only and do not state or imply an institutional relationship.
+
+TRADEMARKS AND BRAND ASSETS
+
+University of Minnesota names, logos, Goldy Gopher artwork, and other marks or
+brand assets are the property of their respective owners. The Apache License
+for this project does not grant rights to those marks. No University logo,
+mascot artwork, trade dress, or other unlicensed institutional asset is included
+by default.
+
+EXTERNAL DATA, LINKS, AND SERVICES
+
+External URLs, publisher names, and service names may appear for attribution,
+provenance, interoperability, or deep-linking. Their appearance does not mean
+the linked content is included in this work, licensed under the Apache License,
+verified, approved for caching or redistribution, or supplied through an
+official integration.
+
+Institutional and third-party connectors are disabled unless their
+authorization, licensing, privacy, security, and operational approval artifacts
+are reviewed. Credentials, access tokens, cookies, private keys, protected
+records, and production secrets are not part of this distribution and must not
+be committed to it.
+
+DATA AND ASSET STATUS
+
+Current campus and source records have official status UNVERIFIED. Initial 3D
+world content has verification state schematic: it is an approximation, not an official map, survey,
+accessible-route guarantee, emergency route, or live representation of campus
+conditions. Safety-critical routing and alert behavior remain disabled until a
+separate, current verification review is completed.
+
+No public webpage, map, photograph, model, feed, directory, menu, document, or
+other third-party asset is relicensed merely because it can be accessed through
+a browser or referenced by this project. Each external item remains subject to
+its own copyright, license, terms, attribution, privacy, and access rules.
+
+THIRD-PARTY SOFTWARE
+
+Third-party software components retain their respective copyrights and
+licenses. Distributors are responsible for preserving notices and license terms
+required by the exact dependency and artifact versions they ship.

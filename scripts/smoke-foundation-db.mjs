@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(repositoryRoot, "infra/compose/docker-compose.yml");
 const projectName = `gopher-db-smoke-${String(process.pid)}`;
+const reusePrebuiltImage = process.env.SMOKE_DB_REUSE_IMAGE === "true";
 const smokeEnvironment = {
   ...process.env,
   COMPOSE_BIND_ADDRESS: "127.0.0.1",
@@ -46,7 +47,7 @@ $$;
 `;
 
 try {
-  compose(["up", "--build", "--wait", "postgres"]);
+  compose(["up", reusePrebuiltImage ? "--no-build" : "--build", "--wait", "postgres"]);
   compose([
     "exec",
     "--no-TTY",

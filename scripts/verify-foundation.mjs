@@ -99,7 +99,7 @@ for (const file of requiredFiles) {
 
 const packageJson = await readJson("package.json");
 assert.match(packageJson.packageManager, /^pnpm@10\./, "pnpm 10 must be pinned");
-assert.match(packageJson.engines.node, /^24\./, "Node 24 LTS must be pinned");
+assert.equal(packageJson.engines.node, ">=24 <25", "the supported Node 24 line must be bounded");
 assert.equal(packageJson.devDependencies.turbo.startsWith("^"), false, "Turborepo must be pinned exactly");
 
 for (const jsonFile of [

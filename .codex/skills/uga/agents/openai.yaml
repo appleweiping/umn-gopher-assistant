@@ -1,0 +1,4 @@
+interface:
+  display_name: "UGA CLI"
+  short_description: "Operate UMN Gopher Assistant safely from the command line"
+  default_prompt: "Use $uga to inspect implemented campus data or diagnose a UMN Gopher Assistant CLI profile safely."

@@ -16,6 +16,8 @@ ADD --checksum=sha256:69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af20164
 
 RUN set -eux; \
     echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum --check --strict; \
+    sed -i 's|http://apt.postgresql.org|https://apt.postgresql.org|g' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null || true; \
     apt-get update; \
     apt-mark hold locales; \
     apt-get install -y --no-install-recommends build-essential ca-certificates postgresql-server-dev-17; \

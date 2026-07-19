@@ -17,9 +17,11 @@ describe("SDK package contents", () => {
 
   it("includes licensing material in the explicit package file list", () => {
     const manifest = JSON.parse(readFileSync(resolve(packageRoot, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
       files?: string[];
     };
 
     expect(manifest.files).toEqual(expect.arrayContaining(["dist", "LICENSE", "NOTICE"]));
+    expect(manifest.dependencies?.["zod"]).toBe("catalog:");
   });
 });
