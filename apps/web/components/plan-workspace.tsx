@@ -49,11 +49,19 @@ type RouteLocation = keyof (typeof routeLocationLabels)["en"];
 
 const startLocations = ["library", "studentCenter", "transitStop"] as const;
 const destinationLocations = ["scienceBuilding", "oneStop", "diningHall"] as const;
+const demoWeekStartsOn = "2026-08-31";
+const dayOffsets = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4 } as const;
 
 function minutes(value: number): string {
   const hour = Math.floor(value / 60);
   const minute = value % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function dateForDay(day: keyof typeof dayOffsets): string {
+  const date = new Date(`${demoWeekStartsOn}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + dayOffsets[day]);
+  return date.toISOString().slice(0, 10);
 }
 
 export function PlanWorkspace() {
@@ -68,12 +76,12 @@ export function PlanWorkspace() {
   const exportCalendar = () => {
     const calendar = createIcsCalendar({
       calendarName: "Campus Field Guide demo week",
-      events: blocks.map((block, index) => ({
+      events: blocks.map((block) => ({
         id: block.id,
         title: block.title,
         location: block.room,
-        startsAt: `2026-09-0${1 + index}T${minutes(block.startMinutes)}:00-05:00`,
-        endsAt: `2026-09-0${1 + index}T${minutes(block.endMinutes)}:00-05:00`,
+        startsAt: `${dateForDay(block.day)}T${minutes(block.startMinutes)}:00-05:00`,
+        endsAt: `${dateForDay(block.day)}T${minutes(block.endMinutes)}:00-05:00`,
       })),
     });
     const url = URL.createObjectURL(new Blob([calendar], { type: "text/calendar;charset=utf-8" }));

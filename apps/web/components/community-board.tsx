@@ -2,7 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { getCampus } from "../lib/data/registry";
 import { usePreferences } from "./preferences";
@@ -103,6 +103,7 @@ export function CommunityBoard() {
   const [dialogMode, setDialogMode] = useState<"detail" | "report" | "login">("detail");
   const [reportReason, setReportReason] = useState("scam");
   const [status, setStatus] = useState("");
+  const dialogTriggerRef = useRef<HTMLElement | null>(null);
   const selected = posts.find((post) => post.id === selectedId);
   const categories =
     locale === "zh-CN"
@@ -141,6 +142,7 @@ export function CommunityBoard() {
     [campus, category, locale, query],
   );
   const openDialog = (id: string | null, mode: "detail" | "report" | "login") => {
+    dialogTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSelectedId(id);
     setDialogMode(mode);
     setStatus("");
@@ -217,13 +219,24 @@ export function CommunityBoard() {
 
       <Dialog.Root
         onOpenChange={(open) => {
-          if (!open) setSelectedId(null);
+          if (!open) {
+            setSelectedId(null);
+            setDialogMode("detail");
+          }
         }}
         open={selectedId !== null || dialogMode === "login"}
       >
         <Dialog.Portal>
           <Dialog.Overlay className="dialog-overlay" />
-          <Dialog.Content className="dialog-content">
+          <Dialog.Content
+            className="dialog-content"
+            onCloseAutoFocus={(event) => {
+              if (dialogTriggerRef.current === null) return;
+              event.preventDefault();
+              dialogTriggerRef.current.focus();
+              dialogTriggerRef.current = null;
+            }}
+          >
             <div className="dialog-heading">
               <Dialog.Title>
                 {dialogMode === "login"

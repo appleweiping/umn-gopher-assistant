@@ -1,8 +1,12 @@
 const CACHE_PREFIX = "campus-field-guide-";
 const SHELL_CACHE = `${CACHE_PREFIX}shell-v3`;
-const PAGE_CACHE = `${CACHE_PREFIX}pages-v3`;
+const PAGE_CACHES = {
+  en: `${CACHE_PREFIX}pages-en-v4`,
+  "zh-CN": `${CACHE_PREFIX}pages-zh-CN-v4`,
+};
 const ASSET_CACHE = `${CACHE_PREFIX}assets-v3`;
-const CURRENT_CACHES = new Set([SHELL_CACHE, PAGE_CACHE, ASSET_CACHE]);
+const CURRENT_CACHES = new Set([SHELL_CACHE, ...Object.values(PAGE_CACHES), ASSET_CACHE]);
+const clientLocales = new Map();
 const OFFLINE_SHELLS = {
   en: {
     key: "/__campus-field-guide-offline-shell-en",
@@ -106,33 +110,53 @@ self.addEventListener("message", (event) => {
 
   event.waitUntil(
     (async () => {
+      if (typeof event.source?.id === "string") clientLocales.set(event.source.id, message.locale);
       const cache = await caches.open(SHELL_CACHE);
       await cache.put(LOCALE_PREFERENCE_KEY, new Response(message.locale));
     })(),
   );
 });
 
-async function preferredOfflineShell(request) {
+async function preferredLocale(request, clientId) {
   const requestedLocale = new URL(request.url).searchParams.get("locale");
-  if (requestedLocale === "en" || requestedLocale === "zh-CN") {
-    return caches.match(OFFLINE_SHELLS[requestedLocale].key);
-  }
+  if (requestedLocale === "en" || requestedLocale === "zh-CN") return requestedLocale;
+
+  const clientLocale = clientLocales.get(clientId);
+  if (clientLocale === "en" || clientLocale === "zh-CN") return clientLocale;
 
   const shellCache = await caches.open(SHELL_CACHE);
   const preferenceResponse = await shellCache.match(LOCALE_PREFERENCE_KEY);
   const preference = preferenceResponse === undefined ? "en" : await preferenceResponse.text();
-  const locale = preference === "zh-CN" ? "zh-CN" : "en";
+  return preference === "zh-CN" ? "zh-CN" : "en";
+}
+
+async function preferredOfflineShell(request, clientId) {
+  const locale = await preferredLocale(request, clientId);
+  const shellCache = await caches.open(SHELL_CACHE);
   return shellCache.match(OFFLINE_SHELLS[locale].key);
 }
 
-async function networkFirstPage(request) {
-  const cache = await caches.open(PAGE_CACHE);
+async function responseLocale(response) {
+  if (!response.headers.get("content-type")?.includes("text/html")) return undefined;
+  const html = await response.clone().text();
+  return html.match(/<html[^>]*\slang="(en|zh-CN)"/u)?.[1];
+}
+
+async function networkFirstPage(request, clientId) {
   try {
     const response = await fetch(request);
-    if (isCacheable(response)) await cache.put(request, response.clone());
+    if (isCacheable(response)) {
+      const locale = (await responseLocale(response)) ?? (await preferredLocale(request, clientId));
+      const cache = await caches.open(PAGE_CACHES[locale]);
+      await cache.put(request, response.clone());
+    }
     return response;
   } catch {
-    return (await cache.match(request)) ?? (await preferredOfflineShell(request)) ?? Response.error();
+    const locale = await preferredLocale(request, clientId);
+    const cache = await caches.open(PAGE_CACHES[locale]);
+    return (
+      (await cache.match(request)) ?? (await preferredOfflineShell(request, clientId)) ?? Response.error()
+    );
   }
 }
 
@@ -154,7 +178,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || isExcludedPath(url.pathname)) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirstPage(request));
+    event.respondWith(networkFirstPage(request, event.clientId));
     return;
   }
 

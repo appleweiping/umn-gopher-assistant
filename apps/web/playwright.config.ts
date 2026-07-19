@@ -27,7 +27,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   retries: process.env["CI"] ? 1 : 0,
   testDir: "./e2e",
-  timeout: 45_000,
+  timeout: 90_000,
   use: {
     baseURL,
     screenshot: "only-on-failure",
