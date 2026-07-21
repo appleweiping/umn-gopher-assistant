@@ -32,10 +32,7 @@ export function decodeBase64UrlExact(
   }
   try {
     const decoded = sodium.from_base64(value as string, sodium.base64_variants.URLSAFE_NO_PADDING);
-    if (
-      decoded.length !== byteLength ||
-      encodeBase64Url(sodium, decoded) !== value
-    ) {
+    if (decoded.length !== byteLength || encodeBase64Url(sodium, decoded) !== value) {
       sodium.memzero(decoded);
       fail();
     }

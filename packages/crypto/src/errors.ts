@@ -7,8 +7,7 @@ export const VaultCryptoErrorCode = {
   UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT",
 } as const;
 
-export type VaultCryptoErrorCode =
-  (typeof VaultCryptoErrorCode)[keyof typeof VaultCryptoErrorCode];
+export type VaultCryptoErrorCode = (typeof VaultCryptoErrorCode)[keyof typeof VaultCryptoErrorCode];
 
 const SAFE_MESSAGES: Readonly<Record<VaultCryptoErrorCode, string>> = {
   AUTHENTICATION_FAILED: "Authentication failed.",

@@ -17,7 +17,10 @@ export function requireRevision(value: unknown): number {
   return value as number;
 }
 
-export function requireRevisionPair(revision: unknown, baseRevision: unknown): {
+export function requireRevisionPair(
+  revision: unknown,
+  baseRevision: unknown,
+): {
   readonly revision: number;
   readonly baseRevision: number | null;
 } {
@@ -58,16 +61,10 @@ export function requirePlainObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export function requireExactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-): void {
+export function requireExactKeys(value: Record<string, unknown>, expected: readonly string[]): void {
   const actual = Object.keys(value).sort();
   const sortedExpected = [...expected].sort();
-  if (
-    actual.length !== sortedExpected.length ||
-    actual.some((key, index) => key !== sortedExpected[index])
-  ) {
+  if (actual.length !== sortedExpected.length || actual.some((key, index) => key !== sortedExpected[index])) {
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
 }

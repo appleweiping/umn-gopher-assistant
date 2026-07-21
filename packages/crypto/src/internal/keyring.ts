@@ -16,24 +16,15 @@ import { createRecoveryEnvelope } from "./recovery.js";
 import { wrapVaultKeyForDevice } from "./device.js";
 import { createVaultHandle } from "./handles.js";
 
-function validateRecipients(
-  input: CreateVaultKeyringInput["recipients"],
-): readonly DevicePublicKeyV1[] {
-  if (
-    !Array.isArray(input) ||
-    input.length < 1 ||
-    input.length > VAULT_MAX_DEVICE_ENVELOPES
-  ) {
+function validateRecipients(input: CreateVaultKeyringInput["recipients"]): readonly DevicePublicKeyV1[] {
+  if (!Array.isArray(input) || input.length < 1 || input.length > VAULT_MAX_DEVICE_ENVELOPES) {
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
   const recipients = input as readonly DevicePublicKeyV1[];
   const deviceIds = new Set<string>();
   const keyIds = new Set<string>();
   for (const recipient of recipients) {
-    if (
-      deviceIds.has(recipient.deviceId) ||
-      keyIds.has(recipient.deviceKeyId)
-    ) {
+    if (deviceIds.has(recipient.deviceId) || keyIds.has(recipient.deviceKeyId)) {
       throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
     }
     deviceIds.add(recipient.deviceId);
@@ -42,17 +33,12 @@ function validateRecipients(
   return recipients;
 }
 
-export function createKeyring(
-  sodium: Sodium,
-  input: CreateVaultKeyringInput,
-): VaultKeyringResult {
+export function createKeyring(sodium: Sodium, input: CreateVaultKeyringInput): VaultKeyringResult {
   vaultSecret(input.key);
   const recipients = validateRecipients(input.recipients);
   const revision = requireRevision(input.revision);
   const createdAt = currentIsoDateTime();
-  const deviceEnvelopes = recipients.map((recipient) =>
-    wrapVaultKeyForDevice(sodium, input.key, recipient),
-  );
+  const deviceEnvelopes = recipients.map((recipient) => wrapVaultKeyForDevice(sodium, input.key, recipient));
   const recovery = createRecoveryEnvelope(sodium, input.key);
   const updatedAt = currentIsoDateTime();
   return {
@@ -70,10 +56,7 @@ export function createKeyring(
   };
 }
 
-export function rotateKeyring(
-  sodium: Sodium,
-  input: RotateVaultKeyringInput,
-): RotatedVaultKeyringResult {
+export function rotateKeyring(sodium: Sodium, input: RotateVaultKeyringInput): RotatedVaultKeyringResult {
   const previousSecret = vaultSecret(input.previousKey);
   const previous = input.previousKeyring;
   if (
@@ -88,12 +71,7 @@ export function rotateKeyring(
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
   const nextSecret = sodium.randombytes_buf(previousSecret.length);
-  const nextKey = createVaultHandle(
-    sodium,
-    input.previousKey.vaultId,
-    randomUuid(sodium),
-    nextSecret,
-  );
+  const nextKey = createVaultHandle(sodium, input.previousKey.vaultId, randomUuid(sodium), nextSecret);
   try {
     const result = createKeyring(sodium, {
       key: nextKey,

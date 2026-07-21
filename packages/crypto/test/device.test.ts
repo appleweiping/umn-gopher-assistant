@@ -64,13 +64,13 @@ describe("X25519 device key envelopes", () => {
       { ...envelope, nonce: flipBase64Url(envelope.nonce) },
       { ...envelope, wrappedKey: flipBase64Url(envelope.wrappedKey) },
     ];
-    expect(() =>
-      crypto.unwrapVaultKeyForDevice({ deviceKey: second, envelope }),
-    ).toThrow(expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }));
+    expect(() => crypto.unwrapVaultKeyForDevice({ deviceKey: second, envelope })).toThrow(
+      expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }),
+    );
     for (const candidate of candidates) {
-      expect(() =>
-        crypto.unwrapVaultKeyForDevice({ deviceKey: first, envelope: candidate }),
-      ).toThrow(expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }));
+      expect(() => crypto.unwrapVaultKeyForDevice({ deviceKey: first, envelope: candidate })).toThrow(
+        expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }),
+      );
     }
     first.destroy();
     second.destroy();
@@ -91,9 +91,7 @@ describe("X25519 device key envelopes", () => {
     for (const firstByte of [0, 1]) {
       const lowOrder = new Uint8Array(32);
       lowOrder[0] = firstByte;
-      const domain = new TextEncoder().encode(
-        "UGA1/DEVICE-PUBLIC-KEY/FINGERPRINT\0",
-      );
+      const domain = new TextEncoder().encode("UGA1/DEVICE-PUBLIC-KEY/FINGERPRINT\0");
       const fingerprintInput = new Uint8Array(domain.length + lowOrder.length);
       fingerprintInput.set(domain);
       fingerprintInput.set(lowOrder, domain.length);

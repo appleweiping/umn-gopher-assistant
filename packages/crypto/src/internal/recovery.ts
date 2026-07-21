@@ -1,8 +1,4 @@
-import type {
-  RecoveryEnvelopeResult,
-  RecoveryKeyEnvelopeV1,
-  VaultKeyHandle,
-} from "../types.js";
+import type { RecoveryEnvelopeResult, RecoveryKeyEnvelopeV1, VaultKeyHandle } from "../types.js";
 import type { Sodium } from "./sodium.js";
 
 import { buildRecoveryAadV1 } from "@umn-gopher-assistant/contracts";
@@ -19,11 +15,7 @@ import {
   VAULT_MAX_AAD_BYTES,
   XCHACHA_NONCE_BYTES,
 } from "../constants.js";
-import {
-  authenticationFailed,
-  cryptoError,
-  VaultCryptoErrorCode,
-} from "../errors.js";
+import { authenticationFailed, cryptoError, VaultCryptoErrorCode } from "../errors.js";
 import { decodeBase64UrlBounded, decodeBase64UrlExact, encodeBase64Url } from "./encoding.js";
 import { createVaultHandle, vaultSecret } from "./handles.js";
 import { openXChaCha, sealXChaCha } from "./xchacha.js";
@@ -89,10 +81,7 @@ function decodeCrockford(body: string): Uint8Array {
   return decoded;
 }
 
-function normalizeRecoveryCode(
-  code: unknown,
-  mode: "input" | "authentication",
-): NormalizedRecoveryCode {
+function normalizeRecoveryCode(code: unknown, mode: "input" | "authentication"): NormalizedRecoveryCode {
   const fail = (): never => {
     throw mode === "authentication"
       ? authenticationFailed()
@@ -104,10 +93,7 @@ function normalizeRecoveryCode(
     .replaceAll(/[- \t\r\n]/gu, "")
     .toUpperCase();
   if (!compact.startsWith("UGA1")) fail();
-  const body = compact
-    .slice(4)
-    .replaceAll("O", "0")
-    .replaceAll(/[IL]/gu, "1");
+  const body = compact.slice(4).replaceAll("O", "0").replaceAll(/[IL]/gu, "1");
   if (!RECOVERY_CODE_PATTERN.test(body)) fail();
   try {
     return { display: formatRecoveryCode(body), entropy: decodeCrockford(body) };
@@ -190,10 +176,7 @@ function authenticateRecoveryMetadata(candidate: RecoveryKeyEnvelopeV1): Recover
     }
     const opsLimit = kdf["opsLimit"] as number;
     const memLimitBytes = kdf["memLimitBytes"] as number;
-    if (
-      opsLimit > RECOVERY_MAX_OPS_LIMIT ||
-      memLimitBytes > RECOVERY_MAX_MEM_LIMIT_BYTES
-    ) {
+    if (opsLimit > RECOVERY_MAX_OPS_LIMIT || memLimitBytes > RECOVERY_MAX_MEM_LIMIT_BYTES) {
       throw cryptoError(VaultCryptoErrorCode.KDF_LIMIT_EXCEEDED);
     }
     if (opsLimit < 2 || memLimitBytes < 64 * 1_024 * 1_024) {
@@ -219,10 +202,7 @@ function authenticateRecoveryMetadata(candidate: RecoveryKeyEnvelopeV1): Recover
   }
 }
 
-export function createRecoveryEnvelope(
-  sodium: Sodium,
-  key: VaultKeyHandle,
-): RecoveryEnvelopeResult {
+export function createRecoveryEnvelope(sodium: Sodium, key: VaultKeyHandle): RecoveryEnvelopeResult {
   const secret = vaultSecret(key);
   let recoveryEntropy: Uint8Array | undefined;
   let salt: Uint8Array | undefined;
@@ -300,18 +280,9 @@ export function recoverVaultKey(
     recoveryEntropy = recoveryCode.entropy;
     salt = decodeBase64UrlExact(sodium, metadata.kdf.salt, RECOVERY_SALT_BYTES);
     nonce = decodeBase64UrlExact(sodium, envelope.nonce, XCHACHA_NONCE_BYTES);
-    wrapped = decodeBase64UrlExact(
-      sodium,
-      envelope.wrappedKey,
-      RECOVERY_WRAPPED_KEY_BYTES,
-    );
+    wrapped = decodeBase64UrlExact(sodium, envelope.wrappedKey, RECOVERY_WRAPPED_KEY_BYTES);
     storedAad = decodeBase64UrlBounded(sodium, envelope.aad, 1, VAULT_MAX_AAD_BYTES);
-    expectedAad = decodeBase64UrlBounded(
-      sodium,
-      recoveryAadEncoded(metadata),
-      1,
-      VAULT_MAX_AAD_BYTES,
-    );
+    expectedAad = decodeBase64UrlBounded(sodium, recoveryAadEncoded(metadata), 1, VAULT_MAX_AAD_BYTES);
     if (!sodium.memcmp(storedAad, expectedAad)) throw authenticationFailed();
     derivedKey = deriveRecoveryKey(
       sodium,

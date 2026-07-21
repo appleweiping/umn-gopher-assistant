@@ -26,10 +26,10 @@ Browser-friendly end-to-end encryption for the personal vault. The package uses 
   memzeros the owned bytes. Secret-bearing temporary arrays are memzeroed in `finally`
   blocks.
 
-This package deliberately has no device-private-key serialization API. Cross-session
-persistence requires a separately reviewed browser-local envelope based on a
-non-extractable platform key; applications must not invent a raw-key export around the
-opaque handle.
+For browser-local trusted-device persistence, import the reviewed API only from
+`@umn-gopher-assistant/crypto/browser`. It seals/restores opaque device handles with a
+non-extractable AES-256-GCM `CryptoKey`; it does not export device-private-key bytes.
+Persist that `CryptoKey` with IndexedDB structured cloning, never as JWK or raw bytes.
 
 ## Minimal use
 

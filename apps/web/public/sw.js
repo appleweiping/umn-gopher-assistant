@@ -1,8 +1,11 @@
 const CACHE_PREFIX = "campus-field-guide-";
 const SHELL_CACHE = `${CACHE_PREFIX}shell-v3`;
 const PAGE_CACHES = {
-  en: `${CACHE_PREFIX}pages-en-v4`,
-  "zh-CN": `${CACHE_PREFIX}pages-zh-CN-v4`,
+  // Bump these when changing the privacy boundary below. It removes page
+  // responses cached by prior Service Worker versions, including any old
+  // /plan response that could have been written before it became private.
+  en: `${CACHE_PREFIX}pages-en-v5`,
+  "zh-CN": `${CACHE_PREFIX}pages-zh-CN-v5`,
 };
 const ASSET_CACHE = `${CACHE_PREFIX}assets-v3`;
 const CURRENT_CACHES = new Set([SHELL_CACHE, ...Object.values(PAGE_CACHES), ASSET_CACHE]);
@@ -26,9 +29,38 @@ const SHELL_ASSETS = [
   "/brand/field-mark.svg",
 ];
 
+// The plan workspace is the vault UI. Its data must stay in dedicated browser
+// vault storage, never in a Service Worker response cache. `/vault` and the
+// reserved internal namespace protect future vault-only routes as well.
+function isVaultPath(pathname) {
+  return (
+    pathname === "/plan" ||
+    pathname.startsWith("/plan/") ||
+    pathname === "/vault" ||
+    pathname.startsWith("/vault/") ||
+    pathname === "/__uga-vault" ||
+    pathname.startsWith("/__uga-vault/")
+  );
+}
+
+function isVaultRequest(request, pathname) {
+  // Vault data has no network API. Still, make the boundary explicit for
+  // navigation, module Worker, and any future endpoint that carries the
+  // reserved vault marker. This returns before Cache Storage is consulted.
+  return (
+    isVaultPath(pathname) ||
+    request.headers.has("x-uga-vault") ||
+    new URL(request.url).searchParams.has("__uga_vault")
+  );
+}
+
 function isExcludedPath(pathname) {
   return (
-    pathname === "/api" || pathname.startsWith("/api/") || pathname === "/v1" || pathname.startsWith("/v1/")
+    isVaultPath(pathname) ||
+    pathname === "/api" ||
+    pathname.startsWith("/api/") ||
+    pathname === "/v1" ||
+    pathname.startsWith("/v1/")
   );
 }
 
@@ -97,16 +129,25 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Keep the Service Worker message channel intentionally tiny. Vault RPC is
+// exclusively a page <-> module Worker channel; this Worker never receives,
+// stores, forwards, or replies with vault data. Reject surplus fields as a
+// guard against accidentally routing a future vault payload through this API.
+function isLocaleMessage(message) {
+  if (typeof message !== "object" || message === null) return false;
+  const keys = Object.keys(message);
+  return (
+    keys.length === 2 &&
+    keys.includes("type") &&
+    keys.includes("locale") &&
+    message.type === "SET_LOCALE" &&
+    (message.locale === "en" || message.locale === "zh-CN")
+  );
+}
+
 self.addEventListener("message", (event) => {
   const message = event.data;
-  if (
-    typeof message !== "object" ||
-    message === null ||
-    message.type !== "SET_LOCALE" ||
-    (message.locale !== "en" && message.locale !== "zh-CN")
-  ) {
-    return;
-  }
+  if (!isLocaleMessage(message)) return;
 
   event.waitUntil(
     (async () => {
@@ -175,7 +216,13 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || isExcludedPath(url.pathname)) return;
+  if (
+    url.origin !== self.location.origin ||
+    isExcludedPath(url.pathname) ||
+    isVaultRequest(request, url.pathname)
+  ) {
+    return;
+  }
 
   if (request.mode === "navigate") {
     event.respondWith(networkFirstPage(request, event.clientId));

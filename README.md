@@ -172,8 +172,39 @@ The web app is an installable, responsive field guide for all five campuses. It
 provides English and Simplified Chinese interfaces for Today, Explore, Plan,
 Community, World, Ask, Operations, and Developer routes. Campus, language, and
 theme preferences are stored in first-party cookies so the initial server render
-matches the browser state. Demo tasks and assistant settings remain local to the
-browser.
+matches the browser state. The Plan task board is a separate local encrypted
+vault; it never uses the old plaintext task `localStorage` value.
+
+### Local encrypted task vault
+
+The Plan page offers an offline, single-browser task vault. It is deliberately
+not an account, sync service, or cross-device backup.
+
+- First use requires an explicit **Create private vault** action. A recovery
+  code is shown once and must be acknowledged before the encrypted records are
+  written.
+- The page requires an explicit unlock for every browser session. It locks on
+  demand, after 15 minutes without activity, and immediately when the page is
+  hidden or unloaded.
+- A module Worker owns live vault/device-key handles and IndexedDB operations.
+  The page receives task view models only; it never receives vault-key bytes.
+- The X25519 device private key is sealed with an origin-bound,
+  non-extractable AES-256-GCM `CryptoKey`; encrypted task payloads and keyring
+  records live in IndexedDB. Legacy `uga.tasks` values are only removed after
+  strict validation, encrypted write, and exact decrypt/read-back verification.
+- If a legacy value is malformed or a migration fails, it remains available for
+  explicit export or deletion. The application does not fall back to plaintext
+  task storage.
+- Clearing site data or losing the local ciphertext makes these tasks
+  unrecoverable. The recovery code does not promise recovery on another device.
+  Store it offline and do not upload, screenshot-share, or send it to others.
+- Browsers without Worker, IndexedDB, WebCrypto, or non-extractable `CryptoKey`
+  persistence are shown an unavailable/read-only state; existing legacy data is
+  retained without a plaintext fallback.
+
+The vault is intentionally isolated from the AI page, API, logs, Service
+Worker, and response caches. The Service Worker neither caches `/plan` nor
+accepts vault messages.
 
 Run the web app alone from the repository root with:
 
@@ -198,9 +229,11 @@ Component and domain tests run in Vitest:
     pnpm --filter @umn-gopher-assistant/web test
 
 Playwright covers English-to-Chinese switching, all five persisted campus
-choices, the Today-to-Explore-to-Plan journey, mobile and keyboard navigation,
-the production offline fallback, manifest and service-worker policy, and
-automated WCAG A/AA checks. Install the pinned Chromium binary once, then run:
+choices, the Today-to-Explore-to-Plan journey, local vault setup/migration,
+recovery, background lock, offline writes, production Worker/CSP behavior,
+mobile and keyboard navigation, the production offline fallback, manifest and
+service-worker policy, and automated WCAG A/AA checks. Install the pinned
+Chromium binary once, then run:
 
     pnpm --filter @umn-gopher-assistant/web exec playwright install chromium
     pnpm --filter @umn-gopher-assistant/web test:e2e
@@ -222,8 +255,9 @@ assertions rather than fixed sleeps.
   responsibility.
 - The schematic map is paired with a text list and is not an official map,
   accessible-route guarantee, emergency route, or live navigation system.
-- Browser storage is not an account, synchronization service, private vault, or
-  institutional record. Clearing site data removes local preferences and tasks.
+- The local task vault is single-browser and offline-only; it is not an account,
+  synchronization service, backup, or institutional record. Clearing site data
+  or losing its ciphertext makes its tasks unrecoverable.
 - Installability and offline behavior require a supported browser and a secure
   context (localhost is accepted for development).
 
@@ -236,6 +270,7 @@ assertions rather than fixed sleeps.
 | apps/cli           | RFC 8628 command-line client and guarded read commands   |
 | apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server        |
 | packages/contracts | Shared schemas and public contract types                 |
+| packages/crypto    | Browser-friendly E2EE primitives and local key envelopes |
 | packages/config    | Campus and source registries with provenance             |
 | packages/db        | Database schema, migrations, and persistence adapters    |
 | packages/testing   | Shared test configuration and utilities                  |

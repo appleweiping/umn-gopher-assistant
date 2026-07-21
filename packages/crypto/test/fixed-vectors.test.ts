@@ -13,9 +13,7 @@ describe("fixed cryptographic and encoding vectors", () => {
     const plaintext = new TextEncoder().encode("fixed-vector");
     const aad = new TextEncoder().encode("uga-aad-v1");
     const ciphertext = sealXChaCha(sodium, key, nonce, plaintext, aad);
-    expect(sodium.to_hex(ciphertext)).toBe(
-      "7b3035ae1f1a62ee5bca3fcff15f15b076518f1f699e3596f1b08637",
-    );
+    expect(sodium.to_hex(ciphertext)).toBe("7b3035ae1f1a62ee5bca3fcff15f15b076518f1f699e3596f1b08637");
     expect(openXChaCha(sodium, key, nonce, ciphertext, aad)).toEqual(plaintext);
     ciphertext[0] = (ciphertext.at(0) ?? 0) ^ 1;
     expect(() => openXChaCha(sodium, key, nonce, ciphertext, aad)).toThrow(

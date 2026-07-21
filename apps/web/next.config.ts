@@ -22,7 +22,11 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ["@umn-gopher-assistant/config", "@umn-gopher-assistant/contracts"],
+  transpilePackages: [
+    "@umn-gopher-assistant/config",
+    "@umn-gopher-assistant/contracts",
+    "@umn-gopher-assistant/crypto",
+  ],
 };
 
 export default nextConfig;

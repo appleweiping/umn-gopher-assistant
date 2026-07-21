@@ -31,6 +31,14 @@ test("publishes a compatible manifest and precisely excludes private and cross-o
   expect(workerSource).toContain('pathname.startsWith("/v1/")');
   expect(workerSource).toContain('pathname === "/api"');
   expect(workerSource).toContain('pathname.startsWith("/api/")');
+  expect(workerSource).toContain('pathname === "/plan"');
+  expect(workerSource).toContain('pathname.startsWith("/plan/")');
+  expect(workerSource).toContain('request.headers.has("x-uga-vault")');
+  expect(workerSource).toContain('searchParams.has("__uga_vault")');
+  expect(workerSource).toContain("function isLocaleMessage(message)");
+  expect(workerSource).toContain("keys.length === 2");
+  expect(workerSource).not.toMatch(/\bindexeddb\b/iu);
+  expect(workerSource).not.toContain("postMessage(");
 });
 
 test("serves strict security headers, a same-origin theme bootstrap, and cookie-localized metadata", async ({
@@ -50,7 +58,14 @@ test("serves strict security headers, a same-origin theme bootstrap, and cookie-
   expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
   expect(headers["content-security-policy"]).not.toContain("'unsafe-eval'");
   expect(headers["content-security-policy"]).not.toContain("'unsafe-inline'");
+  expect(headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
+  expect(headers["content-security-policy"]).toContain(
+    "trusted-types nextjs nextjs#bundler uga#service-worker uga#vault-worker",
+  );
+  expect(headers["content-security-policy"]).toContain("require-trusted-types-for 'script'");
   expect(headers["content-security-policy"]).toMatch(/script-src[^;]*'nonce-[^']+'/u);
+  expect(headers["content-security-policy"]).toMatch(/script-src[^;]*'strict-dynamic'/u);
+  expect(headers["content-security-policy"]).toMatch(/worker-src[^;]*'self'/u);
   expect(headers["x-frame-options"]).toBe("DENY");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["referrer-policy"]).toBe("no-referrer");
@@ -63,6 +78,61 @@ test("serves strict security headers, a same-origin theme bootstrap, and cookie-
   );
   await expect(page.locator('script[src="/theme-boot.js"][nonce]')).toHaveCount(1);
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  const rejectsUntrustedScriptUrl = await page.evaluate(() => {
+    const script = document.createElement("script");
+    try {
+      script.src = "/theme-boot.js";
+      return false;
+    } catch (error) {
+      return error instanceof TypeError;
+    }
+  });
+  expect(rejectsUntrustedScriptUrl).toBe(true);
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.getRegistration())).not.toBeNull();
+});
+
+test("keeps the plan vault route and malformed vault-like messages outside the Service Worker", async ({
+  context,
+  page,
+}) => {
+  await page.goto("/today");
+  await page.evaluate(async () => navigator.serviceWorker.ready);
+  await page.reload({ waitUntil: "networkidle" });
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+
+  const result = await page.evaluate(async () => {
+    const probe = `/plan?__uga_vault=${crypto.randomUUID()}`;
+    const response = await fetch(probe, { cache: "no-store" });
+    const cacheNames = await caches.keys();
+    const cached = await Promise.all(
+      cacheNames.map(async (cacheName) => {
+        const cache = await caches.open(cacheName);
+        return cache.match(probe);
+      }),
+    );
+
+    // The PWA channel accepts exactly { type, locale }. A surplus field is a
+    // vault-like message and must not be able to alter the offline locale.
+    navigator.serviceWorker.controller?.postMessage({
+      locale: "zh-CN",
+      type: "SET_LOCALE",
+      unexpectedVaultField: true,
+    });
+
+    return { cached: cached.some((entry) => entry !== undefined), status: response.status };
+  });
+  expect(result.status).toBe(200);
+  expect(result.cached).toBe(false);
+
+  await context.setOffline(true);
+  try {
+    await page.goto(`/sw-isolation-probe-${Date.now()}`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("The field guide is still here");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  } finally {
+    await context.setOffline(false);
+  }
 });
 
 test("keeps visited project pages and the Chinese offline shell available offline", async ({

@@ -51,3 +51,8 @@ THIRD-PARTY SOFTWARE
 Third-party software components retain their respective copyrights and
 licenses. Distributors are responsible for preserving notices and license terms
 required by the exact dependency and artifact versions they ship.
+
+This distribution includes libsodium.js through libsodium-wrappers-sumo 0.8.4,
+Copyright (c) Frank Denis, and contributors, licensed under the ISC License.
+The dependency's complete license text is distributed with the installed package
+and must be preserved in redistributions that include it.

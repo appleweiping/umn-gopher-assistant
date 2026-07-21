@@ -113,9 +113,7 @@ export interface VaultCrypto {
   recoverVaultKey(input: RecoverVaultKeyInput): VaultKeyHandle;
   createKeyring(input: CreateVaultKeyringInput): VaultKeyringResult;
   rotateKeyring(input: RotateVaultKeyringInput): RotatedVaultKeyringResult;
-  reencryptPayloadForRotation(
-    input: ReencryptPayloadForRotationInput,
-  ): EncryptedVaultPayloadEnvelopeV1;
+  reencryptPayloadForRotation(input: ReencryptPayloadForRotationInput): EncryptedVaultPayloadEnvelopeV1;
 }
 
 export type {

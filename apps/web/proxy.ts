@@ -15,8 +15,16 @@ export function proxy(request: NextRequest) {
     "img-src 'self' blob: data:",
     "manifest-src 'self'",
     "object-src 'none'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
+    // Do not add `unsafe-eval`: the vault Worker depends on WebAssembly, not
+    // JavaScript string evaluation. `wasm-unsafe-eval` is deliberately the
+    // narrowest capability needed by the Argon2/WebAssembly implementation.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'`,
     `style-src 'self' 'nonce-${nonce}'${isDevelopment ? " 'unsafe-inline'" : ""}`,
+    // Next creates these two policies for route chunks and its bundler. Keep
+    // the allow-list closed so application code cannot mint arbitrary Trusted
+    // Types policies, then require Trusted Types at every script sink.
+    "trusted-types nextjs nextjs#bundler uga#service-worker uga#vault-worker",
+    "require-trusted-types-for 'script'",
     "worker-src 'self'",
   ].join("; ");
 

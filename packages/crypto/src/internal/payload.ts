@@ -175,18 +175,11 @@ export function decryptPayload(
       VAULT_PADDING_BLOCK_BYTES + XCHACHA_TAG_BYTES,
       VAULT_MAX_CIPHERTEXT_BYTES,
     );
-    if (
-      (ciphertext.length - XCHACHA_TAG_BYTES) % VAULT_PADDING_BLOCK_BYTES !== 0
-    ) {
+    if ((ciphertext.length - XCHACHA_TAG_BYTES) % VAULT_PADDING_BLOCK_BYTES !== 0) {
       throw authenticationFailed();
     }
     storedAad = decodeBase64UrlBounded(sodium, envelope.aad, 1, VAULT_MAX_AAD_BYTES);
-    expectedAad = decodeBase64UrlBounded(
-      sodium,
-      payloadAadEncoded(metadata),
-      1,
-      VAULT_MAX_AAD_BYTES,
-    );
+    expectedAad = decodeBase64UrlBounded(sodium, payloadAadEncoded(metadata), 1, VAULT_MAX_AAD_BYTES);
     if (!sodium.memcmp(storedAad, expectedAad)) {
       throw authenticationFailed();
     }

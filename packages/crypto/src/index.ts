@@ -16,6 +16,7 @@ export type {
   DeviceKeyEnvelopeV1,
   DeviceKeyHandle,
   DevicePublicKeyV1,
+  EncryptedVaultPayloadEnvelopeV1,
   EncryptVaultPayloadInput,
   GenerateDeviceKeyInput,
   GenerateVaultKeyInput,

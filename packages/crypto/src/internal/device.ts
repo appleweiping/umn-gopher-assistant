@@ -1,9 +1,4 @@
-import type {
-  DeviceKeyEnvelopeV1,
-  DeviceKeyHandle,
-  DevicePublicKeyV1,
-  VaultKeyHandle,
-} from "../types.js";
+import type { DeviceKeyEnvelopeV1, DeviceKeyHandle, DevicePublicKeyV1, VaultKeyHandle } from "../types.js";
 import type { Sodium } from "./sodium.js";
 
 import { buildDeviceEnvelopeHeaderV1 } from "@umn-gopher-assistant/contracts";
@@ -15,12 +10,7 @@ import {
   VAULT_KEY_BYTES,
   XCHACHA_NONCE_BYTES,
 } from "../constants.js";
-import {
-  authenticationFailed,
-  cryptoError,
-  VaultCryptoError,
-  VaultCryptoErrorCode,
-} from "../errors.js";
+import { authenticationFailed, cryptoError, VaultCryptoError, VaultCryptoErrorCode } from "../errors.js";
 import {
   concatenate,
   decodeBase64UrlBounded,
@@ -28,12 +18,7 @@ import {
   encodeBase64Url,
   utf8,
 } from "./encoding.js";
-import {
-  createDeviceHandle,
-  createVaultHandle,
-  devicePrivateKey,
-  vaultSecret,
-} from "./handles.js";
+import { createDeviceHandle, createVaultHandle, devicePrivateKey, vaultSecret } from "./handles.js";
 import { randomUuid } from "./ids.js";
 import {
   currentIsoDateTime,
@@ -58,7 +43,12 @@ function publicKeyFingerprint(sodium: Sodium, publicKey: Uint8Array): string {
   }
 }
 
-function validateDevicePublicKey(
+/**
+ * Validates a public descriptor while keeping its decoded bytes inside the
+ * crypto package. Browser trusted-device persistence uses this to bind a
+ * local private-key envelope to the verified descriptor.
+ */
+export function validateDevicePublicKeyForInternalUse(
   sodium: Sodium,
   candidate: DevicePublicKeyV1,
   mode: "input" | "authentication",
@@ -89,8 +79,7 @@ function validateDevicePublicKey(
       fail();
     }
     const createdAt = requireIsoDateTime(record["createdAt"]);
-    const revokedAt =
-      record["revokedAt"] === null ? null : requireIsoDateTime(record["revokedAt"]);
+    const revokedAt = record["revokedAt"] === null ? null : requireIsoDateTime(record["revokedAt"]);
     if (revokedAt !== null && Date.parse(revokedAt) < Date.parse(createdAt)) fail();
     decoded = decodeBase64UrlExact(sodium, record["publicKey"], DEVICE_KEY_BYTES, mode);
     const probeScalar = sodium.randombytes_buf(DEVICE_KEY_BYTES);
@@ -126,16 +115,8 @@ function validateDevicePublicKey(
   throw new Error("unreachable");
 }
 
-function deviceBindingAad(
-  sodium: Sodium,
-  envelope: Omit<DeviceKeyEnvelopeV1, "wrappedKey">,
-): Uint8Array {
-  const header = decodeBase64UrlBounded(
-    sodium,
-    buildDeviceEnvelopeHeaderV1(envelope),
-    1,
-    4_096,
-  );
+function deviceBindingAad(sodium: Sodium, envelope: Omit<DeviceKeyEnvelopeV1, "wrappedKey">): Uint8Array {
+  const header = decodeBase64UrlBounded(sodium, buildDeviceEnvelopeHeaderV1(envelope), 1, 4_096);
   try {
     return concatenate(DEVICE_BINDING_DOMAIN, header);
   } finally {
@@ -179,11 +160,7 @@ function authenticateDeviceEnvelope(candidate: DeviceKeyEnvelopeV1): Omit<Device
   }
 }
 
-export function generateDeviceKey(
-  sodium: Sodium,
-  deviceId: string,
-  deviceKeyId?: string,
-): DeviceKeyHandle {
+export function generateDeviceKey(sodium: Sodium, deviceId: string, deviceKeyId?: string): DeviceKeyHandle {
   const checkedDeviceId = requireUuid(deviceId);
   const checkedKeyId = deviceKeyId === undefined ? randomUuid(sodium) : requireUuid(deviceKeyId);
   const pair = sodium.crypto_box_curve25519xchacha20poly1305_keypair();
@@ -218,7 +195,7 @@ export function wrapVaultKeyForDevice(
   recipient: DevicePublicKeyV1,
 ): DeviceKeyEnvelopeV1 {
   const secret = vaultSecret(key);
-  const validated = validateDevicePublicKey(sodium, recipient, "input");
+  const validated = validateDevicePublicKeyForInternalUse(sodium, recipient, "input");
   if (validated.metadata.revokedAt !== null) {
     sodium.memzero(validated.decoded);
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
@@ -297,11 +274,7 @@ export function unwrapVaultKeyForDevice(
     ) {
       throw authenticationFailed();
     }
-    ephemeralPublicKey = decodeBase64UrlExact(
-      sodium,
-      header.ephemeralPublicKey,
-      DEVICE_KEY_BYTES,
-    );
+    ephemeralPublicKey = decodeBase64UrlExact(sodium, header.ephemeralPublicKey, DEVICE_KEY_BYTES);
     nonce = decodeBase64UrlExact(sodium, header.nonce, XCHACHA_NONCE_BYTES);
     wrapped = decodeBase64UrlExact(sodium, envelope.wrappedKey, DEVICE_WRAPPED_KEY_BYTES);
     try {

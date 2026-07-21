@@ -13,13 +13,7 @@ export function sealXChaCha(
   if (key.length !== VAULT_KEY_BYTES || nonce.length !== XCHACHA_NONCE_BYTES) {
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
-  return sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
-    plaintext,
-    aad,
-    null,
-    nonce,
-    key,
-  );
+  return sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, aad, null, nonce, key);
 }
 
 export function openXChaCha(
@@ -37,13 +31,7 @@ export function openXChaCha(
     throw authenticationFailed();
   }
   try {
-    return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-      null,
-      ciphertext,
-      aad,
-      nonce,
-      key,
-    );
+    return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, ciphertext, aad, nonce, key);
   } catch {
     throw authenticationFailed();
   }

@@ -16,26 +16,14 @@ function createInitializedVaultCrypto(sodium: Sodium): VaultCrypto {
   const api: VaultCrypto = {
     generateVaultKey(input) {
       const vaultId = requireUuid(input.vaultId);
-      const vaultKeyId =
-        input.vaultKeyId === undefined ? randomUuid(sodium) : requireUuid(input.vaultKeyId);
-      return createVaultHandle(
-        sodium,
-        vaultId,
-        vaultKeyId,
-        sodium.randombytes_buf(VAULT_KEY_BYTES),
-      );
+      const vaultKeyId = input.vaultKeyId === undefined ? randomUuid(sodium) : requireUuid(input.vaultKeyId);
+      return createVaultHandle(sodium, vaultId, vaultKeyId, sodium.randombytes_buf(VAULT_KEY_BYTES));
     },
     generateDeviceKey(input) {
       return generateDeviceKey(sodium, input.deviceId, input.deviceKeyId);
     },
     encryptPayload(input) {
-      return encryptPayload(
-        sodium,
-        input.key,
-        input.plaintext,
-        input.revision,
-        input.baseRevision,
-      );
+      return encryptPayload(sodium, input.key, input.plaintext, input.revision, input.baseRevision);
     },
     decryptPayload(input) {
       return decryptPayload(sodium, input.key, input.envelope);
@@ -67,13 +55,7 @@ function createInitializedVaultCrypto(sodium: Sodium): VaultCrypto {
       }
       const plaintext = decryptPayload(sodium, input.previousKey, input.envelope);
       try {
-        return encryptPayload(
-          sodium,
-          input.nextKey,
-          plaintext,
-          input.revision,
-          input.envelope.revision,
-        );
+        return encryptPayload(sodium, input.nextKey, plaintext, input.revision, input.envelope.revision);
       } finally {
         sodium.memzero(plaintext);
       }
@@ -86,8 +68,6 @@ let vaultCryptoSingleton: Promise<VaultCrypto> | undefined;
 
 /** Initialize libsodium once and return the process-wide stateless vault crypto facade. */
 export function createVaultCrypto(): Promise<VaultCrypto> {
-  vaultCryptoSingleton ??= initializeSodium().then((sodium) =>
-    createInitializedVaultCrypto(sodium),
-  );
+  vaultCryptoSingleton ??= initializeSodium().then((sodium) => createInitializedVaultCrypto(sodium));
   return vaultCryptoSingleton;
 }

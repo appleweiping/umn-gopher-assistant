@@ -50,22 +50,16 @@ describe("Argon2id recovery envelopes and keyrings", () => {
   });
 
   it("normalizes NFKC, separators, and Crockford aliases to the same raw 20 bytes", () => {
-    const canonical = normalizeRecoveryCodeForTesting(
-      "UGA1-0111-1000-0111-1000-0111-1000-0111-1000",
-    );
-    const aliased = normalizeRecoveryCodeForTesting(
-      "ｕｇａ１ OIlL\tIooo OIlL Iooo OIlL Iooo OIlL Iooo",
-    );
+    const canonical = normalizeRecoveryCodeForTesting("UGA1-0111-1000-0111-1000-0111-1000-0111-1000");
+    const aliased = normalizeRecoveryCodeForTesting("ｕｇａ１ OIlL\tIooo OIlL Iooo OIlL Iooo OIlL Iooo");
     expect(aliased.display).toBe(canonical.display);
     expect(aliased.entropy).toEqual(canonical.entropy);
     expect(aliased.entropy).toHaveLength(20);
     canonical.entropy.fill(0);
     aliased.entropy.fill(0);
-    expect(() =>
-      normalizeRecoveryCodeForTesting(
-        "UGA1-U111-1000-0111-1000-0111-1000-0111-1000",
-      ),
-    ).toThrow(expect.objectContaining({ code: VaultCryptoErrorCode.INVALID_INPUT }));
+    expect(() => normalizeRecoveryCodeForTesting("UGA1-U111-1000-0111-1000-0111-1000-0111-1000")).toThrow(
+      expect.objectContaining({ code: VaultCryptoErrorCode.INVALID_INPUT }),
+    );
   });
 
   it("makes wrong recovery codes and envelope tampering one authentication failure", async () => {
@@ -115,9 +109,7 @@ describe("Argon2id recovery envelopes and keyrings", () => {
     const pwhash = vi.spyOn(sodium, "crypto_pwhash");
     try {
       for (const envelope of [hostileMemory, hostileOps]) {
-        expect(() =>
-          crypto.recoverVaultKey({ envelope, recoveryCode: recovery.recoveryCode }),
-        ).toThrow(
+        expect(() => crypto.recoverVaultKey({ envelope, recoveryCode: recovery.recoveryCode })).toThrow(
           expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }),
         );
       }
@@ -153,9 +145,7 @@ describe("Argon2id recovery envelopes and keyrings", () => {
       expect(rotated.keyring.revision).toBe(2);
       expect(rotated.keyring.vaultKeyId).not.toBe(first.keyring.vaultKeyId);
       expect(rotated.migrationRequired).toBe(true);
-      expect(rotated.keyring.deviceEnvelopes.map((item) => item.recipientDeviceId)).toEqual([
-        DEVICE_TWO,
-      ]);
+      expect(rotated.keyring.deviceEnvelopes.map((item) => item.recipientDeviceId)).toEqual([DEVICE_TWO]);
       expect(key.destroyed).toBe(false);
 
       const oldPayload = crypto.encryptPayload({
@@ -172,9 +162,7 @@ describe("Argon2id recovery envelopes and keyrings", () => {
       });
       expect(migratedPayload.vaultKeyId).toBe(rotated.key.vaultKeyId);
       expect(
-        new TextDecoder().decode(
-          crypto.decryptPayload({ key: rotated.key, envelope: migratedPayload }),
-        ),
+        new TextDecoder().decode(crypto.decryptPayload({ key: rotated.key, envelope: migratedPayload })),
       ).toBe("migrate me");
 
       const rotatedDeviceEnvelope = rotated.keyring.deviceEnvelopes.at(0);
