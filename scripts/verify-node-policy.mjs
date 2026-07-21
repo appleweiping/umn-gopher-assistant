@@ -17,6 +17,7 @@ const manifests = [
   "apps/web/package.json",
   "packages/config/package.json",
   "packages/contracts/package.json",
+  "packages/crypto/package.json",
   "packages/db/package.json",
   "packages/sdk/package.json",
   "packages/testing/package.json",

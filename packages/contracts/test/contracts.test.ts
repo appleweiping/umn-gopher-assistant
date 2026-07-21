@@ -4,6 +4,7 @@ import * as campusContracts from "../src/campus.js";
 import {
   ACADEMIC_CALENDAR_CAMPUS_MAP,
   AuditEventSchema,
+  buildPayloadAadV1,
   CampusIdSchema,
   CampusMetadataSchema,
   CampusWorldManifestSchema,
@@ -255,35 +256,52 @@ describe("live and encrypted state contracts", () => {
 
   it("accepts device-key and encrypted-vault envelopes", () => {
     const deviceEnvelope = DeviceKeyEnvelopeSchema.parse({
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      recipientDeviceId: "018fb9d8-3ec5-7e8b-a512-35f8ff523112",
+      recipientKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523113",
+      recipientPublicKeyFingerprint: encodedBytes(32),
+      cipherSuite: "X25519_XCHACHA20_POLY1305",
       ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
+      wrappedKey: encodedBytes(80),
       nonce: encodedBytes(24),
       createdAt: "2026-07-19T00:00:00.000Z",
     });
+    const payloadHeader = {
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      revision: 1,
+      baseRevision: null,
+      cipherSuite: "XCHACHA20_POLY1305",
+      contentType: "application/vnd.umn-gopher-assistant.personal-vault+json",
+      contentSchemaVersion: 1,
+      padding: { algorithm: "SODIUM_PAD", blockSize: 4096 },
+      nonce: encodedBytes(24),
+      createdAt: "2026-07-19T00:00:00.000Z",
+    } as const;
     expect(
       EncryptedVaultEnvelopeSchema.safeParse({
-        version: 1,
-        algorithm: "XCHACHA20_POLY1305",
-        keyId: "vault-key-1",
-        ciphertext: "RW5jcnlwdGVkVmF1bHQ",
-        nonce: encodedBytes(24),
-        aad: "VmF1bHQtMQ",
-        deviceEnvelopes: [deviceEnvelope],
-        createdAt: "2026-07-19T00:00:00.000Z",
+        ...payloadHeader,
+        ciphertext: encodedBytes(4_112),
+        aad: buildPayloadAadV1(payloadHeader),
       }).success,
     ).toBe(true);
+    expect(deviceEnvelope.recipientDeviceId).toBe("018fb9d8-3ec5-7e8b-a512-35f8ff523112");
   });
 
   it("enforces X25519 and XChaCha20-Poly1305 byte lengths", () => {
     const baseEnvelope = {
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      recipientDeviceId: "018fb9d8-3ec5-7e8b-a512-35f8ff523112",
+      recipientKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523113",
+      recipientPublicKeyFingerprint: encodedBytes(32),
+      cipherSuite: "X25519_XCHACHA20_POLY1305",
       ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
+      wrappedKey: encodedBytes(80),
       nonce: encodedBytes(24),
       createdAt: "2026-07-19T00:00:00.000Z",
     } as const;
@@ -302,53 +320,23 @@ describe("live and encrypted state contracts", () => {
     }
   });
 
-  it("uses algorithm-specific encrypted-vault nonce lengths", () => {
-    const deviceEnvelope = DeviceKeyEnvelopeSchema.parse({
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
-      ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
-      nonce: encodedBytes(24),
+  it("fails closed instead of accepting the retired AES placeholder", () => {
+    const payload = {
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      revision: 1,
+      baseRevision: null,
+      cipherSuite: "AES_256_GCM",
+      contentType: "application/vnd.umn-gopher-assistant.personal-vault+json",
+      contentSchemaVersion: 1,
+      padding: { algorithm: "SODIUM_PAD", blockSize: 4096 },
+      ciphertext: encodedBytes(4_112),
+      nonce: encodedBytes(12),
+      aad: encodedBytes(32),
       createdAt: "2026-07-19T00:00:00.000Z",
-    });
-    const baseVault = {
-      version: 1,
-      keyId: "vault-key-1",
-      ciphertext: "RW5jcnlwdGVkVmF1bHQ",
-      aad: "VmF1bHQtMQ",
-      deviceEnvelopes: [deviceEnvelope],
-      createdAt: "2026-07-19T00:00:00.000Z",
-    } as const;
-
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "XCHACHA20_POLY1305",
-        nonce: encodedBytes(24),
-      }).success,
-    ).toBe(true);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "XCHACHA20_POLY1305",
-        nonce: encodedBytes(12),
-      }).success,
-    ).toBe(false);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "AES_256_GCM",
-        nonce: encodedBytes(12),
-      }).success,
-    ).toBe(true);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "AES_256_GCM",
-        nonce: encodedBytes(24),
-      }).success,
-    ).toBe(false);
+    };
+    expect(EncryptedVaultEnvelopeSchema.safeParse(payload).success).toBe(false);
   });
 });
 
