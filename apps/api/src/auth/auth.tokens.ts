@@ -1,0 +1,7 @@
+export const API_RUNTIME_CONFIG = Symbol("API_RUNTIME_CONFIG");
+export const OIDC_KEY_RESOLVER = Symbol("OIDC_KEY_RESOLVER");
+export const ACCESS_TOKEN_VERIFIER = Symbol("ACCESS_TOKEN_VERIFIER");
+
+export const IS_AUTHENTICATED_ROUTE = Symbol("IS_AUTHENTICATED_ROUTE");
+export const IS_PUBLIC_ROUTE = Symbol("IS_PUBLIC_ROUTE");
+export const REQUIRED_SCOPES = Symbol("REQUIRED_SCOPES");

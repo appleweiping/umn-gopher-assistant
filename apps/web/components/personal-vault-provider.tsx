@@ -23,6 +23,7 @@ import { PersonalVaultClient, PersonalVaultClientError } from "../lib/personal-v
 
 const IDLE_LOCK_MS = 15 * 60 * 1_000;
 const VAULT_WORKER_TRUSTED_TYPES_POLICY = "uga#vault-worker";
+export const PERSONAL_VAULT_RECOVERY_SECRET_TIMEOUT_MS = 2 * 60 * 1_000;
 
 interface TrustedScriptUrlFactory {
   readonly createScriptURL: (value: string) => unknown;
@@ -66,23 +67,30 @@ export type PersonalVaultStatus =
   | "legacy-invalid"
   | "error";
 
+export type PersonalVaultLockReason = "manual" | "idle" | "visibility" | "write-failed";
+export type PersonalVaultRecoverySecretExpiry = "display" | "input";
+
 interface PersonalVaultValue {
   readonly status: PersonalVaultStatus;
   readonly tasks: readonly VaultTaskView[];
   readonly recoveryCode: string | null;
+  readonly recoveryDeviceLimitReached: boolean;
   readonly error: string | null;
+  readonly lastLockReason: PersonalVaultLockReason | null;
+  readonly recoverySecretExpiry: PersonalVaultRecoverySecretExpiry | null;
   readonly legacyAvailable: boolean;
   readonly beginSetup: () => Promise<void>;
   readonly confirmRecoverySaved: () => Promise<void>;
   readonly cancelSetup: () => Promise<void>;
   readonly unlock: () => Promise<void>;
-  readonly recover: (code: string) => Promise<void>;
+  readonly recover: (code: string, allowOldestDeviceRevocation?: boolean) => Promise<void>;
+  readonly expireRecoveryInput: () => void;
   readonly lock: () => void;
   readonly addTask: (title: string) => Promise<void>;
   readonly toggleTask: (id: string) => Promise<void>;
   readonly retryLegacyImport: () => Promise<void>;
-  readonly exportLegacy: () => void;
-  readonly deleteLegacy: () => void;
+  readonly exportLegacy: () => boolean;
+  readonly deleteLegacy: () => boolean;
 }
 
 interface LegacyState {
@@ -92,12 +100,24 @@ interface LegacyState {
 
 const PersonalVaultContext = createContext<PersonalVaultValue | null>(null);
 
+class LegacyStorageUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super("Legacy browser storage is unavailable.", { cause });
+    this.name = "LegacyStorageUnavailableError";
+  }
+}
+
 function noPlaintext(): readonly VaultTaskView[] {
   return [];
 }
 
 function readLegacy(): { readonly raw: string | null; readonly state: LegacyState } {
-  const raw = window.localStorage.getItem(LEGACY_TASK_STORAGE_KEY);
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(LEGACY_TASK_STORAGE_KEY);
+  } catch (cause) {
+    throw new LegacyStorageUnavailableError(cause);
+  }
   if (raw === null) return { raw: null, state: { available: false, valid: true } };
   try {
     parseLegacyTasks(raw);
@@ -107,7 +127,34 @@ function readLegacy(): { readonly raw: string | null; readonly state: LegacyStat
   }
 }
 
+function removeLegacyIfUnchanged(expected: string): void {
+  try {
+    const storage = window.localStorage;
+    if (storage.getItem(LEGACY_TASK_STORAGE_KEY) === expected) {
+      storage.removeItem(LEGACY_TASK_STORAGE_KEY);
+    }
+  } catch (cause) {
+    throw new LegacyStorageUnavailableError(cause);
+  }
+}
+
+function removeLegacyExplicitly(): boolean {
+  try {
+    const storage = window.localStorage;
+    if (storage.getItem(LEGACY_TASK_STORAGE_KEY) === null) return false;
+    storage.removeItem(LEGACY_TASK_STORAGE_KEY);
+    return true;
+  } catch (cause) {
+    throw new LegacyStorageUnavailableError(cause);
+  }
+}
+
 function clientErrorText(error: unknown, locale: Locale): string {
+  if (error instanceof PersonalVaultClientError && error.code === "DEVICE_ENVELOPE_LIMIT_REACHED") {
+    return locale === "zh-CN"
+      ? "恢复码有效，但受信设备槽位已满。若要继续，请明确同意撤销最早的设备访问权限，然后重新输入恢复码。"
+      : "The recovery code is valid, but all trusted-device slots are full. To continue, explicitly allow revoking the oldest device access, then enter the recovery code again.";
+  }
   if (error instanceof PersonalVaultClientError && error.code === "AUTHENTICATION_FAILED") {
     return locale === "zh-CN"
       ? "恢复码或加密资料无法验证。"
@@ -121,6 +168,18 @@ function clientErrorText(error: unknown, locale: Locale): string {
   return locale === "zh-CN"
     ? "私人资料库暂时不可用；旧数据未被删除。"
     : "The private vault is unavailable; legacy data was not deleted.";
+}
+
+function writeFailureText(locale: Locale): string {
+  return locale === "zh-CN"
+    ? "更改未能加密保存，资料库已为保护数据而锁定。请解锁后重试；若本机解锁失败，请使用恢复码。"
+    : "The change could not be encrypted and saved, so the vault was locked to protect your data. Unlock and retry; if trusted-device unlock fails, use your recovery code.";
+}
+
+function storageUnavailableText(locale: Locale): string {
+  return locale === "zh-CN"
+    ? "浏览器已禁用站点存储，私人资料库无法安全运行。应用未读取、更改或删除旧任务数据。"
+    : "Browser site storage is disabled, so the private vault cannot run safely. The app did not read, change, or delete legacy task data.";
 }
 
 function downloadLegacy(raw: string): void {
@@ -142,14 +201,20 @@ export function PersonalVaultProvider({
 }) {
   const clientRef = useRef<PersonalVaultClient | undefined>(undefined);
   const idleTimerRef = useRef<number | undefined>(undefined);
+  const recoverySecretTimerRef = useRef<number | undefined>(undefined);
   const sessionEpochRef = useRef(0);
   const pendingLegacyMigrationRef = useRef<string | null>(null);
   const statusRef = useRef<PersonalVaultStatus>("checking");
   const [status, setStatus] = useState<PersonalVaultStatus>("checking");
   const [tasks, setTasks] = useState<readonly VaultTaskView[]>(noPlaintext);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [recoveryDeviceLimitReached, setRecoveryDeviceLimitReached] = useState(false);
   const [legacy, setLegacy] = useState<LegacyState>({ available: false, valid: true });
   const [error, setError] = useState<string | null>(null);
+  const [lastLockReason, setLastLockReason] = useState<PersonalVaultLockReason | null>(null);
+  const [recoverySecretExpiry, setRecoverySecretExpiry] = useState<PersonalVaultRecoverySecretExpiry | null>(
+    null,
+  );
 
   const setVaultStatus = useCallback((next: PersonalVaultStatus) => {
     statusRef.current = next;
@@ -169,24 +234,69 @@ export function PersonalVaultProvider({
     }
   }, []);
 
+  const clearRecoverySecretTimer = useCallback(() => {
+    if (recoverySecretTimerRef.current !== undefined) {
+      window.clearTimeout(recoverySecretTimerRef.current);
+      recoverySecretTimerRef.current = undefined;
+    }
+  }, []);
+
   const clearRenderedPlaintext = useCallback(() => {
     setTasks(noPlaintext());
     setRecoveryCode(null);
     pendingLegacyMigrationRef.current = null;
   }, []);
 
-  /** Synchronous lock boundary: clear React first, then destroy the Worker. */
+  /** Synchronous UI lock boundary; the isolated Worker drains a queued write before termination. */
   const terminateSession = useCallback(() => {
     sessionEpochRef.current += 1;
     clearIdleTimer();
+    clearRecoverySecretTimer();
     clearRenderedPlaintext();
-    clientRef.current?.terminate();
+    void clientRef.current?.terminateWhenSettled();
     clientRef.current = undefined;
-  }, [clearIdleTimer, clearRenderedPlaintext]);
+  }, [clearIdleTimer, clearRecoverySecretTimer, clearRenderedPlaintext]);
 
-  const lock = useCallback(() => {
+  const markStorageUnavailable = useCallback(() => {
+    terminateSession();
+    setLegacy({ available: false, valid: true });
+    setError(storageUnavailableText(locale));
+    setRecoverySecretExpiry(null);
+    setVaultStatus("unavailable");
+  }, [locale, setVaultStatus, terminateSession]);
+
+  const armRecoverySecretTimer = useCallback(() => {
+    clearRecoverySecretTimer();
+    recoverySecretTimerRef.current = window.setTimeout(() => {
+      recoverySecretTimerRef.current = undefined;
+      if (statusRef.current !== "show-recovery-code") return;
+      // Terminating the dedicated Worker destroys its pending root/device keys;
+      // clearing React happens synchronously inside terminateSession first.
+      terminateSession();
+      setError(null);
+      setRecoverySecretExpiry("display");
+      setVaultStatus("needs-setup");
+    }, PERSONAL_VAULT_RECOVERY_SECRET_TIMEOUT_MS);
+  }, [clearRecoverySecretTimer, setVaultStatus, terminateSession]);
+
+  const lockForReason = useCallback(
+    (reason: PersonalVaultLockReason) => {
+      terminateSession();
+      setError(null);
+      setLastLockReason(reason);
+      setRecoverySecretExpiry(null);
+      setVaultStatus("locked");
+    },
+    [setVaultStatus, terminateSession],
+  );
+
+  const lock = useCallback(() => lockForReason("manual"), [lockForReason]);
+
+  const expireRecoveryInput = useCallback(() => {
+    if (statusRef.current !== "locked") return;
     terminateSession();
     setError(null);
+    setRecoverySecretExpiry("input");
     setVaultStatus("locked");
   }, [setVaultStatus, terminateSession]);
 
@@ -205,16 +315,26 @@ export function PersonalVaultProvider({
       if (!isCurrentSession(epoch)) return false;
       setTasks(snapshot.tasks);
       setRecoveryCode(null);
+      setRecoveryDeviceLimitReached(false);
       setError(null);
+      setLastLockReason(null);
+      setRecoverySecretExpiry(null);
+      clearRecoverySecretTimer();
       setVaultStatus("unlocked");
       return true;
     },
-    [isCurrentSession, setVaultStatus],
+    [clearRecoverySecretTimer, isCurrentSession, setVaultStatus],
   );
 
   useEffect(() => {
     const epoch = sessionEpochRef.current;
-    const legacySnapshot = refreshLegacyState();
+    let legacySnapshot: ReturnType<typeof readLegacy>;
+    try {
+      legacySnapshot = refreshLegacyState();
+    } catch (cause) {
+      if (cause instanceof LegacyStorageUnavailableError) markStorageUnavailable();
+      return () => terminateSession();
+    }
     if (!legacySnapshot.state.valid) {
       setVaultStatus("legacy-invalid");
       return () => terminateSession();
@@ -233,25 +353,49 @@ export function PersonalVaultProvider({
       setVaultStatus("unavailable");
     }
     return () => terminateSession();
-  }, [ensureClient, isCurrentSession, refreshLegacyState, setVaultStatus, terminateSession]);
+  }, [
+    ensureClient,
+    isCurrentSession,
+    markStorageUnavailable,
+    refreshLegacyState,
+    setVaultStatus,
+    terminateSession,
+  ]);
 
   useEffect(() => {
     const activity = () => {
       if (statusRef.current !== "unlocked") return;
       clearIdleTimer();
-      idleTimerRef.current = window.setTimeout(lock, IDLE_LOCK_MS);
+      idleTimerRef.current = window.setTimeout(() => lockForReason("idle"), IDLE_LOCK_MS);
     };
     const visibilityChange = () => {
       if (document.visibilityState !== "hidden") return;
       const priorStatus = statusRef.current;
       terminateSession();
-      if (priorStatus === "unlocked") setVaultStatus("locked");
-      else if (priorStatus === "show-recovery-code") setVaultStatus("needs-setup");
+      if (priorStatus === "unlocked") {
+        setError(null);
+        setLastLockReason("visibility");
+        setVaultStatus("locked");
+      } else if (priorStatus === "show-recovery-code") {
+        setRecoverySecretExpiry(null);
+        setVaultStatus("needs-setup");
+      }
     };
     // `pagehide` is also dispatched for a bfcache transition, where the
-    // document visibility state is not a reliable guard. Lock unconditionally
-    // so decrypted React state and the Worker never survive a hidden page.
-    const pagehide = () => lock();
+    // document visibility state is not a reliable guard. Destroy every Worker,
+    // but only expose a locked state when a decrypted session actually existed.
+    const pagehide = () => {
+      const priorStatus = statusRef.current;
+      terminateSession();
+      if (priorStatus === "unlocked") {
+        setError(null);
+        setLastLockReason("visibility");
+        setVaultStatus("locked");
+      } else if (priorStatus === "show-recovery-code") {
+        setRecoverySecretExpiry(null);
+        setVaultStatus("needs-setup");
+      }
+    };
     const events = ["keydown", "mousedown", "pointerdown", "scroll", "touchstart"] as const;
     events.forEach((event) => window.addEventListener(event, activity, { passive: true }));
     window.addEventListener("pagehide", pagehide);
@@ -263,10 +407,16 @@ export function PersonalVaultProvider({
       document.removeEventListener("visibilitychange", visibilityChange);
       clearIdleTimer();
     };
-  }, [clearIdleTimer, lock, setVaultStatus, status, terminateSession]);
+  }, [clearIdleTimer, lockForReason, setVaultStatus, status, terminateSession]);
 
   const beginSetup = useCallback(async () => {
-    const legacySnapshot = refreshLegacyState();
+    let legacySnapshot: ReturnType<typeof readLegacy>;
+    try {
+      legacySnapshot = refreshLegacyState();
+    } catch (cause) {
+      if (cause instanceof LegacyStorageUnavailableError) markStorageUnavailable();
+      return;
+    }
     if (!legacySnapshot.state.valid) {
       setVaultStatus("legacy-invalid");
       return;
@@ -276,12 +426,14 @@ export function PersonalVaultProvider({
     // The raw legacy text is intentionally held only during this migration
     // transaction. It never enters React state and is cleared on lock/cancel.
     pendingLegacyMigrationRef.current = legacySnapshot.raw;
+    setRecoverySecretExpiry(null);
     try {
       const response = await ensureClient().beginSetup(source, legacySnapshot.raw);
       if (!isCurrentSession(epoch) || response.method !== "begin-setup") return;
       setRecoveryCode(response.recoveryCode);
       setError(null);
       setVaultStatus("show-recovery-code");
+      armRecoverySecretTimer();
     } catch (cause) {
       pendingLegacyMigrationRef.current = null;
       setRecoveryCode(null);
@@ -300,7 +452,16 @@ export function PersonalVaultProvider({
         if (isCurrentSession(inspectionEpoch)) setVaultStatus("unavailable");
       }
     }
-  }, [ensureClient, isCurrentSession, locale, refreshLegacyState, setVaultStatus, terminateSession]);
+  }, [
+    armRecoverySecretTimer,
+    ensureClient,
+    isCurrentSession,
+    locale,
+    markStorageUnavailable,
+    refreshLegacyState,
+    setVaultStatus,
+    terminateSession,
+  ]);
 
   const confirmRecoverySaved = useCallback(async () => {
     const epoch = sessionEpochRef.current;
@@ -310,12 +471,7 @@ export function PersonalVaultProvider({
       if (!isCurrentSession(epoch) || response.method !== "confirm-setup") return;
       // Both crypto and exact read-back verification completed in the Worker.
       // Compare exact raw text again before deleting the source plaintext.
-      if (
-        expectedLegacy !== null &&
-        window.localStorage.getItem(LEGACY_TASK_STORAGE_KEY) === expectedLegacy
-      ) {
-        window.localStorage.removeItem(LEGACY_TASK_STORAGE_KEY);
-      }
+      if (expectedLegacy !== null) removeLegacyIfUnchanged(expectedLegacy);
       pendingLegacyMigrationRef.current = null;
       refreshLegacyState();
       applySnapshot(epoch, response.snapshot);
@@ -323,6 +479,10 @@ export function PersonalVaultProvider({
       pendingLegacyMigrationRef.current = null;
       setRecoveryCode(null);
       if (!isCurrentSession(epoch)) return;
+      if (cause instanceof LegacyStorageUnavailableError) {
+        markStorageUnavailable();
+        return;
+      }
       setError(clientErrorText(cause, locale));
       terminateSession();
       // A create can fail before the transaction commits or after a durable
@@ -342,6 +502,7 @@ export function PersonalVaultProvider({
     ensureClient,
     isCurrentSession,
     locale,
+    markStorageUnavailable,
     refreshLegacyState,
     setVaultStatus,
     terminateSession,
@@ -349,6 +510,8 @@ export function PersonalVaultProvider({
 
   const cancelSetup = useCallback(async () => {
     const epoch = sessionEpochRef.current;
+    clearRecoverySecretTimer();
+    setRecoverySecretExpiry(null);
     try {
       await ensureClient().cancelSetup();
     } finally {
@@ -358,10 +521,11 @@ export function PersonalVaultProvider({
         setVaultStatus("needs-setup");
       }
     }
-  }, [clearRenderedPlaintext, ensureClient, isCurrentSession, setVaultStatus]);
+  }, [clearRecoverySecretTimer, clearRenderedPlaintext, ensureClient, isCurrentSession, setVaultStatus]);
 
   const unlock = useCallback(async () => {
     const epoch = sessionEpochRef.current;
+    setRecoverySecretExpiry(null);
     try {
       const response = await ensureClient().unlock();
       if (response.method !== "unlock") throw new Error("Unexpected vault response.");
@@ -378,15 +542,20 @@ export function PersonalVaultProvider({
   }, [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession]);
 
   const recover = useCallback(
-    async (code: string) => {
+    async (code: string, allowOldestDeviceRevocation?: boolean) => {
       const epoch = sessionEpochRef.current;
+      setRecoverySecretExpiry(null);
+      setRecoveryDeviceLimitReached(false);
       try {
-        const response = await ensureClient().recover(code);
+        const response = await ensureClient().recover(code, allowOldestDeviceRevocation === true);
         if (response.method !== "recover") throw new Error("Unexpected vault response.");
         applySnapshot(epoch, response.snapshot);
       } catch (cause) {
         setRecoveryCode(null);
         if (!isCurrentSession(epoch)) return;
+        setRecoveryDeviceLimitReached(
+          cause instanceof PersonalVaultClientError && cause.code === "DEVICE_ENVELOPE_LIMIT_REACHED",
+        );
         setError(clientErrorText(cause, locale));
         terminateSession();
         setVaultStatus("locked");
@@ -405,12 +574,14 @@ export function PersonalVaultProvider({
       } catch (error) {
         if (isCurrentSession(epoch)) {
           terminateSession();
+          setError(writeFailureText(locale));
+          setLastLockReason("write-failed");
           setVaultStatus("locked");
         }
         throw error;
       }
     },
-    [applySnapshot, ensureClient, isCurrentSession, setVaultStatus, terminateSession],
+    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession],
   );
 
   const toggleTask = useCallback(
@@ -423,28 +594,38 @@ export function PersonalVaultProvider({
       } catch (error) {
         if (isCurrentSession(epoch)) {
           terminateSession();
+          setError(writeFailureText(locale));
+          setLastLockReason("write-failed");
           setVaultStatus("locked");
         }
         throw error;
       }
     },
-    [applySnapshot, ensureClient, isCurrentSession, setVaultStatus, terminateSession],
+    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession],
   );
 
   const retryLegacyImport = useCallback(async () => {
-    const legacySnapshot = refreshLegacyState();
+    let legacySnapshot: ReturnType<typeof readLegacy>;
+    try {
+      legacySnapshot = refreshLegacyState();
+    } catch (cause) {
+      if (cause instanceof LegacyStorageUnavailableError) markStorageUnavailable();
+      return;
+    }
     if (legacySnapshot.raw === null || !legacySnapshot.state.valid) return;
     const epoch = sessionEpochRef.current;
     try {
       const response = await ensureClient().importLegacy(legacySnapshot.raw);
       if (!isCurrentSession(epoch) || response.method !== "import-legacy") return;
-      if (window.localStorage.getItem(LEGACY_TASK_STORAGE_KEY) === legacySnapshot.raw) {
-        window.localStorage.removeItem(LEGACY_TASK_STORAGE_KEY);
-      }
+      removeLegacyIfUnchanged(legacySnapshot.raw);
       refreshLegacyState();
       applySnapshot(epoch, response.snapshot);
     } catch (cause) {
       if (!isCurrentSession(epoch)) return;
+      if (cause instanceof LegacyStorageUnavailableError) {
+        markStorageUnavailable();
+        return;
+      }
       setError(clientErrorText(cause, locale));
       terminateSession();
       // A retry targets an existing vault; preserve its unlock/recovery UI
@@ -456,36 +637,55 @@ export function PersonalVaultProvider({
     ensureClient,
     isCurrentSession,
     locale,
+    markStorageUnavailable,
     refreshLegacyState,
     setVaultStatus,
     terminateSession,
   ]);
 
   const exportLegacy = useCallback(() => {
-    const { raw } = readLegacy();
-    if (raw !== null) downloadLegacy(raw);
-  }, []);
+    try {
+      const { raw } = readLegacy();
+      if (raw === null) return false;
+      downloadLegacy(raw);
+      return true;
+    } catch (cause) {
+      if (cause instanceof LegacyStorageUnavailableError) markStorageUnavailable();
+      return false;
+    }
+  }, [markStorageUnavailable]);
 
   const deleteLegacy = useCallback(() => {
-    if (window.localStorage.getItem(LEGACY_TASK_STORAGE_KEY) === null) return;
-    window.localStorage.removeItem(LEGACY_TASK_STORAGE_KEY);
+    let deleted: boolean;
+    try {
+      deleted = removeLegacyExplicitly();
+    } catch (cause) {
+      if (cause instanceof LegacyStorageUnavailableError) markStorageUnavailable();
+      return false;
+    }
+    if (!deleted) return false;
     pendingLegacyMigrationRef.current = null;
     setLegacy({ available: false, valid: true });
     if (statusRef.current === "legacy-invalid") setVaultStatus("needs-setup");
-  }, [setVaultStatus]);
+    return true;
+  }, [markStorageUnavailable, setVaultStatus]);
 
   const value = useMemo<PersonalVaultValue>(
     () => ({
       status,
       tasks,
       recoveryCode,
+      recoveryDeviceLimitReached,
       error,
+      lastLockReason,
+      recoverySecretExpiry,
       legacyAvailable: legacy.available,
       beginSetup,
       confirmRecoverySaved,
       cancelSetup,
       unlock,
       recover,
+      expireRecoveryInput,
       lock,
       addTask,
       toggleTask,
@@ -500,11 +700,15 @@ export function PersonalVaultProvider({
       confirmRecoverySaved,
       deleteLegacy,
       error,
+      expireRecoveryInput,
       exportLegacy,
       legacy.available,
+      lastLockReason,
       lock,
       recover,
       recoveryCode,
+      recoveryDeviceLimitReached,
+      recoverySecretExpiry,
       retryLegacyImport,
       status,
       tasks,

@@ -43,8 +43,9 @@ The browser persistence boundary has these rules:
   setup or rotation, require an explicit acknowledgement, and allow recovery by
   user entry only;
 - require an explicit user action to unlock a trusted browser. Idle lock
-  terminates the worker, destroys its handles, clears decrypted React state,
-  and removes decrypted personal content from the rendered page;
+  clears decrypted React state immediately, queues a worker lock behind any
+  in-flight write, then terminates the worker after acknowledgement or a
+  bounded timeout;
 - treat the service worker, analytics, logs, crash reports, cloud AI, and API as
   ciphertext-only consumers;
 - use sequential compare-and-swap revisions. An update from revision `n` must
@@ -118,3 +119,7 @@ flows must state this plainly in both supported languages.
 - Browsers that cannot persist a non-extractable `CryptoKey` or provide the
   required Worker, WebCrypto, and IndexedDB primitives run personal tools in a
   clearly labeled unavailable/read-only mode rather than weakening storage.
+- Safari/iOS releases before 26 also run the vault in unavailable mode. WebKit
+  bug 288682 allowed a Worker termination to commit a partially scheduled
+  IndexedDB transaction; the upstream fix was absent from Apple's Safari 18.6
+  source and present in Safari 26. Public, non-vault routes remain supported.

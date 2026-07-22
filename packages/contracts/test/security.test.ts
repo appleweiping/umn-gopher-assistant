@@ -39,6 +39,16 @@ const deviceEnvelope = {
   wrappedKey: encodedBytes(80, 4),
   createdAt: "2026-07-19T00:00:00.000Z",
 } as const;
+const devicePublicKey = {
+  formatVersion: 1,
+  deviceId: ids.device,
+  deviceKeyId: ids.deviceKey,
+  keyAlgorithm: "X25519",
+  publicKey: encodedBytes(32, 12),
+  publicKeyFingerprint: deviceEnvelope.recipientPublicKeyFingerprint,
+  createdAt: "2026-07-19T00:00:00.000Z",
+  revokedAt: null,
+} as const;
 
 const recoveryHeader = {
   formatVersion: 1,
@@ -60,6 +70,21 @@ const recoveryEnvelope = {
   wrappedKey: encodedBytes(48, 7),
   aad: buildRecoveryAadV1(recoveryHeader),
 } as const;
+
+function recoveryEnvelopeWithResourceLimits(overrides: {
+  readonly memLimitBytes?: number;
+  readonly opsLimit?: number;
+}) {
+  const header = {
+    ...recoveryHeader,
+    kdf: { ...recoveryHeader.kdf, ...overrides },
+  };
+  return {
+    ...header,
+    wrappedKey: recoveryEnvelope.wrappedKey,
+    aad: buildRecoveryAadV1(header),
+  };
+}
 
 const payloadHeader = {
   formatVersion: 1,
@@ -108,6 +133,21 @@ describe("E2EE v1 security contracts", () => {
     ).toBe(true);
     expect(DeviceKeyEnvelopeV1Schema.safeParse(deviceEnvelope).success).toBe(true);
     expect(RecoveryKeyEnvelopeV1Schema.safeParse(recoveryEnvelope).success).toBe(true);
+  });
+
+  it("requires canonical lowercase UUIDs, UTC millisecond timestamps, and runtime KDF bounds", () => {
+    expect(
+      DeviceKeyEnvelopeV1Schema.safeParse({
+        ...deviceEnvelope,
+        vaultId: deviceEnvelope.vaultId.toUpperCase(),
+      }).success,
+    ).toBe(false);
+    for (const createdAt of ["2026-07-19T00:00:00Z", "2026-07-19T00:00:00+00:00"]) {
+      expect(DeviceKeyEnvelopeV1Schema.safeParse({ ...deviceEnvelope, createdAt }).success).toBe(false);
+    }
+    expect(
+      RecoveryKeyEnvelopeV1Schema.safeParse(recoveryEnvelopeWithResourceLimits({ opsLimit: 5 })).success,
+    ).toBe(false);
   });
 
   it("requires canonical unpadded base64url", () => {
@@ -169,18 +209,12 @@ describe("E2EE v1 security contracts", () => {
   it("rejects weakened or resource-exhausting Argon2id parameters", () => {
     for (const memLimitBytes of [64 * 1024 * 1024 - 1, 256 * 1024 * 1024 + 1]) {
       expect(
-        RecoveryKeyEnvelopeV1Schema.safeParse({
-          ...recoveryEnvelope,
-          kdf: { ...recoveryEnvelope.kdf, memLimitBytes },
-        }).success,
+        RecoveryKeyEnvelopeV1Schema.safeParse(recoveryEnvelopeWithResourceLimits({ memLimitBytes })).success,
       ).toBe(false);
     }
-    for (const opsLimit of [1, 11]) {
+    for (const opsLimit of [1, 5]) {
       expect(
-        RecoveryKeyEnvelopeV1Schema.safeParse({
-          ...recoveryEnvelope,
-          kdf: { ...recoveryEnvelope.kdf, opsLimit },
-        }).success,
+        RecoveryKeyEnvelopeV1Schema.safeParse(recoveryEnvelopeWithResourceLimits({ opsLimit })).success,
       ).toBe(false);
     }
     expect(
@@ -291,6 +325,7 @@ describe("E2EE v1 security contracts", () => {
       vaultId: ids.vault,
       vaultKeyId: ids.vaultKey,
       revision: 1,
+      devicePublicKeys: [devicePublicKey],
       deviceEnvelopes: [deviceEnvelope],
       recoveryEnvelope,
       createdAt: "2026-07-19T00:00:00.000Z",
@@ -301,6 +336,26 @@ describe("E2EE v1 security contracts", () => {
     expect(
       VaultKeyringV1Schema.safeParse({
         ...keyring,
+        devicePublicKeys: [],
+      }).success,
+    ).toBe(false);
+    expect(
+      VaultKeyringV1Schema.safeParse({
+        ...keyring,
+        devicePublicKeys: [{ ...devicePublicKey, deviceId: ids.secondDevice }],
+      }).success,
+    ).toBe(false);
+    expect(
+      VaultKeyringV1Schema.safeParse({
+        ...keyring,
+        devicePublicKeys: [{ ...devicePublicKey, revokedAt: "2026-07-19T00:01:00.000Z" }],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      VaultKeyringV1Schema.safeParse({
+        ...keyring,
+        devicePublicKeys: [devicePublicKey, { ...devicePublicKey, deviceKeyId: ids.secondDeviceKey }],
         deviceEnvelopes: [
           deviceEnvelope,
           {
@@ -316,6 +371,7 @@ describe("E2EE v1 security contracts", () => {
     expect(
       VaultKeyringV1Schema.safeParse({
         ...keyring,
+        devicePublicKeys: [devicePublicKey, { ...devicePublicKey, deviceId: ids.secondDevice }],
         deviceEnvelopes: [
           deviceEnvelope,
           {

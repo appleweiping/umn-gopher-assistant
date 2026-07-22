@@ -99,17 +99,75 @@ const validCampus = {
 
 const validSource = {
   attribution: "University public page",
-  cachePolicy: "METADATA_ONLY",
+  authorizationEvidenceUrl: null,
+  cacheDisposition: {
+    derivedArtifacts: "PROHIBITED",
+    normalizedRecords: "NEVER_STORE",
+    rawResponse: "NEVER_STORE",
+    retentionSeconds: null,
+  },
+  cachePolicy: "NO_CONTENT_CACHE",
   campusIds: ["tc"],
+  dataClasses: ["PUBLIC_METADATA"],
+  dataClassification: "PUBLIC",
   freshnessState: "FRESH",
   id: "tc-campus-home",
+  killSwitch: {
+    defaultState: "ENABLED",
+    fallback: "UNAVAILABLE",
+    key: "source.tc-campus-home.enabled",
+  },
   lastCheckedAt: "2026-07-19T12:00:00-05:00",
+  licenseEvidenceUrl: null,
   licenseStatus: "DEEPLINK_ONLY",
   name: { en: "Campus home", "zh-CN": "校区主页" },
   officialStatus: "PUBLISHER_ASSERTED",
+  owner: {
+    contactUrl: "https://github.com/appleweiping/umn-gopher-assistant/security/policy",
+    teamId: "catalog-integrations",
+  },
   publisher: "University of Minnesota",
+  resourceKinds: ["CAMPUS_DEEPLINK"],
   sourceUrl: "https://twin-cities.umn.edu/",
+  termsReviewExpiresAt: null,
+  termsReviewedAt: null,
   verificationState: "schematic",
+} as const;
+
+const validSourceObservation = {
+  appliedCacheDisposition: "DISCARDED_AFTER_RESPONSE",
+  cachePolicy: "NO_CONTENT_CACHE",
+  campusId: "tc",
+  dataClassification: "PUBLIC",
+  durationMs: 12,
+  failureCode: null,
+  freshnessState: "FRESH",
+  httpStatus: 200,
+  licenseStatus: "LIVE_ONLY",
+  observationId: "210f27aa-203d-4a87-a93a-a23b89044b2a",
+  observedAt: "2026-07-22T12:00:00.000Z",
+  outcome: "SUCCESS",
+  parserVersion: "livewhale-events@1",
+  rawByteLength: 512,
+  rawSha256: "a".repeat(64),
+  recordsAccepted: 0,
+  recordsRejected: 0,
+  sourceId: "tc-events-feed",
+} as const;
+
+const validEventPage = {
+  items: [],
+  nextCursor: null,
+  range: { defaulted: false, from: "2026-09-01", to: "2026-09-30" },
+  retrievalCoverage: {
+    nextUpstreamPage: null,
+    pagesFetched: 1,
+    recordsFetched: 0,
+    sourceTotalPages: 0,
+    sourceTotalRecords: 0,
+    truncatedByPolicy: false,
+  },
+  sourceObservations: [validSourceObservation],
 } as const;
 
 const validManifest = {
@@ -523,7 +581,7 @@ describe("GopherClient", () => {
   it("calls a generated operation with typed query values", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(response({ items: [], nextCursor: null }, { headers: { etag: '"events-v1"' } }));
+      .mockResolvedValue(response(validEventPage, { headers: { etag: '"events-v1"' } }));
     const client = new GopherClient({ baseUrl, fetch: fetchMock });
 
     const result = await client.request("listEvents", {
@@ -608,11 +666,27 @@ describe("GopherClient", () => {
   it("returns an explicit result for a 304 response", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(new Response(undefined, { headers: { etag: '"campuses-v1"' }, status: 304 }));
+      .mockResolvedValueOnce(new Response(undefined, { headers: { etag: '"campuses-v1"' }, status: 304 }))
+      .mockResolvedValueOnce(
+        new Response(undefined, {
+          headers: { "cache-control": "no-store", etag: 'W/"live-events-v1"' },
+          status: 304,
+        }),
+      );
     const client = new GopherClient({ baseUrl, fetch: fetchMock });
 
     await expect(client.request("listCampuses", { etag: '"campuses-v1"' })).resolves.toEqual({
       etag: '"campuses-v1"',
+      notModified: true,
+      status: 304,
+    });
+    await expect(
+      client.request("listEvents", {
+        etag: 'W/"live-events-v1"',
+        query: { campusId: "tc" },
+      }),
+    ).resolves.toEqual({
+      etag: 'W/"live-events-v1"',
       notModified: true,
       status: 304,
     });
@@ -833,7 +907,7 @@ describe("GopherClient", () => {
     } as const;
     const edgeSource = {
       ...validSource,
-      id: "",
+      id: "abc",
       lastCheckedAt: "2026-07-19T12:00:00-05:00",
       name: { en: " ", "zh-CN": " " },
       publisher: "  ",

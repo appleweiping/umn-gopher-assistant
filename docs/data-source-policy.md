@@ -141,6 +141,20 @@ An approved connector must:
 - support a rapid disable switch;
 - expose enough health information to detect stale or partial results.
 
+### Catalog cursor deployment key
+
+Production API deployments must provide `API_CATALOG_CURSOR_HMAC_KEY` as the
+canonical unpadded base64url encoding of 32 through 64 random bytes, sourced
+from the deployment secret manager. Never commit a real value. All API replicas
+that serve the same catalog must use the same key so pagination survives load
+balancing and restarts. Rotating the key deliberately invalidates every issued
+catalog cursor; operators should expect clients to restart pagination after a
+rotation.
+
+Local development may omit the variable and uses an explicitly development-only
+key. Generate production material with a cryptographically secure generator,
+for example `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`.
+
 Missing credentials or approval must disable the connector, not select a hidden
 fallback credential. Real tokens, cookies, session exports, keys, passwords, or
 protected response bodies must never be committed or copied into test fixtures.

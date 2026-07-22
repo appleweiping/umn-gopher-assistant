@@ -15,6 +15,7 @@ import {
   RouteProfileSchema,
   RouteSegmentSchema,
   SourceDescriptorSchema,
+  SourceRegistrySchema,
   VerificationStateSchema,
   WorldJoinTicketSchema,
   resolveAcademicCalendarCampus,
@@ -25,15 +26,37 @@ const encodedBytes = (length: number): string => Buffer.alloc(length, 7).toStrin
 const source = {
   id: "tc-campus-home",
   campusIds: ["tc"],
+  resourceKinds: ["CAMPUS_DEEPLINK"],
   name: { en: "Twin Cities campus website", "zh-CN": "双城校区网站" },
   publisher: "University of Minnesota",
   sourceUrl: "https://twin-cities.umn.edu/",
   licenseStatus: "DEEPLINK_ONLY",
+  licenseEvidenceUrl: null,
+  authorizationEvidenceUrl: null,
   freshnessState: "UNKNOWN",
   verificationState: "surveyed",
   officialStatus: "UNVERIFIED",
   attribution: "Source link: University of Minnesota Twin Cities",
   cachePolicy: "NO_CONTENT_CACHE",
+  cacheDisposition: {
+    rawResponse: "NEVER_STORE",
+    normalizedRecords: "NEVER_STORE",
+    derivedArtifacts: "PROHIBITED",
+    retentionSeconds: null,
+  },
+  dataClassification: "PUBLIC",
+  dataClasses: ["PUBLIC_METADATA"],
+  owner: {
+    teamId: "catalog-integrations",
+    contactUrl: "https://example.invalid/security",
+  },
+  killSwitch: {
+    key: "source.tc-campus-home.enabled",
+    defaultState: "ENABLED",
+    fallback: "UNAVAILABLE",
+  },
+  termsReviewedAt: null,
+  termsReviewExpiresAt: null,
   lastCheckedAt: null,
 } as const;
 
@@ -105,7 +128,7 @@ describe("source contracts", () => {
     expect(SourceDescriptorSchema.parse(source)).toEqual(source);
   });
 
-  it("rejects prohibited sources that allow access or caching", () => {
+  it("rejects prohibited sources that allow access, caching, or default enablement", () => {
     expect(
       SourceDescriptorSchema.safeParse({
         ...source,
@@ -113,6 +136,101 @@ describe("source contracts", () => {
         cachePolicy: "CACHE_ALLOWED",
       }).success,
     ).toBe(false);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        licenseStatus: "APPROVAL_REQUIRED",
+        cachePolicy: "NO_ACCESS",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires evidence before claiming open reuse or fresh data", () => {
+    expect(SourceDescriptorSchema.safeParse({ ...source, licenseStatus: "OPEN_REUSE" }).success).toBe(false);
+    expect(SourceDescriptorSchema.safeParse({ ...source, freshnessState: "FRESH" }).success).toBe(false);
+  });
+
+  it("requires bounded authorization review evidence for LIVE_ONLY access", () => {
+    const reviewedLiveSource = {
+      ...source,
+      licenseStatus: "LIVE_ONLY",
+      authorizationEvidenceUrl: "https://example.invalid/review/live-access",
+      termsReviewedAt: "2026-07-22T00:00:00.000Z",
+      termsReviewExpiresAt: "2027-07-22T00:00:00.000Z",
+    } as const;
+
+    expect(SourceDescriptorSchema.safeParse(reviewedLiveSource).success).toBe(true);
+    for (const incomplete of [
+      { ...reviewedLiveSource, authorizationEvidenceUrl: null },
+      { ...reviewedLiveSource, termsReviewedAt: null },
+      { ...reviewedLiveSource, termsReviewExpiresAt: null },
+    ]) {
+      expect(SourceDescriptorSchema.safeParse(incomplete).success).toBe(false);
+    }
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: reviewedLiveSource.termsReviewedAt,
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: "2027-07-23T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: "2027-07-24T00:00:00.001Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("does not let a terms review timestamp enable unapproved or prohibited access", () => {
+    for (const licenseStatus of ["APPROVAL_REQUIRED", "PROHIBITED"] as const) {
+      expect(
+        SourceDescriptorSchema.safeParse({
+          ...source,
+          licenseStatus,
+          authorizationEvidenceUrl: "https://example.invalid/review/denied-access",
+          termsReviewedAt: "2026-07-22T00:00:00.000Z",
+          termsReviewExpiresAt: "2027-07-22T00:00:00.000Z",
+          cachePolicy: "NO_ACCESS",
+          cacheDisposition: {
+            rawResponse: "NEVER_STORE",
+            normalizedRecords: "NEVER_STORE",
+            derivedArtifacts: "PROHIBITED",
+            retentionSeconds: null,
+          },
+          killSwitch: { ...source.killSwitch, defaultState: "DISABLED" },
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("rejects persistent content under NO_CONTENT_CACHE", () => {
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        cacheDisposition: {
+          rawResponse: "PERSIST_WITH_TTL",
+          normalizedRecords: "NEVER_STORE",
+          derivedArtifacts: "PROHIBITED",
+          retentionSeconds: 60,
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("binds kill switches to source IDs and rejects duplicate registry entries", () => {
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        killSwitch: { ...source.killSwitch, key: "source.another-source.enabled" },
+      }).success,
+    ).toBe(false);
+    expect(SourceRegistrySchema.safeParse([source, source]).success).toBe(false);
   });
 });
 

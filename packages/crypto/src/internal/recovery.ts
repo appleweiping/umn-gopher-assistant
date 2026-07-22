@@ -6,6 +6,7 @@ import { buildRecoveryAadV1 } from "@umn-gopher-assistant/contracts";
 import {
   RECOVERY_ENTROPY_BYTES,
   RECOVERY_KEY_BYTES,
+  RECOVERY_MAX_CODE_INPUT_CHARACTERS,
   RECOVERY_MAX_MEM_LIMIT_BYTES,
   RECOVERY_MAX_OPS_LIMIT,
   RECOVERY_MEM_LIMIT_BYTES,
@@ -58,6 +59,13 @@ interface NormalizedRecoveryCode {
   readonly entropy: Uint8Array;
 }
 
+function containsNonAscii(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) > 0x7f) return true;
+  }
+  return false;
+}
+
 function decodeCrockford(body: string): Uint8Array {
   const decoded = new Uint8Array(RECOVERY_ENTROPY_BYTES);
   let accumulator = 0;
@@ -88,10 +96,14 @@ function normalizeRecoveryCode(code: unknown, mode: "input" | "authentication"):
       : cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   };
   if (typeof code !== "string") fail();
-  const compact = (code as string)
-    .normalize("NFKC")
+  // Reject before Unicode normalization so hostile RPC input cannot force an
+  // unbounded allocation on the Worker thread.
+  if ((code as string).length > RECOVERY_MAX_CODE_INPUT_CHARACTERS) fail();
+  const normalized = (code as string).normalize("NFKC");
+  if (normalized.length > RECOVERY_MAX_CODE_INPUT_CHARACTERS || containsNonAscii(normalized)) fail();
+  const compact = normalized
     .replaceAll(/[- \t\r\n]/gu, "")
-    .toUpperCase();
+    .replaceAll(/[a-z]/gu, (character) => String.fromCharCode(character.charCodeAt(0) - 0x20));
   if (!compact.startsWith("UGA1")) fail();
   const body = compact.slice(4).replaceAll("O", "0").replaceAll(/[IL]/gu, "1");
   if (!RECOVERY_CODE_PATTERN.test(body)) fail();
@@ -202,7 +214,11 @@ function authenticateRecoveryMetadata(candidate: RecoveryKeyEnvelopeV1): Recover
   }
 }
 
-export function createRecoveryEnvelope(sodium: Sodium, key: VaultKeyHandle): RecoveryEnvelopeResult {
+export function createRecoveryEnvelope(
+  sodium: Sodium,
+  key: VaultKeyHandle,
+  recoveryCodeInput?: string,
+): RecoveryEnvelopeResult {
   const secret = vaultSecret(key);
   let recoveryEntropy: Uint8Array | undefined;
   let salt: Uint8Array | undefined;
@@ -211,8 +227,15 @@ export function createRecoveryEnvelope(sodium: Sodium, key: VaultKeyHandle): Rec
   let derivedKey: Uint8Array | undefined;
   let wrapped: Uint8Array | undefined;
   try {
-    recoveryEntropy = sodium.randombytes_buf(RECOVERY_ENTROPY_BYTES);
-    const recoveryCode = formatRecoveryCode(encodeCrockford(recoveryEntropy));
+    let recoveryCode: string;
+    if (recoveryCodeInput === undefined) {
+      recoveryEntropy = sodium.randombytes_buf(RECOVERY_ENTROPY_BYTES);
+      recoveryCode = formatRecoveryCode(encodeCrockford(recoveryEntropy));
+    } else {
+      const normalized = normalizeRecoveryCode(recoveryCodeInput, "input");
+      recoveryEntropy = normalized.entropy;
+      recoveryCode = normalized.display;
+    }
     salt = sodium.randombytes_buf(RECOVERY_SALT_BYTES);
     nonce = sodium.randombytes_buf(XCHACHA_NONCE_BYTES);
     const metadata: RecoveryMetadata = {

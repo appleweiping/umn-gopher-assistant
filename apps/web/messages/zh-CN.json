@@ -27,8 +27,8 @@
     "quickLibrary": "图书馆",
     "quickTransit": "交通",
     "quickOneStop": "一站式学生服务",
-    "online": "演示数据可用",
-    "offline": "离线外壳 · 已保存演示数据",
+    "online": "网络可用",
+    "offline": "离线外壳 · 实时数据不可用",
     "freshness": "来源状态",
     "skip": "跳到主要内容",
     "close": "关闭"
@@ -47,31 +47,66 @@
     "unverified": "未核验",
     "schematic": "示意",
     "readOnly": "只读演示",
+    "close": "关闭",
     "newTabLabel": "{label}（在新标签页打开）",
     "locationsLabel": "{label} 地点"
   },
   "today": {
     "eyebrow": "每日简报",
     "title": "把今天的校园生活放进一个可操作视图",
-    "summary": "带来源提示的本地演示日程；这里的操作不会更改选课或校方系统。",
-    "timeline": "时间线",
+    "summary": "展示带明确来源的近期公开日期和校园官方入口；这里的操作不会更改选课或校方系统。",
+    "timeline": "公开日历",
     "signals": "校园信号",
+    "officialShortcuts": "官方站外入口",
+    "openPlan": "打开私人计划 →",
     "moveUp": "上移",
     "moveDown": "下移",
-    "offlineNote": "离线模式只保留项目自编演示；实时核对需要网络连接。"
+    "offlineNote": "离线时无法核对实时目录；网络恢复后可打开官方入口。"
   },
   "explore": {
     "eyebrow": "校园索引",
     "title": "查找地点、服务、活动或课程",
-    "summary": "先搜索项目自编演示条目，再通过来源链接核对当前官方详情。",
+    "summary": "同时搜索当前公开活动、学期日期与明确标注的官方站外入口。",
     "query": "搜索校园索引",
     "types": "结果类型",
-    "openOnly": "仅看已核验为开放",
     "list": "列表",
-    "map": "示意地图",
+    "map": "官方地图",
     "results": "结果",
     "loading": "正在加载校园索引",
-    "none": "没有符合这些筛选条件的演示条目。"
+    "none": "没有符合这些筛选条件的条目。",
+    "clearFilters": "清除筛选",
+    "resultView": "结果视图",
+    "officialEntry": "官方链接",
+    "liveResult": "已采集的公开数据",
+    "openStatusNote": "这些来源不足以判断当前是否开放，因此本应用不会推测。",
+    "mapAccuracyNote": "本应用不会推测坐标；请通过官方校园地图核对当前地理信息。"
+  },
+  "catalog": {
+    "upcomingEvents": "近期公开活动",
+    "sessionDates": "学期日期",
+    "event": "公开活动",
+    "cancelled": "已取消活动",
+    "academicSession": "学期",
+    "loadingEvents": "正在核对公开活动来源……",
+    "loadingSessions": "正在核对学期日期……",
+    "loadingCombined": "正在核对当前公开活动与学期日期；加载期间仍可使用官方入口。",
+    "unavailable": "实时来源暂时不可用；本应用不会显示上一次实时响应。",
+    "eventsUnavailable": "实时活动暂时不可用；请使用下方官方活动入口。",
+    "sessionsUnavailable": "学期日期暂时不可用；请使用下方官方校历入口。",
+    "deepLinkOnly": "此校区目前只提供官方活动入口，本应用未请求活动 Feed。",
+    "openSource": "在新标签页打开 {source}",
+    "noEvents": "{from} 至 {to} 期间来源未返回公开活动。",
+    "noSessions": "{from} 至 {to} 期间来源未返回学期。",
+    "partialCoverage": "当前显示有界实时采集中的 {count} 条结果；其余结果尚未载入。",
+    "limitedView": "“今日”显示已载入的前 {count} 条（共 {total} 条）；可通过“探索”或来源链接查看更多。",
+    "loadMoreEvents": "加载更多活动",
+    "loadMoreSessions": "加载更多学期",
+    "loadingMore": "正在加载更多……",
+    "loadMoreFailed": "无法加载更多{resource}；已显示的结果仍然可用。",
+    "eventsResource": "活动",
+    "sessionsResource": "学期",
+    "externalStatusUnknown": "请通过官方网站核对当前营业时间、警报、路线或可用性。",
+    "notObserved": "本应用未采集当前状态"
   },
   "plan": {
     "eyebrow": "个人工作区",
@@ -166,7 +201,7 @@
   "offline": {
     "eyebrow": "离线外壳",
     "title": "校园指南仍可打开",
-    "summary": "你可以访问缓存的项目页面和自编演示数据；官方链接与实时核对需要网络连接。",
+    "summary": "你可以访问缓存的应用页面和本地加密计划；官方链接与实时核对需要网络连接。",
     "return": "返回今日"
   }
 }

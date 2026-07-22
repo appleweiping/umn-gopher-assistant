@@ -83,7 +83,7 @@ export function WorldCatalog() {
           </div>
           <div>
             <dt>{t("updated")}</dt>
-            <dd>2026-07-19</dd>
+            <dd>{locale === "zh-CN" ? "尚未发布世界资产" : "No world asset published"}</dd>
           </div>
           <div>
             <dt>{t("budget")}</dt>

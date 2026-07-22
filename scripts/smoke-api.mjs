@@ -106,16 +106,26 @@ try {
   );
   invariant(worldResponse.headers.has("etag"), "World response is missing an ETag");
 
-  const missingResponse = await fetch(new URL("v1/events", baseUrl), {
-    headers: { accept: "application/json" },
-    redirect: "error",
-    signal: AbortSignal.timeout(5_000),
-  });
-  invariant(missingResponse.status === 404, "Contract-only event route unexpectedly became live");
+  const unavailableEvents = await fetchJson(new URL("v1/events?campusId=crookston", baseUrl), 503);
+  invariant(unavailableEvents.body?.title === "Service Unavailable", "Event fallback title is unstable");
+  invariant(
+    unavailableEvents.body?.officialUrl === "https://crk.umn.edu/university-relations/events",
+    "Disabled event source did not return its useful official link",
+  );
+  invariant(
+    unavailableEvents.body?.sourceId === "crookston-events",
+    "Disabled event source returned the wrong provenance",
+  );
+  invariant(
+    unavailableEvents.headers.get("cache-control") === "no-store",
+    "LIVE_ONLY/deep-link fallback is cacheable",
+  );
+  invariant(unavailableEvents.headers.get("retry-after") === "3600", "Event fallback lacks Retry-After");
 
   console.log(
     JSON.stringify({
       campuses: campusResponse.body.length,
+      catalogFallback: unavailableEvents.body.sourceId,
       service: health.body.service,
       sources: sourceResponse.body.items.length,
       status: "passed",

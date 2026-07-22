@@ -8,6 +8,7 @@ export const RECOVERY_WRAPPED_KEY_BYTES = 48;
 export const RECOVERY_SALT_BYTES = 16;
 export const RECOVERY_KEY_BYTES = 32;
 export const RECOVERY_ENTROPY_BYTES = 20;
+export const RECOVERY_MAX_CODE_INPUT_CHARACTERS = 128;
 export const VAULT_PADDING_BLOCK_BYTES = 4_096;
 export const VAULT_MAX_PADDED_PLAINTEXT_BYTES = 8 * 1_024 * 1_024;
 export const VAULT_MAX_PLAINTEXT_BYTES = VAULT_MAX_PADDED_PLAINTEXT_BYTES - VAULT_PADDING_BLOCK_BYTES;
@@ -16,7 +17,10 @@ export const VAULT_MAX_AAD_BYTES = 4_096;
 export const VAULT_MAX_DEVICE_ENVELOPES = 32;
 
 export const RECOVERY_OPS_LIMIT = 3;
-export const RECOVERY_MEM_LIMIT_BYTES = 256 * 1_024 * 1_024;
+// A random 160-bit recovery secret does not need a desktop-only 256 MiB
+// default. 64 MiB remains deliberately expensive while working on mobile
+// browsers; imports may retain stronger envelopes up to the bounded maximum.
+export const RECOVERY_MEM_LIMIT_BYTES = 64 * 1_024 * 1_024;
 export const RECOVERY_MAX_OPS_LIMIT = 4;
 export const RECOVERY_MAX_MEM_LIMIT_BYTES = 256 * 1_024 * 1_024;
 

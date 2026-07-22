@@ -4,80 +4,127 @@ import type { Sodium } from "./sodium.js";
 import { DEVICE_KEY_BYTES, VAULT_KEY_BYTES } from "../constants.js";
 import { cryptoError, VaultCryptoErrorCode } from "../errors.js";
 
-class VaultKeyHandleImpl {
-  #secret: Uint8Array | undefined;
+interface VaultKeyState {
+  readonly memzero: (value: Uint8Array) => void;
   readonly vaultId: string;
   readonly vaultKeyId: string;
+  secret: Uint8Array | undefined;
+}
 
-  constructor(
-    private readonly sodium: Sodium,
-    vaultId: string,
-    vaultKeyId: string,
-    secret: Uint8Array,
-  ) {
+interface DeviceKeyState {
+  readonly memzero: (value: Uint8Array) => void;
+  readonly publicKey: DevicePublicKeyV1;
+  privateKey: Uint8Array | undefined;
+}
+
+// The byte arrays deliberately live outside the public object graph. TypeScript
+// `private` and branded interfaces disappear at runtime and therefore are not
+// security boundaries. Module-private WeakMaps let package internals use the
+// bytes without publishing a callable getter on a handle or its prototype.
+const vaultKeyStates = new WeakMap<object, VaultKeyState>();
+const deviceKeyStates = new WeakMap<object, DeviceKeyState>();
+const handleConstructionCapability = Symbol("uga.vault-handle-construction");
+
+function vaultState(handle: object): VaultKeyState {
+  const state = vaultKeyStates.get(handle);
+  if (state === undefined) throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
+  return state;
+}
+
+function deviceState(handle: object): DeviceKeyState {
+  const state = deviceKeyStates.get(handle);
+  if (state === undefined) throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
+  return state;
+}
+
+class VaultKeyHandleImpl {
+  constructor(capability: symbol, sodium: Sodium, vaultId: string, vaultKeyId: string, secret: Uint8Array) {
+    if (capability !== handleConstructionCapability) {
+      throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
+    }
     if (secret.length !== VAULT_KEY_BYTES) {
       sodium.memzero(secret);
       throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
     }
-    this.vaultId = vaultId;
-    this.vaultKeyId = vaultKeyId;
-    this.#secret = secret;
+    vaultKeyStates.set(this, {
+      memzero: sodium.memzero.bind(sodium),
+      secret,
+      vaultId,
+      vaultKeyId,
+    });
+    Object.freeze(this);
+  }
+
+  get vaultId(): string {
+    return vaultState(this).vaultId;
+  }
+
+  get vaultKeyId(): string {
+    return vaultState(this).vaultKeyId;
   }
 
   get destroyed(): boolean {
-    return this.#secret === undefined;
+    return vaultState(this).secret === undefined;
   }
 
   destroy(): void {
-    if (this.#secret !== undefined) {
-      this.sodium.memzero(this.#secret);
-      this.#secret = undefined;
+    const state = vaultState(this);
+    if (state.secret !== undefined) {
+      state.memzero(state.secret);
+      state.secret = undefined;
     }
-  }
-
-  secret(): Uint8Array {
-    if (this.#secret === undefined) {
-      throw cryptoError(VaultCryptoErrorCode.DESTROYED_KEY);
-    }
-    return this.#secret;
   }
 }
 
 class DeviceKeyHandleImpl {
-  #privateKey: Uint8Array | undefined;
-  readonly publicKey: DevicePublicKeyV1;
-
-  constructor(
-    private readonly sodium: Sodium,
-    publicKey: DevicePublicKeyV1,
-    privateKey: Uint8Array,
-  ) {
+  constructor(capability: symbol, sodium: Sodium, publicKey: DevicePublicKeyV1, privateKey: Uint8Array) {
+    if (capability !== handleConstructionCapability) {
+      throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
+    }
     if (privateKey.length !== DEVICE_KEY_BYTES) {
       sodium.memzero(privateKey);
       throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
     }
-    this.publicKey = Object.freeze({ ...publicKey });
-    this.#privateKey = privateKey;
+    deviceKeyStates.set(this, {
+      memzero: sodium.memzero.bind(sodium),
+      privateKey,
+      publicKey: Object.freeze({ ...publicKey }),
+    });
+    Object.freeze(this);
+  }
+
+  get publicKey(): DevicePublicKeyV1 {
+    return deviceState(this).publicKey;
   }
 
   get destroyed(): boolean {
-    return this.#privateKey === undefined;
+    return deviceState(this).privateKey === undefined;
   }
 
   destroy(): void {
-    if (this.#privateKey !== undefined) {
-      this.sodium.memzero(this.#privateKey);
-      this.#privateKey = undefined;
+    const state = deviceState(this);
+    if (state.privateKey !== undefined) {
+      state.memzero(state.privateKey);
+      state.privateKey = undefined;
     }
-  }
-
-  privateKey(): Uint8Array {
-    if (this.#privateKey === undefined) {
-      throw cryptoError(VaultCryptoErrorCode.DESTROYED_KEY);
-    }
-    return this.#privateKey;
   }
 }
+
+// `prototype.constructor` would otherwise reveal the unexported class through
+// a returned handle. The capability check remains the primary construction
+// boundary; removing the reflection path is defense in depth.
+Object.defineProperty(VaultKeyHandleImpl.prototype, "constructor", {
+  configurable: false,
+  value: undefined,
+  writable: false,
+});
+Object.defineProperty(DeviceKeyHandleImpl.prototype, "constructor", {
+  configurable: false,
+  value: undefined,
+  writable: false,
+});
+Object.freeze(VaultKeyHandleImpl.prototype);
+Object.freeze(DeviceKeyHandleImpl.prototype);
 
 export function createVaultHandle(
   sodium: Sodium,
@@ -85,7 +132,13 @@ export function createVaultHandle(
   vaultKeyId: string,
   secret: Uint8Array,
 ): VaultKeyHandle {
-  return new VaultKeyHandleImpl(sodium, vaultId, vaultKeyId, secret) as unknown as VaultKeyHandle;
+  return new VaultKeyHandleImpl(
+    handleConstructionCapability,
+    sodium,
+    vaultId,
+    vaultKeyId,
+    secret,
+  ) as unknown as VaultKeyHandle;
 }
 
 export function createDeviceHandle(
@@ -93,19 +146,28 @@ export function createDeviceHandle(
   publicKey: DevicePublicKeyV1,
   privateKey: Uint8Array,
 ): DeviceKeyHandle {
-  return new DeviceKeyHandleImpl(sodium, publicKey, privateKey) as unknown as DeviceKeyHandle;
+  return new DeviceKeyHandleImpl(
+    handleConstructionCapability,
+    sodium,
+    publicKey,
+    privateKey,
+  ) as unknown as DeviceKeyHandle;
 }
 
 export function vaultSecret(handle: VaultKeyHandle): Uint8Array {
   if (!(handle instanceof VaultKeyHandleImpl)) {
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
-  return handle.secret();
+  const secret = vaultState(handle).secret;
+  if (secret === undefined) throw cryptoError(VaultCryptoErrorCode.DESTROYED_KEY);
+  return secret;
 }
 
 export function devicePrivateKey(handle: DeviceKeyHandle): Uint8Array {
   if (!(handle instanceof DeviceKeyHandleImpl)) {
     throw cryptoError(VaultCryptoErrorCode.INVALID_INPUT);
   }
-  return handle.privateKey();
+  const privateKey = deviceState(handle).privateKey;
+  if (privateKey === undefined) throw cryptoError(VaultCryptoErrorCode.DESTROYED_KEY);
+  return privateKey;
 }

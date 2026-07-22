@@ -18,10 +18,11 @@ Browser-friendly end-to-end encryption for the personal vault. The package uses 
 - A device envelope contains a 32-byte vault key and a 32-byte keyed metadata-binding
   tag. X25519/XChaCha20-Poly1305 adds a 16-byte authenticator, producing the contract's
   exact 80-byte `wrappedKey`.
-- Recovery codes contain 160 random bits encoded as 32 Crockford Base32 symbols. Argon2id
-  v1.3 uses three passes and 256 MiB. Untrusted KDF limits are checked before decoding or
-  allocating, and hostile parameters, wrong codes, and tampering all return the same
-  `AUTHENTICATION_FAILED` result.
+- Recovery codes contain 160 random bits encoded as 32 Crockford Base32 symbols. New
+  Argon2id v1.3 envelopes use three passes and 64 MiB so constrained browsers can recover
+  them. Imports retain authenticated parameters up to the explicit 256 MiB ceiling;
+  untrusted limits are checked before decoding or allocating, and hostile parameters,
+  wrong codes, and tampering all return the same `AUTHENTICATION_FAILED` result.
 - Secret handles are opaque and never export raw key bytes. `destroy()` is idempotent and
   memzeros the owned bytes. Secret-bearing temporary arrays are memzeroed in `finally`
   blocks.

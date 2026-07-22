@@ -27,16 +27,19 @@ const publicJwk = {
 const jwks = { keys: [publicJwk] };
 
 const allowedPayload = {
-  aud: ["account", DEFAULT_API_AUDIENCE],
+  aud: DEFAULT_API_AUDIENCE,
   azp: "gopher-cli",
   exp: nowSeconds + 300,
+  iat: nowSeconds,
   iss: issuer,
+  jti: "00000000-0000-4000-8000-000000000001",
   nbf: nowSeconds - 5,
   scope: "openid offline_access campus:read",
+  sub: "synthetic-student",
 };
 
-function tokenFor(payload, signingKey = privateKey) {
-  const headerSegment = Buffer.from(JSON.stringify({ alg: "RS256", kid: keyId, typ: "JWT" })).toString(
+function tokenFor(payload, signingKey = privateKey, type = "at+jwt") {
+  const headerSegment = Buffer.from(JSON.stringify({ alg: "RS256", kid: keyId, typ: type })).toString(
     "base64url",
   );
   const payloadSegment = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -63,12 +66,22 @@ test("cryptographically verifies the narrow CLI token", () => {
   });
 });
 
+test("accepts the issuer's bounded URI-form JWT ID", () => {
+  assert.equal(
+    verify(tokenFor({ ...allowedPayload, jti: "urn:uuid:00000000-0000-4000-8000-000000000001" }))
+      .signatureVerified,
+    true,
+  );
+});
+
 test("rejects token-level scope escalation and audience confusion", () => {
   const rejectedPayloads = [
     { ...allowedPayload, scope: `${allowedPayload.scope} admin:write` },
     { ...allowedPayload, scope: "openid offline_access" },
     { ...allowedPayload, aud: ["account"] },
     { ...allowedPayload, aud: [DEFAULT_API_AUDIENCE, DEFAULT_MCP_AUDIENCE] },
+    { ...allowedPayload, exp: nowSeconds + 301 },
+    { ...allowedPayload, jti: "short" },
   ];
 
   for (const payload of rejectedPayloads) {
@@ -87,6 +100,10 @@ test("rejects wrong signatures, issuers, and authorized clients", () => {
   for (const token of [wrongSignature, wrongIssuer, wrongAuthorizedParty, wrongClientId]) {
     assert.throws(() => verify(token));
   }
+});
+
+test("rejects a generic JWT instead of an RFC 9068 access token", () => {
+  assert.throws(() => verify(tokenFor(allowedPayload, privateKey, "JWT")));
 });
 
 test("rejects a malformed token without reflecting its value", () => {

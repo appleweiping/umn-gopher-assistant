@@ -74,6 +74,8 @@ export interface RecoverVaultKeyInput {
 
 export interface CreateVaultKeyringInput {
   readonly key: VaultKeyHandle;
+  /** Re-wrap the new root key with an already authenticated recovery secret. */
+  readonly recoveryCode?: string;
   readonly revision: number;
   readonly recipients: readonly DevicePublicKeyV1[];
 }
@@ -86,6 +88,8 @@ export interface VaultKeyringResult {
 export interface RotateVaultKeyringInput {
   readonly previousKey: VaultKeyHandle;
   readonly previousKeyring: VaultKeyringV1;
+  /** Keeps the user's current recovery secret valid across root-key rotation. */
+  readonly recoveryCode?: string;
   readonly recipients: readonly DevicePublicKeyV1[];
 }
 

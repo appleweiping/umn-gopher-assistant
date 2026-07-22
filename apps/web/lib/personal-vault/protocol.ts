@@ -9,6 +9,7 @@ export const PERSONAL_VAULT_DOCUMENT_FORMAT = 1 as const;
 export const PERSONAL_VAULT_MAX_TASKS = 2_000;
 export const PERSONAL_VAULT_MAX_TASK_TITLE_LENGTH = 512;
 export const PERSONAL_VAULT_MAX_DOCUMENT_BYTES = 1_024 * 1_024;
+export const PERSONAL_VAULT_MAX_RECOVERY_CODE_LENGTH = 128;
 
 const TASK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
 
@@ -34,6 +35,7 @@ export interface VaultRpcError {
   readonly code:
     | "AUTHENTICATION_FAILED"
     | "CONFLICT"
+    | "DEVICE_ENVELOPE_LIMIT_REACHED"
     | "INVALID_LEGACY"
     | "NOT_READY"
     | "STORAGE_FAILED"
@@ -51,7 +53,12 @@ export type VaultRpcRequest =
   | { readonly id: string; readonly method: "confirm-setup" }
   | { readonly id: string; readonly method: "cancel-setup" }
   | { readonly id: string; readonly method: "unlock" }
-  | { readonly id: string; readonly method: "recover"; readonly recoveryCode: string }
+  | {
+      readonly id: string;
+      readonly method: "recover";
+      readonly recoveryCode: string;
+      readonly allowOldestDeviceRevocation: boolean;
+    }
   | { readonly id: string; readonly method: "lock" }
   | { readonly id: string; readonly method: "add-task"; readonly title: string }
   | { readonly id: string; readonly method: "toggle-task"; readonly taskId: string }
@@ -88,7 +95,15 @@ export interface VaultRpcFailure {
 export type VaultRpcResponse = VaultRpcSuccess | VaultRpcFailure;
 
 const MAX_RPC_ID_LENGTH = 128;
-const MAX_RPC_TEXT_LENGTH = PERSONAL_VAULT_MAX_DOCUMENT_BYTES;
+const VAULT_RPC_ERROR_CODES = new Set<VaultRpcError["code"]>([
+  "AUTHENTICATION_FAILED",
+  "CONFLICT",
+  "DEVICE_ENVELOPE_LIMIT_REACHED",
+  "INVALID_LEGACY",
+  "NOT_READY",
+  "STORAGE_FAILED",
+  "UNAVAILABLE",
+]);
 
 /**
  * Strictly accepts the page-to-Worker protocol before any vault operation is
@@ -121,43 +136,114 @@ export function parseVaultRpcRequest(value: unknown): VaultRpcRequest | null {
       const legacyRaw = ownValue(value, "legacyRaw");
       if (
         (source !== "empty" && source !== "legacy" && source !== "seed") ||
-        (legacyRaw !== null && (typeof legacyRaw !== "string" || legacyRaw.length > MAX_RPC_TEXT_LENGTH)) ||
+        (legacyRaw !== null &&
+          (typeof legacyRaw !== "string" || legacyRaw.length > PERSONAL_VAULT_MAX_DOCUMENT_BYTES)) ||
         (source === "legacy" && typeof legacyRaw !== "string")
       )
         return null;
       return { ...base, method, source, legacyRaw };
     }
     case "recover": {
-      if (!hasExactKeys(value, ["id", "method", "recoveryCode"])) return null;
+      if (!hasExactKeys(value, ["allowOldestDeviceRevocation", "id", "method", "recoveryCode"])) return null;
+      const allowOldestDeviceRevocation = ownValue(value, "allowOldestDeviceRevocation");
       const recoveryCode = ownValue(value, "recoveryCode");
-      return typeof recoveryCode === "string" && recoveryCode.length <= MAX_RPC_TEXT_LENGTH
-        ? { ...base, method, recoveryCode }
+      return typeof recoveryCode === "string" &&
+        recoveryCode.length <= PERSONAL_VAULT_MAX_RECOVERY_CODE_LENGTH &&
+        typeof allowOldestDeviceRevocation === "boolean"
+        ? { ...base, method, recoveryCode, allowOldestDeviceRevocation }
         : null;
     }
     case "add-task": {
       if (!hasExactKeys(value, ["id", "method", "title"])) return null;
       const title = ownValue(value, "title");
-      return typeof title === "string" && title.length <= MAX_RPC_TEXT_LENGTH
+      return typeof title === "string" && title.length <= PERSONAL_VAULT_MAX_TASK_TITLE_LENGTH
         ? { ...base, method, title }
         : null;
     }
     case "toggle-task": {
       if (!hasExactKeys(value, ["id", "method", "taskId"])) return null;
       const taskId = ownValue(value, "taskId");
-      return typeof taskId === "string" && taskId.length <= MAX_RPC_TEXT_LENGTH
-        ? { ...base, method, taskId }
-        : null;
+      return typeof taskId === "string" && taskId.length <= 128 ? { ...base, method, taskId } : null;
     }
     case "import-legacy": {
       if (!hasExactKeys(value, ["id", "legacyRaw", "method"])) return null;
       const legacyRaw = ownValue(value, "legacyRaw");
-      return typeof legacyRaw === "string" && legacyRaw.length <= MAX_RPC_TEXT_LENGTH
+      return typeof legacyRaw === "string" && legacyRaw.length <= PERSONAL_VAULT_MAX_DOCUMENT_BYTES
         ? { ...base, method, legacyRaw }
         : null;
     }
     default:
       return null;
   }
+}
+
+function parseSnapshot(value: unknown): VaultSnapshot | null {
+  if (!isPlainRecord(value) || !hasExactKeys(value, ["revision", "tasks"])) return null;
+  const revision = ownValue(value, "revision");
+  const tasks = ownValue(value, "tasks");
+  if (!Number.isSafeInteger(revision) || (revision as number) < 1 || !Array.isArray(tasks)) return null;
+  try {
+    return createSnapshot(
+      revision as number,
+      ensureDocument({ formatVersion: PERSONAL_VAULT_DOCUMENT_FORMAT, tasks }),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Strictly validates Worker-to-page messages before resolving an RPC. */
+export function parseVaultRpcResponse(value: unknown): VaultRpcResponse | null {
+  if (!isPlainRecord(value)) return null;
+  const id = ownValue(value, "id");
+  const ok = ownValue(value, "ok");
+  if (typeof id !== "string" || id.length === 0 || id.length > MAX_RPC_ID_LENGTH || typeof ok !== "boolean")
+    return null;
+
+  if (!ok) {
+    if (!hasExactKeys(value, ["error", "id", "ok"])) return null;
+    const error = ownValue(value, "error");
+    if (!isPlainRecord(error) || !hasExactKeys(error, ["code"])) return null;
+    const code = ownValue(error, "code");
+    return typeof code === "string" && VAULT_RPC_ERROR_CODES.has(code as VaultRpcError["code"])
+      ? { id, ok: false, error: { code: code as VaultRpcError["code"] } }
+      : null;
+  }
+
+  const method = ownValue(value, "method");
+  if (typeof method !== "string") return null;
+  if (method === "inspect") {
+    const hasVault = ownValue(value, "hasVault");
+    return hasExactKeys(value, ["hasVault", "id", "method", "ok"]) && typeof hasVault === "boolean"
+      ? { id, ok: true, method, hasVault }
+      : null;
+  }
+  if (method === "begin-setup") {
+    const recoveryCode = ownValue(value, "recoveryCode");
+    const source = ownValue(value, "source");
+    return hasExactKeys(value, ["id", "method", "ok", "recoveryCode", "source"]) &&
+      typeof recoveryCode === "string" &&
+      recoveryCode.length <= PERSONAL_VAULT_MAX_RECOVERY_CODE_LENGTH &&
+      (source === "empty" || source === "legacy" || source === "seed")
+      ? { id, ok: true, method, recoveryCode, source }
+      : null;
+  }
+  if (method === "cancel-setup" || method === "lock") {
+    return hasExactKeys(value, ["id", "method", "ok"]) ? { id, ok: true, method } : null;
+  }
+  if (
+    method === "confirm-setup" ||
+    method === "unlock" ||
+    method === "recover" ||
+    method === "add-task" ||
+    method === "toggle-task" ||
+    method === "import-legacy"
+  ) {
+    if (!hasExactKeys(value, ["id", "method", "ok", "snapshot"])) return null;
+    const snapshot = parseSnapshot(ownValue(value, "snapshot"));
+    return snapshot === null ? null : { id, ok: true, method, snapshot };
+  }
+  return null;
 }
 
 export class PersonalVaultSchemaError extends Error {

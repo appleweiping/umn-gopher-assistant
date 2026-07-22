@@ -28,7 +28,7 @@
     "@umn-gopher-assistant/config": "workspace:*",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "@umn-gopher-assistant/crypto": "workspace:*",
-    "next": "16.2.10",
+    "next": "16.2.11",
     "next-intl": "4.13.2",
     "react": "19.2.7",
     "react-dom": "19.2.7"

@@ -109,12 +109,27 @@ paths:
     get:
       tags: [Catalog]
       operationId: listEvents
-      x-runtime-status: contract-only
+      x-runtime-status: implemented
       summary: List normalized public events
-      description: Contract-only until an approved connector is enabled.
+      description: |
+        Returns a bounded, transient view from a reviewed live source. `campusId` is required.
+        `from` and `to` must be supplied together and span at most 183 days. When both are omitted,
+        the server uses a disclosed 120-day America/Chicago window. Each request fetches at most
+        three upstream pages on demand; `retrievalCoverage` discloses the partial live view and any
+        source-policy truncation. Cursors bind the query and the revalidated upstream page snapshot,
+        so a changed page returns 410 instead of silently mixing snapshots. LIVE_ONLY content is
+        never cached and cross-page snapshot consistency is not claimed. A signed cursor also carries
+        the accepted raw-byte traversal total. The 8 MiB accepted-content budget is checked after each
+        independently 2 MiB-capped fetch; a crossing page is discarded, never returned, and terminates
+        traversal with `truncatedByPolicy=true`. A single response never contains duplicate event IDs:
+        byte-identical cross-page duplicates are skipped and conflicting duplicates fail closed. Because
+        this LIVE_ONLY cursor is stateless, a distant overlap may repeat an identical ID in a later response;
+        clients merging cursor pages must drop semantically identical IDs and reject conflicting content.
       security: []
       parameters:
-        - $ref: "#/components/parameters/CampusQuery"
+        - $ref: "#/components/parameters/RequiredCampusQuery"
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/IfNoneMatch"
@@ -122,18 +137,26 @@ paths:
         "200":
           description: Cursor page of events
           headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
             ETag:
               $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventPage"
         "304":
-          $ref: "#/components/responses/NotModified"
+          $ref: "#/components/responses/LiveCatalogNotModified"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/CursorExpired"
         "503":
           $ref: "#/components/responses/ConnectorUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /v1/places:
     get:
       tags: [Catalog]
@@ -327,6 +350,50 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "503":
           $ref: "#/components/responses/ConnectorUnavailable"
+  /v1/academics/sessions:
+    get:
+      tags: [Academics]
+      operationId: listAcademicSessions
+      x-runtime-status: implemented
+      summary: List normalized academic sessions for one campus
+      description: |
+        Uses only reviewed, explicit UMN term IDs and never performs an unfiltered Sessions request.
+        `from` and `to` must be supplied together and span at most 183 days. When omitted, the server
+        uses and discloses a 120-day America/Chicago window. Unsupported term windows fail closed.
+        The upstream dataset is revalidated for every request, including conditional requests, so
+        callers must tolerate official-source latency and 503 degradation to the supplied official URL.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/RequiredCampusQuery"
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/IfNoneMatch"
+      responses:
+        "200":
+          description: Cursor page of academic sessions
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcademicSessionPage"
+        "304":
+          $ref: "#/components/responses/LiveCatalogNotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "410":
+          $ref: "#/components/responses/CursorExpired"
+        "503":
+          $ref: "#/components/responses/ConnectorUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /v1/academics/courses:
     get:
       tags: [Academics]
@@ -578,6 +645,28 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/CampusId"
+    RequiredCampusQuery:
+      name: campusId
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/CampusId"
+    FromDate:
+      name: from
+      in: query
+      required: false
+      description: Inclusive local calendar date; must be supplied together with `to`.
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    ToDate:
+      name: to
+      in: query
+      required: false
+      description: Inclusive local calendar date; must be supplied together with `from`.
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
     AcademicInstitutionQuery:
       name: academicInstitutionCode
       in: query
@@ -598,8 +687,8 @@ components:
       name: cursor
       in: query
       required: false
-      description: Opaque cursor returned as nextCursor; clients must not parse or modify it.
-      schema: { type: string, minLength: 1, maxLength: 2048 }
+      description: Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it.
+      schema: { $ref: "#/components/schemas/CatalogCursor" }
     Limit:
       name: limit
       in: query
@@ -624,6 +713,9 @@ components:
     RequestId:
       description: Correlation ID suitable for support, not an authentication credential.
       schema: { type: string, minLength: 8, maxLength: 128 }
+    NoStore:
+      description: LIVE_ONLY catalog content must not be stored by clients or intermediaries.
+      schema: { type: string, const: no-store }
     IdempotencyReplayed:
       description: True when the response is a replay of a prior request with the same key and body.
       schema: { type: boolean }
@@ -633,6 +725,17 @@ components:
       headers:
         ETag:
           $ref: "#/components/headers/ETag"
+    LiveCatalogNotModified:
+      description: |
+        The live source was revalidated and the normalized representation has not changed;
+        the response has no body and remains non-cacheable.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        ETag:
+          $ref: "#/components/headers/ETag"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
     BadRequest:
       description: Malformed request
       content:
@@ -650,6 +753,14 @@ components:
           schema: { $ref: "#/components/schemas/Problem" }
     NotFound:
       description: Resource was not found
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    CursorExpired:
+      description: Cursor snapshot is no longer the current normalized source snapshot
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -674,11 +785,15 @@ components:
     ConnectorUnavailable:
       description: Required connector is disabled, unapproved, or temporarily unavailable
       headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
         Retry-After:
           schema: { type: integer, minimum: 1 }
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
       content:
         application/problem+json:
-          schema: { $ref: "#/components/schemas/Problem" }
+          schema: { $ref: "#/components/schemas/ConnectorUnavailableProblem" }
     InternalServerError:
       description: Unexpected server failure
       content:
@@ -745,38 +860,114 @@ components:
     SourceDescriptor:
       type: object
       additionalProperties: false
+      description: |
+        Public source-governance record. LIVE_ONLY access is fail-closed unless authorization evidence,
+        a review timestamp, and a later review expiry are all present. The review interval is validated
+        by the shared contract to be no longer than 366 days. APPROVAL_REQUIRED and PROHIBITED sources
+        cannot carry live-access review timestamps.
       required:
         [
           id,
           campusIds,
+          resourceKinds,
           name,
           publisher,
           sourceUrl,
           licenseStatus,
+          licenseEvidenceUrl,
+          authorizationEvidenceUrl,
           freshnessState,
           verificationState,
           officialStatus,
           attribution,
           cachePolicy,
+          cacheDisposition,
+          dataClassification,
+          dataClasses,
+          owner,
+          killSwitch,
+          termsReviewedAt,
+          termsReviewExpiresAt,
           lastCheckedAt,
         ]
       properties:
-        id: { type: string }
+        id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
         campusIds:
           type: array
           minItems: 1
+          maxItems: 5
           items: { $ref: "#/components/schemas/CampusId" }
+        resourceKinds:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: string
+            enum: [CAMPUS_DEEPLINK, ACADEMIC_SESSION, PUBLIC_EVENT]
         name: { $ref: "#/components/schemas/BilingualText" }
-        publisher: { type: string }
+        publisher: { type: string, minLength: 1, maxLength: 256 }
         sourceUrl: { type: string, format: uri, pattern: "^https://" }
         licenseStatus: { $ref: "#/components/schemas/LicenseStatus" }
+        licenseEvidenceUrl: { type: [string, "null"], format: uri, pattern: "^https://" }
+        authorizationEvidenceUrl: { type: [string, "null"], format: uri, pattern: "^https://" }
         freshnessState: { $ref: "#/components/schemas/FreshnessState" }
         verificationState: { $ref: "#/components/schemas/VerificationState" }
         officialStatus: { $ref: "#/components/schemas/OfficialStatus" }
-        attribution: { type: string, minLength: 1 }
+        attribution: { type: string, minLength: 1, maxLength: 2048 }
         cachePolicy:
           type: string
           enum: [CACHE_ALLOWED, METADATA_ONLY, NO_CONTENT_CACHE, NO_ACCESS]
+        cacheDisposition:
+          type: object
+          additionalProperties: false
+          required: [rawResponse, normalizedRecords, derivedArtifacts, retentionSeconds]
+          properties:
+            rawResponse:
+              type: string
+              enum: [NEVER_STORE, TRANSIENT_ONLY, PERSIST_WITH_TTL]
+            normalizedRecords:
+              type: string
+              enum: [NEVER_STORE, TRANSIENT_ONLY, PERSIST_WITH_TTL]
+            derivedArtifacts:
+              type: string
+              enum: [PROHIBITED, SAME_RETENTION, SEPARATE_APPROVAL]
+            retentionSeconds: { type: [integer, "null"], minimum: 1, maximum: 31536000 }
+        dataClassification:
+          type: string
+          enum: [PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED]
+        dataClasses:
+          type: array
+          minItems: 1
+          maxItems: 7
+          items:
+            type: string
+            enum:
+              [
+                PUBLIC_METADATA,
+                COPYRIGHTED_CONTENT,
+                PRECISE_LOCATION,
+                PERSONAL_DATA,
+                SENSITIVE_DATA,
+                SAFETY_CRITICAL,
+                MEDIA,
+              ]
+        owner:
+          type: object
+          additionalProperties: false
+          required: [teamId, contactUrl]
+          properties:
+            teamId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,63}$" }
+            contactUrl: { type: string, format: uri, pattern: "^https://" }
+        killSwitch:
+          type: object
+          additionalProperties: false
+          required: [key, defaultState, fallback]
+          properties:
+            key: { type: string, pattern: "^source\\.[a-z0-9][a-z0-9.-]{2,127}\\.enabled$" }
+            defaultState: { type: string, enum: [ENABLED, DISABLED] }
+            fallback: { type: string, enum: [DEEPLINK_ONLY, UNAVAILABLE] }
+        termsReviewedAt: { type: [string, "null"], format: date-time }
+        termsReviewExpiresAt: { type: [string, "null"], format: date-time }
         lastCheckedAt: { type: [string, "null"], format: date-time }
       allOf:
         - if:
@@ -786,6 +977,40 @@ components:
           then:
             properties:
               cachePolicy: { const: NO_ACCESS }
+              termsReviewedAt: { const: null }
+              termsReviewExpiresAt: { const: null }
+        - if:
+            required: [licenseStatus]
+            properties:
+              licenseStatus: { const: APPROVAL_REQUIRED }
+          then:
+            properties:
+              cachePolicy: { const: NO_ACCESS }
+              termsReviewedAt: { const: null }
+              termsReviewExpiresAt: { const: null }
+        - if:
+            required: [licenseStatus]
+            properties:
+              licenseStatus: { const: LIVE_ONLY }
+          then:
+            properties:
+              authorizationEvidenceUrl: { type: string }
+              termsReviewedAt: { type: string }
+              termsReviewExpiresAt: { type: string }
+        - if:
+            required: [termsReviewedAt]
+            properties:
+              termsReviewedAt: { const: null }
+          then:
+            properties:
+              termsReviewExpiresAt: { const: null }
+        - if:
+            required: [termsReviewExpiresAt]
+            properties:
+              termsReviewExpiresAt: { const: null }
+          then:
+            properties:
+              termsReviewedAt: { const: null }
     SourcePage:
       allOf:
         - $ref: "#/components/schemas/PageEnvelope"
@@ -795,28 +1020,184 @@ components:
             items:
               type: array
               items: { $ref: "#/components/schemas/SourceDescriptor" }
+    CatalogRange:
+      type: object
+      additionalProperties: false
+      required: [defaulted, from, to]
+      properties:
+        defaulted: { type: boolean }
+        from: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        to: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+    CatalogCursor:
+      type: string
+      minLength: 45
+      maxLength: 1994
+      pattern: "^[A-Za-z0-9_-]{1,1950}\\.[A-Za-z0-9_-]{43}$"
+    RetrievalCoverage:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          nextUpstreamPage,
+          pagesFetched,
+          recordsFetched,
+          sourceTotalPages,
+          sourceTotalRecords,
+          truncatedByPolicy,
+        ]
+      properties:
+        nextUpstreamPage: { type: [integer, "null"], minimum: 1, maximum: 20 }
+        pagesFetched: { type: integer, minimum: 1, maximum: 3 }
+        recordsFetched:
+          type: integer
+          minimum: 0
+          maximum: 50000
+          description: Sessions may contain up to 50,000 records; the events runtime is independently capped at 150 per request.
+        sourceTotalPages: { type: integer, minimum: 0 }
+        sourceTotalRecords: { type: integer, minimum: 0 }
+        truncatedByPolicy:
+          type: boolean
+          description: True when the source exceeds the reviewed 20-page or 1,000-record access ceiling.
+    SourceObservation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          observationId,
+          sourceId,
+          campusId,
+          observedAt,
+          durationMs,
+          outcome,
+          httpStatus,
+          parserVersion,
+          rawSha256,
+          rawByteLength,
+          recordsAccepted,
+          recordsRejected,
+          freshnessState,
+          licenseStatus,
+          cachePolicy,
+          appliedCacheDisposition,
+          dataClassification,
+          failureCode,
+        ]
+      properties:
+        observationId:
+          type: string
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        observedAt: { type: string, format: date-time }
+        durationMs: { type: integer, minimum: 0, maximum: 120000 }
+        outcome: { type: string, const: SUCCESS }
+        httpStatus: { type: integer, minimum: 200, maximum: 299 }
+        parserVersion: { type: string, pattern: "^[a-z0-9][a-z0-9._@/-]{0,127}$" }
+        rawSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        rawByteLength: { type: integer, minimum: 0, maximum: 10485760 }
+        recordsAccepted: { type: integer, minimum: 0, maximum: 1000000 }
+        recordsRejected: { type: integer, minimum: 0, maximum: 1000000 }
+        freshnessState: { $ref: "#/components/schemas/FreshnessState" }
+        licenseStatus: { $ref: "#/components/schemas/LicenseStatus" }
+        cachePolicy:
+          type: string
+          enum: [CACHE_ALLOWED, METADATA_ONLY, NO_CONTENT_CACHE, NO_ACCESS]
+        appliedCacheDisposition:
+          type: string
+          enum: [NO_ACCESS, DISCARDED_AFTER_RESPONSE, OPERATIONAL_METADATA_ONLY, CONTENT_CACHED]
+        dataClassification:
+          type: string
+          enum: [PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED]
+        failureCode: { type: "null" }
+    PublicEventLocation:
+      type: [object, "null"]
+      additionalProperties: false
+      required: [name, address, coordinates, onlineUrl]
+      properties:
+        name: { type: [string, "null"], maxLength: 512 }
+        address: { type: [string, "null"], maxLength: 1024 }
+        coordinates:
+          type: [array, "null"]
+          items: { type: number }
+          minItems: 2
+          maxItems: 2
+        onlineUrl: { type: [string, "null"], format: uri, pattern: "^https://" }
+      allOf:
+        - if:
+            required: [name, address, coordinates, onlineUrl]
+            properties:
+              name: { const: null }
+              address: { const: null }
+              coordinates: { const: null }
+              onlineUrl: { const: null }
+          then: false
     Event:
       type: object
       additionalProperties: false
-      required: [id, campusId, title, startsAt, sourceId, sourceUrl, freshnessState]
+      required:
+        [
+          id,
+          campusId,
+          title,
+          descriptionText,
+          language,
+          startsAt,
+          endsAt,
+          allDay,
+          timeZone,
+          status,
+          location,
+          canonicalUrl,
+          categories,
+          sourceId,
+          sourceObservationId,
+          observedAt,
+        ]
       properties:
-        id: { type: string }
+        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$" }
         campusId: { $ref: "#/components/schemas/CampusId" }
-        title: { $ref: "#/components/schemas/BilingualText" }
+        title: { type: string, minLength: 1, maxLength: 1024 }
+        descriptionText: { type: [string, "null"], maxLength: 20000 }
+        language:
+          type: string
+          pattern: "^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$"
         startsAt: { type: string, format: date-time }
         endsAt: { type: [string, "null"], format: date-time }
-        sourceId: { type: string }
-        sourceUrl: { type: string, format: uri }
-        freshnessState: { $ref: "#/components/schemas/FreshnessState" }
+        allDay: { type: boolean }
+        timeZone: { type: string, minLength: 1, maxLength: 128 }
+        status: { type: string, enum: [SCHEDULED, POSTPONED, CANCELLED] }
+        location: { $ref: "#/components/schemas/PublicEventLocation" }
+        canonicalUrl: { type: string, format: uri, pattern: "^https://" }
+        categories:
+          type: array
+          maxItems: 32
+          items: { type: string, minLength: 1, maxLength: 128 }
+        sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        sourceObservationId:
+          type: string
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        observedAt: { type: string, format: date-time }
     EventPage:
-      allOf:
-        - $ref: "#/components/schemas/PageEnvelope"
-        - type: object
-          required: [items]
-          properties:
-            items:
-              type: array
-              items: { $ref: "#/components/schemas/Event" }
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, range, retrievalCoverage, sourceObservations]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/Event" }
+        nextCursor:
+          type: [string, "null"]
+          minLength: 45
+          maxLength: 1994
+          pattern: "^[A-Za-z0-9_-]{1,1950}\\.[A-Za-z0-9_-]{43}$"
+        range: { $ref: "#/components/schemas/CatalogRange" }
+        retrievalCoverage: { $ref: "#/components/schemas/RetrievalCoverage" }
+        sourceObservations:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { $ref: "#/components/schemas/SourceObservation" }
     GeoPoint:
       type: array
       prefixItems:
@@ -1019,6 +1400,89 @@ components:
           type: array
           items: { $ref: "#/components/schemas/Citation" }
         safetyNotice: { type: [string, "null"] }
+    AcademicSession:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          campusId,
+          institutionCode,
+          academicCareerCode,
+          termCode,
+          sessionCode,
+          name,
+          beginDate,
+          endDate,
+          enrollmentOpenDate,
+          sourceId,
+          sourceObservationId,
+          observedAt,
+        ]
+      properties:
+        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$" }
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        institutionCode: { $ref: "#/components/schemas/AcademicInstitutionCode" }
+        academicCareerCode: { type: string, pattern: "^[A-Z0-9]{2,12}$" }
+        termCode: { type: string, pattern: "^[0-9]{4}$" }
+        sessionCode: { type: string, pattern: "^[A-Z0-9]{1,12}$" }
+        name: { type: string, minLength: 1, maxLength: 256 }
+        beginDate: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        endDate: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        enrollmentOpenDate:
+          type: [string, "null"]
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        sourceObservationId:
+          type: string
+          pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        observedAt: { type: string, format: date-time }
+      allOf:
+        - if:
+            required: [campusId]
+            properties: { campusId: { enum: [tc, rochester] } }
+          then:
+            required: [institutionCode]
+            properties: { institutionCode: { const: UMNTC } }
+        - if:
+            required: [campusId]
+            properties: { campusId: { const: duluth } }
+          then:
+            required: [institutionCode]
+            properties: { institutionCode: { const: UMNDL } }
+        - if:
+            required: [campusId]
+            properties: { campusId: { const: crookston } }
+          then:
+            required: [institutionCode]
+            properties: { institutionCode: { const: UMNCR } }
+        - if:
+            required: [campusId]
+            properties: { campusId: { const: morris } }
+          then:
+            required: [institutionCode]
+            properties: { institutionCode: { const: UMNMO } }
+    AcademicSessionPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, range, retrievalCoverage, sourceObservations]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/AcademicSession" }
+        nextCursor:
+          type: [string, "null"]
+          minLength: 45
+          maxLength: 1994
+          pattern: "^[A-Za-z0-9_-]{1,1950}\\.[A-Za-z0-9_-]{43}$"
+        range: { $ref: "#/components/schemas/CatalogRange" }
+        retrievalCoverage: { $ref: "#/components/schemas/RetrievalCoverage" }
+        sourceObservations:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items: { $ref: "#/components/schemas/SourceObservation" }
     AcademicCourse:
       type: object
       additionalProperties: false
@@ -1223,3 +1687,14 @@ components:
         detail: { type: string }
         instance: { type: string, format: uri-reference }
         traceId: { type: string }
+    ConnectorUnavailableProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required: [sourceId, failureCode, officialUrl]
+          properties:
+            title: { type: string, const: Service Unavailable }
+            status: { type: integer, const: 503 }
+            sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+            failureCode: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
+            officialUrl: { type: string, format: uri, pattern: "^https://" }

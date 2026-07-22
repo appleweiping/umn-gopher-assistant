@@ -16,3 +16,4 @@ Thumbs.db
 playwright-report/
 test-results/
 apps/web/public/__uga-vault/
+apps/web/public/sw.js

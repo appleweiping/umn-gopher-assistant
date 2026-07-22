@@ -39,7 +39,7 @@ export function createKeyring(sodium: Sodium, input: CreateVaultKeyringInput): V
   const revision = requireRevision(input.revision);
   const createdAt = currentIsoDateTime();
   const deviceEnvelopes = recipients.map((recipient) => wrapVaultKeyForDevice(sodium, input.key, recipient));
-  const recovery = createRecoveryEnvelope(sodium, input.key);
+  const recovery = createRecoveryEnvelope(sodium, input.key, input.recoveryCode);
   const updatedAt = currentIsoDateTime();
   return {
     recoveryCode: recovery.recoveryCode,
@@ -48,6 +48,7 @@ export function createKeyring(sodium: Sodium, input: CreateVaultKeyringInput): V
       vaultId: requireUuid(input.key.vaultId),
       vaultKeyId: requireUuid(input.key.vaultKeyId),
       revision,
+      devicePublicKeys: recipients.map((recipient) => ({ ...recipient })),
       deviceEnvelopes,
       recoveryEnvelope: recovery.envelope,
       createdAt,
@@ -77,6 +78,7 @@ export function rotateKeyring(sodium: Sodium, input: RotateVaultKeyringInput): R
       key: nextKey,
       revision: previousRevision + 1,
       recipients: input.recipients,
+      ...(input.recoveryCode === undefined ? {} : { recoveryCode: input.recoveryCode }),
     });
     return { key: nextKey, migrationRequired: true, ...result };
   } catch (error) {

@@ -47,12 +47,22 @@ export function ServiceWorkerRegistration() {
     let cancelled = false;
 
     const register = async () => {
-      await navigator.serviceWorker.register(trustedServiceWorkerUrl() as string, {
-        scope: "/",
-        updateViaCache: "none",
-      });
-      const registration = await navigator.serviceWorker.ready;
-      if (!cancelled) registration.active?.postMessage({ locale, type: "SET_LOCALE" });
+      try {
+        await navigator.serviceWorker.register(trustedServiceWorkerUrl() as string, {
+          scope: "/",
+          updateViaCache: "none",
+        });
+        const registration = await navigator.serviceWorker.ready;
+        if (!cancelled) {
+          document.documentElement.dataset["serviceWorkerState"] = "ready";
+          registration.active?.postMessage({ locale, type: "SET_LOCALE" });
+        }
+      } catch {
+        // Registration failure must not become an unhandled rejection or
+        // break public online routes. Expose a non-sensitive state marker for
+        // diagnostics while the application continues in online-only mode.
+        if (!cancelled) document.documentElement.dataset["serviceWorkerState"] = "unavailable";
+      }
     };
 
     void register();

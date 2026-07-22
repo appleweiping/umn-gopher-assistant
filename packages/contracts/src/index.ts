@@ -1,5 +1,6 @@
 export * from "./audit.js";
 export * from "./campus.js";
+export * from "./catalog.js";
 export * from "./common.js";
 export * from "./live.js";
 export * from "./moderation.js";

@@ -1,6 +1,8 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
+import { getBearerChallenge } from "../auth/bearer-auth.errors.js";
+import { CatalogUnavailableException } from "./catalog-unavailable.exception.js";
 import { ensureRequestId } from "./request-id.interceptor.js";
 
 export interface ProblemDetails {
@@ -10,6 +12,9 @@ export interface ProblemDetails {
   readonly detail: string;
   readonly instance: string;
   readonly traceId: string;
+  readonly failureCode?: string;
+  readonly officialUrl?: string;
+  readonly sourceId?: string;
 }
 
 const problemByStatus: Readonly<Record<number, { readonly slug: string; readonly title: string }>> = {
@@ -17,8 +22,10 @@ const problemByStatus: Readonly<Record<number, { readonly slug: string; readonly
   [HttpStatus.UNAUTHORIZED]: { slug: "unauthorized", title: "Unauthorized" },
   [HttpStatus.FORBIDDEN]: { slug: "forbidden", title: "Forbidden" },
   [HttpStatus.NOT_FOUND]: { slug: "not-found", title: "Not Found" },
+  [HttpStatus.GONE]: { slug: "gone", title: "Gone" },
   [HttpStatus.CONFLICT]: { slug: "conflict", title: "Conflict" },
   [HttpStatus.TOO_MANY_REQUESTS]: { slug: "too-many-requests", title: "Too Many Requests" },
+  [HttpStatus.SERVICE_UNAVAILABLE]: { slug: "service-unavailable", title: "Service Unavailable" },
   [HttpStatus.INTERNAL_SERVER_ERROR]: { slug: "internal-server-error", title: "Internal Server Error" },
 };
 
@@ -44,6 +51,15 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
     ? detailFromResponse(exception.getResponse())
     : "An unexpected error occurred.";
 
+  const catalogExtensions =
+    exception instanceof CatalogUnavailableException
+      ? {
+          failureCode: exception.failureCode,
+          officialUrl: exception.officialUrl,
+          sourceId: exception.sourceId,
+        }
+      : {};
+
   return {
     type: `https://api.gopher-assistant.example/problems/${definition.slug}`,
     title: definition.title,
@@ -51,6 +67,7 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
     detail,
     instance,
     traceId,
+    ...catalogExtensions,
   };
 }
 
@@ -62,7 +79,16 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const reply = context.getResponse<FastifyReply>();
     const traceId = ensureRequestId(request);
     const problem = toProblemDetails(exception, request.url, traceId);
+    const bearerChallenge = getBearerChallenge(exception);
 
+    reply.header("X-Request-Id", traceId);
+    if (bearerChallenge !== undefined) {
+      reply.header("WWW-Authenticate", bearerChallenge);
+    }
+    if (exception instanceof CatalogUnavailableException) {
+      reply.header("Cache-Control", "no-store");
+      reply.header("Retry-After", String(exception.retryAfterSeconds));
+    }
     void reply.status(problem.status).type("application/problem+json").send(problem);
   }
 }

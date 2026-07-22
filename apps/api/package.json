@@ -22,6 +22,7 @@
     "@umn-gopher-assistant/config": "workspace:*",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "fastify": "5.10.0",
+    "jose": "6.2.3",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },

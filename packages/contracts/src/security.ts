@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { IsoDateTimeSchema } from "./common.js";
-
 const BASE64URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/u;
 const XCHACHA20_POLY1305_TAG_BYTES = 16;
@@ -206,7 +204,22 @@ function boundedEncodedBytes(minBytes: number, maxBytes: number, label: string) 
     );
 }
 
-const UuidSchema = z.uuid();
+// Security metadata is authenticated byte-for-byte. Accepting alternate UUID
+// casing or timestamp offsets creates multiple serialized identities for the
+// same logical value and disagrees with the crypto runtime's canonical parser.
+const UuidSchema = z
+  .string()
+  .regex(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    "Expected a canonical lowercase UUID",
+  );
+const CanonicalIsoDateTimeSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u, "Expected UTC time with milliseconds")
+  .refine(
+    (value) => Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value,
+    "Expected a canonical UTC timestamp",
+  );
 const RevisionSchema = z.number().int().min(1).max(Number.MAX_SAFE_INTEGER);
 const X25519PublicKeySchema = exactEncodedBytes(32, "X25519 public key");
 const PublicKeyFingerprintSchema = exactEncodedBytes(32, "public-key fingerprint");
@@ -232,8 +245,8 @@ export const DevicePublicKeyV1Schema = z
     keyAlgorithm: z.literal("X25519"),
     publicKey: X25519PublicKeySchema,
     publicKeyFingerprint: PublicKeyFingerprintSchema,
-    createdAt: IsoDateTimeSchema,
-    revokedAt: IsoDateTimeSchema.nullable(),
+    createdAt: CanonicalIsoDateTimeSchema,
+    revokedAt: CanonicalIsoDateTimeSchema.nullable(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -259,7 +272,7 @@ export const DeviceKeyEnvelopeV1Schema = z
     ephemeralPublicKey: X25519PublicKeySchema,
     nonce: XChaCha20NonceSchema,
     wrappedKey: DeviceWrappedKeySchema,
-    createdAt: IsoDateTimeSchema,
+    createdAt: CanonicalIsoDateTimeSchema,
   })
   .strict();
 export type DeviceKeyEnvelopeV1 = z.infer<typeof DeviceKeyEnvelopeV1Schema>;
@@ -268,7 +281,7 @@ export const Argon2idParametersV1Schema = z
   .object({
     algorithm: z.literal("ARGON2ID13"),
     salt: Argon2idSaltSchema,
-    opsLimit: z.number().int().min(2).max(10),
+    opsLimit: z.number().int().min(2).max(4),
     memLimitBytes: z
       .number()
       .int()
@@ -289,7 +302,7 @@ export const RecoveryKeyEnvelopeV1Schema = z
     nonce: XChaCha20NonceSchema,
     wrappedKey: RecoveryWrappedKeySchema,
     aad: AadSchema,
-    createdAt: IsoDateTimeSchema,
+    createdAt: CanonicalIsoDateTimeSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -325,7 +338,7 @@ export const EncryptedVaultPayloadEnvelopeV1Schema = z
     nonce: XChaCha20NonceSchema,
     ciphertext: PayloadCiphertextSchema,
     aad: AadSchema,
-    createdAt: IsoDateTimeSchema,
+    createdAt: CanonicalIsoDateTimeSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -359,10 +372,14 @@ export const VaultKeyringV1Schema = z
     vaultId: UuidSchema,
     vaultKeyId: UuidSchema,
     revision: RevisionSchema,
+    // New keyrings retain the validated recipient descriptors required to
+    // re-wrap a rotated root key. Optionality keeps pre-release local records
+    // recoverable when their sole legacy descriptor is the trusted device.
+    devicePublicKeys: z.array(DevicePublicKeyV1Schema).min(1).max(VAULT_MAX_DEVICE_ENVELOPES).optional(),
     deviceEnvelopes: z.array(DeviceKeyEnvelopeV1Schema).min(1).max(VAULT_MAX_DEVICE_ENVELOPES),
     recoveryEnvelope: RecoveryKeyEnvelopeV1Schema,
-    createdAt: IsoDateTimeSchema,
-    updatedAt: IsoDateTimeSchema,
+    createdAt: CanonicalIsoDateTimeSchema,
+    updatedAt: CanonicalIsoDateTimeSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -408,6 +425,38 @@ export const VaultKeyringV1Schema = z
       recipientDeviceIds.add(envelope.recipientDeviceId);
       recipientKeyIds.add(envelope.recipientKeyId);
     });
+
+    if (value.devicePublicKeys !== undefined) {
+      if (value.devicePublicKeys.length !== value.deviceEnvelopes.length) {
+        context.addIssue({
+          code: "custom",
+          path: ["devicePublicKeys"],
+          message: "devicePublicKeys must correspond one-to-one with deviceEnvelopes",
+        });
+      }
+      value.devicePublicKeys.forEach((publicKey, index) => {
+        const envelope = value.deviceEnvelopes[index];
+        if (
+          envelope === undefined ||
+          envelope.recipientDeviceId !== publicKey.deviceId ||
+          envelope.recipientKeyId !== publicKey.deviceKeyId ||
+          envelope.recipientPublicKeyFingerprint !== publicKey.publicKeyFingerprint
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["devicePublicKeys", index],
+            message: "device public key identity must match its device envelope",
+          });
+        }
+        if (publicKey.revokedAt !== null) {
+          context.addIssue({
+            code: "custom",
+            path: ["devicePublicKeys", index, "revokedAt"],
+            message: "a keyring recipient must not be revoked",
+          });
+        }
+      });
+    }
 
     if (value.recoveryEnvelope.vaultId !== value.vaultId) {
       context.addIssue({

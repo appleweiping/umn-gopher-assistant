@@ -1,8 +1,14 @@
 "use client";
 
-import type { SetupSource, VaultRpcFailure, VaultRpcResponse, VaultRpcSuccess } from "./protocol";
+import {
+  parseVaultRpcResponse,
+  type SetupSource,
+  type VaultRpcFailure,
+  type VaultRpcSuccess,
+} from "./protocol";
 
 const RPC_TIMEOUT_MS = 45_000;
+const GRACEFUL_TERMINATION_TIMEOUT_MS = 5_000;
 
 export class PersonalVaultClientError extends Error {
   readonly code: VaultRpcFailure["error"]["code"];
@@ -24,7 +30,11 @@ type RequestWithoutId =
   | { readonly method: "confirm-setup" }
   | { readonly method: "cancel-setup" }
   | { readonly method: "unlock" }
-  | { readonly method: "recover"; readonly recoveryCode: string }
+  | {
+      readonly method: "recover";
+      readonly recoveryCode: string;
+      readonly allowOldestDeviceRevocation: boolean;
+    }
   | { readonly method: "lock" }
   | { readonly method: "add-task"; readonly title: string }
   | { readonly method: "toggle-task"; readonly taskId: string }
@@ -32,6 +42,13 @@ type RequestWithoutId =
 
 export class PersonalVaultClient {
   #worker: Worker | undefined;
+  #closing:
+    | {
+        readonly promise: Promise<void>;
+        readonly resolve: () => void;
+      }
+    | undefined;
+  #terminationTimeout: number | undefined;
   #pending = new Map<
     string,
     {
@@ -59,8 +76,12 @@ export class PersonalVaultClient {
   }
 
   #receive = (event: MessageEvent<unknown>): void => {
-    const response = event.data as VaultRpcResponse;
-    if (typeof response !== "object" || typeof response.id !== "string" || typeof response.ok !== "boolean") {
+    const response = parseVaultRpcResponse(event.data);
+    if (response === null) {
+      // Dedicated Worker messages are not ambient page events. A malformed
+      // response means the trusted worker boundary failed; terminate it and
+      // reject every pending call instead of leaving promises to time out.
+      this.#workerFailed();
       return;
     }
     const pending = this.#pending.get(response.id);
@@ -72,6 +93,10 @@ export class PersonalVaultClient {
   };
 
   #workerFailed = (): void => {
+    this.#finishTermination();
+  };
+
+  #destroyWorker(): void {
     const worker = this.#worker;
     this.#worker = undefined;
     if (worker !== undefined) {
@@ -81,7 +106,18 @@ export class PersonalVaultClient {
       worker.terminate();
     }
     this.#rejectAll(new PersonalVaultClientError("UNAVAILABLE"));
-  };
+  }
+
+  #finishTermination(): void {
+    if (this.#terminationTimeout !== undefined) {
+      window.clearTimeout(this.#terminationTimeout);
+      this.#terminationTimeout = undefined;
+    }
+    this.#destroyWorker();
+    const closing = this.#closing;
+    this.#closing = undefined;
+    closing?.resolve();
+  }
 
   #rejectAll(error: Error): void {
     for (const pending of this.#pending.values()) {
@@ -93,7 +129,8 @@ export class PersonalVaultClient {
 
   request(request: RequestWithoutId): Promise<VaultRpcSuccess> {
     const worker = this.#worker;
-    if (worker === undefined) return Promise.reject(new PersonalVaultClientError("UNAVAILABLE"));
+    if (worker === undefined || this.#closing !== undefined)
+      return Promise.reject(new PersonalVaultClientError("UNAVAILABLE"));
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -125,8 +162,8 @@ export class PersonalVaultClient {
     return this.request({ method: "unlock" });
   }
 
-  recover(recoveryCode: string) {
-    return this.request({ method: "recover", recoveryCode });
+  recover(recoveryCode: string, allowOldestDeviceRevocation = false) {
+    return this.request({ method: "recover", recoveryCode, allowOldestDeviceRevocation });
   }
 
   lock() {
@@ -146,14 +183,32 @@ export class PersonalVaultClient {
   }
 
   terminate(): void {
-    const worker = this.#worker;
-    this.#worker = undefined;
-    if (worker !== undefined) {
-      worker.removeEventListener("message", this.#receive);
-      worker.removeEventListener("error", this.#workerFailed);
-      worker.removeEventListener("messageerror", this.#workerFailed);
-      worker.terminate();
-    }
-    this.#rejectAll(new PersonalVaultClientError("UNAVAILABLE"));
+    this.#finishTermination();
+  }
+
+  /**
+   * Queue a lock behind all already-posted Worker operations, then terminate.
+   * React plaintext can be cleared immediately by the caller while an in-flight
+   * strict IndexedDB transaction is allowed to settle in the isolated Worker.
+   * A bounded fallback still guarantees eventual key-handle destruction.
+   */
+  terminateWhenSettled(timeoutMs = GRACEFUL_TERMINATION_TIMEOUT_MS): Promise<void> {
+    if (this.#closing !== undefined) return this.#closing.promise;
+    if (this.#worker === undefined) return Promise.resolve();
+
+    // Post `lock` before marking the client as closing. Worker RPC is strictly
+    // serialized, so its acknowledgement follows every prior mutation.
+    const lockRequest = this.request({ method: "lock" });
+    let resolveClosing = (): void => undefined;
+    const promise = new Promise<void>((resolve) => {
+      resolveClosing = resolve;
+    });
+    this.#closing = { promise, resolve: resolveClosing };
+    this.#terminationTimeout = window.setTimeout(() => this.#finishTermination(), Math.max(0, timeoutMs));
+    void lockRequest.then(
+      () => this.#finishTermination(),
+      () => this.#finishTermination(),
+    );
+    return promise;
   }
 }

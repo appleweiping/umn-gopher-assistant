@@ -102,16 +102,25 @@ string, source domain, or user claim.
 
 ### Identity, authentication, and authorization
 
-| Threat                                              | Risk | Required controls                                                                                                                                     |
-| --------------------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Forged, replayed, or confused-deputy token          | High | Validate issuer, audience, signature, expiry, not-before, nonce where applicable, and intended client; use short lifetimes and secure cookie settings |
-| Authorization based only on campus or UI state      | High | Enforce object- and action-level authorization in the API; a campus ID is routing context, not a role                                                 |
-| Privilege escalation through mutable profile claims | High | Map privileges from an operator-controlled policy; do not trust display names or self-asserted affiliation                                            |
-| Session theft or cross-site request forgery         | High | HttpOnly, Secure, SameSite cookies where used; CSRF defense for state changes; origin checks and session rotation                                     |
-| Overpowered service account                         | High | Separate least-privilege identities per component and connector; rotate, audit, and revoke                                                            |
+| Threat                                              | Risk | Required controls                                                                                                                                                                                                                        |
+| --------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Forged, replayed, or confused-deputy token          | High | Validate access-token type, issuer, audience, signature, expiry, issued/not-before times, token ID, approved client, and strict lifetime; use sender-constrained tokens and durable replay/idempotency controls for consequential writes |
+| Authorization based only on campus or UI state      | High | Enforce object- and action-level authorization in the API; a campus ID is routing context, not a role                                                                                                                                    |
+| Privilege escalation through mutable profile claims | High | Map privileges from an operator-controlled policy; do not trust display names or self-asserted affiliation                                                                                                                               |
+| Session theft or cross-site request forgery         | High | HttpOnly, Secure, SameSite cookies where used; CSRF defense for state changes; origin checks and session rotation                                                                                                                        |
+| Overpowered service account                         | High | Separate least-privilege identities per component and connector; rotate, audit, and revoke                                                                                                                                               |
 
 Keycloak in local Compose is a development identity service. It is not evidence
 of University single sign-on approval.
+
+The API's five-minute default and ten-minute hard maximum access-token lifetime
+reduce exposure but do not make a Bearer token non-replayable. A `jti` claim is
+required for traceability and future replay controls; ordinary read tokens are
+not placed in a process-local one-time cache. Such a cache would be inconsistent
+across replicas and would break standard OAuth reuse. Consequential write
+routes remain gated until durable idempotency and a complete sender-constrained
+scheme such as DPoP are implemented and tested. A stolen Bearer token can still
+be replayed until expiry or revocation.
 
 Compose binds every published development port to `127.0.0.1`. Overriding
 `COMPOSE_BIND_ADDRESS` to a non-loopback address is an explicit remote-exposure

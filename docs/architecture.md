@@ -120,17 +120,20 @@ The API is schema-first:
 5. Adapters implement those ports for in-memory, database, or approved external
    systems.
 
-The initial implemented read surface is intentionally smaller than the full
+The implemented read surface remains intentionally smaller than the full
 contract:
 
 - health;
 - campus metadata;
 - source metadata;
-- a campus world manifest.
+- a campus world manifest;
+- reviewed UMN Sessions metadata for all five campus selections; and
+- reviewed public event feeds for Twin Cities and Duluth, with explicit
+  official-link fallback elsewhere.
 
-Events and broader operations in the contracts are compatibility targets. A
-consumer must not depend on them until runtime availability is explicitly
-documented and tested.
+Community, messaging, live media, AI, and broader write operations in the
+contracts remain compatibility targets. A consumer must not depend on them
+until runtime availability is explicitly documented and tested.
 
 ## Campus and localization model
 
@@ -279,7 +282,8 @@ empty-database path when a Docker engine is available.
 
 - Initial repositories are in memory and do not provide durable application
   state.
-- Contracted future endpoints and events may not have runtime handlers.
+- Contracted community, messaging, AI, media, and write endpoints may not have
+  runtime handlers.
 - Source freshness is unknown and official status is unverified.
 - Connector authorization artifacts are absent by design.
 - World geometry is schematic.

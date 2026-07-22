@@ -5,6 +5,7 @@ import { RecoveryKeyEnvelopeV1Schema, VaultKeyringV1Schema } from "@umn-gopher-a
 
 import {
   createVaultCrypto,
+  RECOVERY_MAX_CODE_INPUT_CHARACTERS,
   RECOVERY_MAX_MEM_LIMIT_BYTES,
   RECOVERY_MAX_OPS_LIMIT,
   VaultCryptoErrorCode,
@@ -58,6 +59,17 @@ describe("Argon2id recovery envelopes and keyrings", () => {
     canonical.entropy.fill(0);
     aliased.entropy.fill(0);
     expect(() => normalizeRecoveryCodeForTesting("UGA1-U111-1000-0111-1000-0111-1000-0111-1000")).toThrow(
+      expect.objectContaining({ code: VaultCryptoErrorCode.INVALID_INPUT }),
+    );
+    for (const nonAsciiAlias of [
+      "UGA1-ı111-1000-0111-1000-0111-1000-0111-1000",
+      "UGA1-ß111-1000-0111-1000-0111-1000-0111-1000",
+    ]) {
+      expect(() => normalizeRecoveryCodeForTesting(nonAsciiAlias)).toThrow(
+        expect.objectContaining({ code: VaultCryptoErrorCode.INVALID_INPUT }),
+      );
+    }
+    expect(() => normalizeRecoveryCodeForTesting("A".repeat(RECOVERY_MAX_CODE_INPUT_CHARACTERS + 1))).toThrow(
       expect.objectContaining({ code: VaultCryptoErrorCode.INVALID_INPUT }),
     );
   });
@@ -140,11 +152,14 @@ describe("Argon2id recovery envelopes and keyrings", () => {
         previousKey: key,
         previousKeyring: first.keyring,
         recipients: [secondDevice.publicKey],
+        recoveryCode: first.recoveryCode,
       });
       expect(VaultKeyringV1Schema.parse(rotated.keyring)).toEqual(rotated.keyring);
       expect(rotated.keyring.revision).toBe(2);
       expect(rotated.keyring.vaultKeyId).not.toBe(first.keyring.vaultKeyId);
+      expect(rotated.recoveryCode).toBe(first.recoveryCode);
       expect(rotated.migrationRequired).toBe(true);
+      expect(rotated.keyring.devicePublicKeys).toEqual([secondDevice.publicKey]);
       expect(rotated.keyring.deviceEnvelopes.map((item) => item.recipientDeviceId)).toEqual([DEVICE_TWO]);
       expect(key.destroyed).toBe(false);
 
@@ -164,6 +179,28 @@ describe("Argon2id recovery envelopes and keyrings", () => {
       expect(
         new TextDecoder().decode(crypto.decryptPayload({ key: rotated.key, envelope: migratedPayload })),
       ).toBe("migrate me");
+      expect(() => crypto.decryptPayload({ key, envelope: migratedPayload })).toThrow(
+        expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }),
+      );
+
+      const priorDeviceEnvelope = first.keyring.deviceEnvelopes.at(0);
+      if (priorDeviceEnvelope === undefined) throw new Error("missing prior envelope");
+      const priorDeviceKey = crypto.unwrapVaultKeyForDevice({
+        deviceKey: firstDevice,
+        envelope: priorDeviceEnvelope,
+      });
+      expect(priorDeviceKey.vaultKeyId).toBe(key.vaultKeyId);
+      expect(() => crypto.decryptPayload({ key: priorDeviceKey, envelope: migratedPayload })).toThrow(
+        expect.objectContaining({ code: VaultCryptoErrorCode.AUTHENTICATION_FAILED }),
+      );
+
+      const recoveryRestored = crypto.recoverVaultKey({
+        envelope: rotated.keyring.recoveryEnvelope,
+        recoveryCode: first.recoveryCode.toLowerCase().replaceAll("-", ""),
+      });
+      expect(
+        new TextDecoder().decode(crypto.decryptPayload({ key: recoveryRestored, envelope: migratedPayload })),
+      ).toBe("migrate me");
 
       const rotatedDeviceEnvelope = rotated.keyring.deviceEnvelopes.at(0);
       if (rotatedDeviceEnvelope === undefined) throw new Error("missing rotated envelope");
@@ -181,6 +218,8 @@ describe("Argon2id recovery envelopes and keyrings", () => {
         "rotated",
       );
       restored.destroy();
+      recoveryRestored.destroy();
+      priorDeviceKey.destroy();
       rotated.key.destroy();
       firstDevice.destroy();
       secondDevice.destroy();

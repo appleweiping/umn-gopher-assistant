@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 import { CampusFieldGuidePage } from "./pages/app.page";
 
@@ -31,23 +32,66 @@ test("publishes a compatible manifest and precisely excludes private and cross-o
   expect(workerSource).toContain('pathname.startsWith("/v1/")');
   expect(workerSource).toContain('pathname === "/api"');
   expect(workerSource).toContain('pathname.startsWith("/api/")');
-  expect(workerSource).toContain('pathname === "/plan"');
-  expect(workerSource).toContain('pathname.startsWith("/plan/")');
+  expect(workerSource).toContain("function isPlanPath(pathname)");
+  expect(workerSource).toContain("public-vault-shell-v1");
+  expect(workerSource).toContain('credentials: "omit"');
+  expect(workerSource).toContain("crypto.subtle.digest");
+  expect(workerSource).toContain("HASHED_VAULT_WORKER_PATH");
   expect(workerSource).toContain('request.headers.has("x-uga-vault")');
   expect(workerSource).toContain('searchParams.has("__uga_vault")');
   expect(workerSource).toContain("function isLocaleMessage(message)");
   expect(workerSource).toContain("keys.length === 2");
   expect(workerSource).not.toMatch(/\bindexeddb\b/iu);
   expect(workerSource).not.toContain("postMessage(");
+
+  const bootstrapResponse = await page.request.get("/__uga-vault/personal-vault.worker.mjs");
+  expect(bootstrapResponse.ok()).toBe(true);
+  expect(bootstrapResponse.headers()["cache-control"]).toContain("no-store");
+  const bootstrapSource = await bootstrapResponse.text();
+  const artifactMatch = bootstrapSource.match(
+    /^import "\.\/(personal-vault\.worker\.([a-f0-9]{64})\.mjs)";\n?$/u,
+  );
+  expect(artifactMatch).not.toBeNull();
+  const artifactFilename = artifactMatch?.[1] ?? "";
+  const expectedDigest = artifactMatch?.[2] ?? "";
+  const artifactResponse = await page.request.get(`/__uga-vault/${artifactFilename}`);
+  expect(artifactResponse.ok()).toBe(true);
+  expect(artifactResponse.headers()["cache-control"]).toContain("max-age=31536000");
+  expect(artifactResponse.headers()["cache-control"]).toContain("immutable");
+  expect(
+    createHash("sha256")
+      .update(await artifactResponse.body())
+      .digest("hex"),
+  ).toBe(expectedDigest);
+
+  const normalPlanResponse = await page.request.get("/plan");
+  expect(normalPlanResponse.headers()["x-uga-cache-class"]).toBeUndefined();
+  const anonymousShellResponse = await page.request.get("/plan?__uga_vault_shell=1&locale=en");
+  expect(anonymousShellResponse.headers()["x-uga-cache-class"]).toBe("public-vault-shell-v1");
+  expect(anonymousShellResponse.headers()["set-cookie"]).toBeUndefined();
+  const malformedShellResponse = await page.request.get(
+    "/plan?__uga_vault_shell=1&locale=en&unexpected=private",
+  );
+  expect(malformedShellResponse.headers()["x-uga-cache-class"]).toBeUndefined();
+  const cookieShellResponse = await page.request.get("/plan?__uga_vault_shell=1&locale=en", {
+    headers: { cookie: "session=private" },
+  });
+  expect(cookieShellResponse.headers()["x-uga-cache-class"]).toBeUndefined();
+  const authorizedShellResponse = await page.request.get("/plan?__uga_vault_shell=1&locale=en", {
+    headers: { authorization: "Bearer private" },
+  });
+  expect(authorizedShellResponse.headers()["x-uga-cache-class"]).toBeUndefined();
 });
 
 test("serves strict security headers, a same-origin theme bootstrap, and cookie-localized metadata", async ({
+  baseURL,
   context,
   page,
 }) => {
+  if (baseURL === undefined) throw new Error("The PWA test requires a configured baseURL.");
   await context.addCookies([
-    { name: "locale", value: "zh-CN", url: "http://127.0.0.1:3000" },
-    { name: "theme", value: "dark", url: "http://127.0.0.1:3000" },
+    { name: "locale", value: "zh-CN", url: baseURL },
+    { name: "theme", value: "dark", url: baseURL },
   ]);
 
   const response = await page.goto("/today");
@@ -92,7 +136,7 @@ test("serves strict security headers, a same-origin theme bootstrap, and cookie-
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.getRegistration())).not.toBeNull();
 });
 
-test("keeps the plan vault route and malformed vault-like messages outside the Service Worker", async ({
+test("keeps sensitive Plan requests and malformed vault-like messages outside Cache Storage", async ({
   context,
   page,
 }) => {
@@ -135,11 +179,13 @@ test("keeps the plan vault route and malformed vault-like messages outside the S
   }
 });
 
-test("keeps visited project pages and the Chinese offline shell available offline", async ({
+test("never caches visited HTML and keeps the Chinese offline shell available offline", async ({
+  baseURL,
   context,
   page,
 }) => {
-  await context.addCookies([{ name: "locale", value: "zh-CN", url: "http://127.0.0.1:3000" }]);
+  if (baseURL === undefined) throw new Error("The PWA test requires a configured baseURL.");
+  await context.addCookies([{ name: "locale", value: "zh-CN", url: baseURL }]);
   const app = new CampusFieldGuidePage(page);
   await app.open("/explore");
   await page.evaluate(async () => navigator.serviceWorker.ready);
@@ -147,7 +193,7 @@ test("keeps visited project pages and the Chinese offline shell available offlin
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
   await expect(app.mainHeading).toHaveText("查找地点、服务、活动或课程");
 
-  await expect.poll(() => page.evaluate(async () => Boolean(await caches.match("/explore")))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => Boolean(await caches.match("/explore")))).toBe(false);
   const shellCacheState = await page.evaluate(async () => {
     const shellKeys = ["/__campus-field-guide-offline-shell-en", "/__campus-field-guide-offline-shell-zh-CN"];
     const missing: string[] = [];
@@ -182,7 +228,7 @@ test("keeps visited project pages and the Chinese offline shell available offlin
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("查找地点、服务、活动或课程");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("校园指南仍可打开");
 
     await page.goto("/not-previously-visited", { waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("校园指南仍可打开");

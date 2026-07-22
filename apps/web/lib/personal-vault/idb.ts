@@ -1,4 +1,5 @@
 import type {
+  DeviceKeyEnvelopeV1,
   DevicePublicKeyV1,
   EncryptedVaultPayloadEnvelopeV1,
   VaultKeyringV1,
@@ -8,6 +9,7 @@ import { assertBrowserDeviceWrappingKey } from "@umn-gopher-assistant/crypto/bro
 import {
   DevicePublicKeyV1Schema,
   EncryptedVaultPayloadEnvelopeV1Schema,
+  VAULT_MAX_DEVICE_ENVELOPES,
   VaultKeyringV1Schema,
 } from "@umn-gopher-assistant/contracts";
 
@@ -48,7 +50,16 @@ export interface RecoverableVaultV1 {
   readonly meta: ActiveVaultMetaV1;
   readonly keyring: VaultKeyringV1;
   readonly payload: EncryptedVaultPayloadEnvelopeV1;
+  /** A usable local descriptor when one still agrees with the keyring. */
+  readonly trustedDevice: TrustedDeviceRecordV1 | null;
 }
+
+export type VaultRotationResult = "capacity" | "conflict" | "persisted" | "unavailable";
+
+export type DeviceRecipientRotationPlan =
+  | { readonly status: "capacity" }
+  | { readonly status: "unavailable" }
+  | { readonly recipients: DevicePublicKeyV1[]; readonly status: "ready" };
 
 function requestResult(request: IDBRequest): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -79,8 +90,37 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
   });
 }
 
+/**
+ * Opens a security-sensitive write transaction with an explicit crash-durability
+ * requirement. Older engines which ignore the options argument fail closed:
+ * falling back to their user-agent default would make `complete` insufficient
+ * proof for deleting a legacy plaintext source.
+ */
+export function createStrictReadwriteTransaction(
+  database: IDBDatabase,
+  storeNames: string | string[],
+): IDBTransaction {
+  let transaction: IDBTransaction;
+  try {
+    transaction = database.transaction(storeNames, "readwrite", { durability: "strict" });
+  } catch (cause) {
+    throw new Error("IndexedDB strict durability is unavailable.", { cause });
+  }
+  if (transaction.durability !== "strict") {
+    try {
+      transaction.abort();
+    } catch {
+      // The capability failure below is authoritative even if abort races a
+      // browser which already auto-committed an otherwise empty transaction.
+    }
+    throw new Error("IndexedDB did not honor strict durability.");
+  }
+  return transaction;
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    let settled = false;
     const request = indexedDB.open(PERSONAL_VAULT_DB_NAME, PERSONAL_VAULT_DB_VERSION);
     request.addEventListener(
       "upgradeneeded",
@@ -93,13 +133,38 @@ function openDatabase(): Promise<IDBDatabase> {
       },
       { once: true },
     );
-    request.addEventListener("success", () => resolve(request.result), { once: true });
-    request.addEventListener("error", () => reject(request.error ?? new Error("Unable to open IndexedDB.")), {
-      once: true,
-    });
-    request.addEventListener("blocked", () => reject(new Error("IndexedDB upgrade is blocked.")), {
-      once: true,
-    });
+    request.addEventListener(
+      "success",
+      () => {
+        // A blocked request can later succeed after this Promise has already
+        // rejected. Close that late connection instead of leaking it.
+        if (settled) {
+          request.result.close();
+          return;
+        }
+        settled = true;
+        resolve(request.result);
+      },
+      { once: true },
+    );
+    request.addEventListener(
+      "error",
+      () => {
+        if (settled) return;
+        settled = true;
+        reject(request.error ?? new Error("Unable to open IndexedDB."));
+      },
+      { once: true },
+    );
+    request.addEventListener(
+      "blocked",
+      () => {
+        if (settled) return;
+        settled = true;
+        reject(new Error("IndexedDB upgrade is blocked."));
+      },
+      { once: true },
+    );
   });
 }
 
@@ -121,7 +186,7 @@ function isActiveMeta(value: unknown): value is ActiveVaultMetaV1 {
     record !== null &&
     record["formatVersion"] === 1 &&
     typeof record["vaultId"] === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(record["vaultId"]) &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(record["vaultId"]) &&
     typeof record["createdAt"] === "string" &&
     Number.isFinite(Date.parse(record["createdAt"])) &&
     new Date(record["createdAt"]).toISOString() === record["createdAt"]
@@ -164,6 +229,87 @@ function isTrustedDeviceRecord(value: unknown): value is TrustedDeviceRecordV1 {
   }
 }
 
+function envelopeMatchesPublicKey(envelope: DeviceKeyEnvelopeV1, publicKey: DevicePublicKeyV1): boolean {
+  return (
+    envelope.recipientDeviceId === publicKey.deviceId &&
+    envelope.recipientKeyId === publicKey.deviceKeyId &&
+    envelope.recipientPublicKeyFingerprint === publicKey.publicKeyFingerprint
+  );
+}
+
+function trustedDeviceForKeyring(value: unknown, keyring: VaultKeyringV1): TrustedDeviceRecordV1 | null {
+  if (!isTrustedDeviceRecord(value)) return null;
+  return keyring.deviceEnvelopes.some((envelope) => envelopeMatchesPublicKey(envelope, value.publicKey))
+    ? value
+    : null;
+}
+
+function oldestEnvelopeIndex(envelopes: readonly DeviceKeyEnvelopeV1[]): number {
+  let oldest = 0;
+  for (let index = 1; index < envelopes.length; index += 1) {
+    const candidate = envelopes[index];
+    const current = envelopes[oldest];
+    if (candidate === undefined || current === undefined) continue;
+    const candidateOrder = `${candidate.createdAt}\u0000${candidate.recipientDeviceId}\u0000${candidate.recipientKeyId}`;
+    const currentOrder = `${current.createdAt}\u0000${current.recipientDeviceId}\u0000${current.recipientKeyId}`;
+    if (candidateOrder < currentOrder) oldest = index;
+  }
+  return oldest;
+}
+
+/**
+ * Selects recipients for a new root key. Retaining an old envelope is not
+ * sufficient: root-key rotation must have the corresponding public descriptor
+ * so it can create a fresh cryptographic envelope. Legacy one-device records
+ * can use the origin-bound descriptor while it is still available; all other
+ * missing descriptors fail closed.
+ */
+export function planDeviceRecipientRotation(
+  keyring: VaultKeyringV1,
+  currentTrustedDevice: TrustedDeviceRecordV1 | null,
+  replacement: DevicePublicKeyV1,
+  allowOldestRevocation: boolean,
+): DeviceRecipientRotationPlan {
+  const currentIndex =
+    currentTrustedDevice === null
+      ? -1
+      : keyring.deviceEnvelopes.findIndex((envelope) =>
+          envelopeMatchesPublicKey(envelope, currentTrustedDevice.publicKey),
+        );
+  let removeIndex = currentIndex;
+  if (removeIndex < 0 && keyring.deviceEnvelopes.length >= VAULT_MAX_DEVICE_ENVELOPES) {
+    if (!allowOldestRevocation) return { status: "capacity" };
+    removeIndex = oldestEnvelopeIndex(keyring.deviceEnvelopes);
+  }
+  const retained = keyring.deviceEnvelopes.filter((_, index) => index !== removeIndex);
+  if (retained.length >= VAULT_MAX_DEVICE_ENVELOPES) return { status: "capacity" };
+
+  const recipients: DevicePublicKeyV1[] = [];
+  for (const envelope of retained) {
+    const registered = keyring.devicePublicKeys?.find((candidate) =>
+      envelopeMatchesPublicKey(envelope, candidate),
+    );
+    const localFallback =
+      currentTrustedDevice !== null && envelopeMatchesPublicKey(envelope, currentTrustedDevice.publicKey)
+        ? currentTrustedDevice.publicKey
+        : undefined;
+    const recipient = registered ?? localFallback;
+    if (recipient?.revokedAt !== null) return { status: "unavailable" };
+    recipients.push(recipient);
+  }
+
+  if (
+    replacement.revokedAt !== null ||
+    recipients.some(
+      (recipient) =>
+        recipient.deviceId === replacement.deviceId || recipient.deviceKeyId === replacement.deviceKeyId,
+    )
+  ) {
+    return { status: "unavailable" };
+  }
+  return { status: "ready", recipients: [...recipients, replacement] };
+}
+
 function validatePersistedRecord(
   meta: ActiveVaultMetaV1,
   keyring: unknown,
@@ -182,7 +328,8 @@ function validatePersistedRecord(
     checkedPayload.vaultKeyId !== checkedKeyring.vaultKeyId ||
     trustedDevice.envelope.deviceId !== checkedPublicKey.deviceId ||
     trustedDevice.envelope.deviceKeyId !== checkedPublicKey.deviceKeyId ||
-    trustedDevice.envelope.publicKeyFingerprint !== checkedPublicKey.publicKeyFingerprint
+    trustedDevice.envelope.publicKeyFingerprint !== checkedPublicKey.publicKeyFingerprint ||
+    !checkedKeyring.deviceEnvelopes.some((envelope) => envelopeMatchesPublicKey(envelope, checkedPublicKey))
   ) {
     throw new Error("Personal vault records do not agree.");
   }
@@ -194,7 +341,12 @@ function validatePersistedRecord(
   };
 }
 
-function validateRecoverableRecord(meta: unknown, keyring: unknown, payload: unknown): RecoverableVaultV1 {
+function validateRecoverableRecord(
+  meta: unknown,
+  keyring: unknown,
+  payload: unknown,
+  trustedDevice: unknown,
+): RecoverableVaultV1 {
   if (!isActiveMeta(meta)) throw new Error("Personal vault records are incomplete.");
   const checkedKeyring = VaultKeyringV1Schema.parse(keyring);
   const checkedPayload = EncryptedVaultPayloadEnvelopeV1Schema.parse(payload);
@@ -205,7 +357,12 @@ function validateRecoverableRecord(meta: unknown, keyring: unknown, payload: unk
   ) {
     throw new Error("Personal vault records do not agree.");
   }
-  return { meta, keyring: checkedKeyring, payload: checkedPayload };
+  return {
+    meta,
+    keyring: checkedKeyring,
+    payload: checkedPayload,
+    trustedDevice: trustedDeviceForKeyring(trustedDevice, checkedKeyring),
+  };
 }
 
 export async function probePersonalVaultStorage(): Promise<void> {
@@ -217,7 +374,7 @@ export async function probePersonalVaultStorage(): Promise<void> {
       "encrypt",
       "decrypt",
     ]);
-    const transaction = database.transaction(META_STORE, "readwrite");
+    const transaction = createStrictReadwriteTransaction(database, META_STORE);
     transaction.objectStore(META_STORE).put(wrappingKey, probeKey);
     await transactionDone(transaction);
     const readTransaction = database.transaction(META_STORE, "readonly");
@@ -290,16 +447,20 @@ export async function readPersistedVault(): Promise<PersistedVaultV1 | null> {
 export async function readRecoverableVault(): Promise<RecoverableVaultV1 | null> {
   const database = await openDatabase();
   try {
-    const transaction = database.transaction([META_STORE, KEYRING_STORE, PAYLOAD_STORE], "readonly");
+    const transaction = database.transaction(
+      [META_STORE, KEYRING_STORE, PAYLOAD_STORE, DEVICE_STORE],
+      "readonly",
+    );
     const records: readonly unknown[] = await Promise.all([
       requestResult(transaction.objectStore(META_STORE).get(ACTIVE_VAULT_META_KEY)),
       requestResult(transaction.objectStore(KEYRING_STORE).get(ACTIVE_KEYRING_KEY)),
       requestResult(transaction.objectStore(PAYLOAD_STORE).get(ACTIVE_PAYLOAD_KEY)),
+      requestResult(transaction.objectStore(DEVICE_STORE).get(ACTIVE_DEVICE_KEY)),
     ]);
-    const [meta, keyring, payload] = records;
+    const [meta, keyring, payload, trustedDevice] = records;
     await transactionDone(transaction);
     if (meta === undefined && keyring === undefined && payload === undefined) return null;
-    return validateRecoverableRecord(meta, keyring, payload);
+    return validateRecoverableRecord(meta, keyring, payload, trustedDevice);
   } finally {
     database.close();
   }
@@ -314,10 +475,12 @@ export async function createPersistedVault(record: PersistedVaultV1): Promise<vo
   );
   const database = await openDatabase();
   try {
-    const transaction = database.transaction(
-      [META_STORE, KEYRING_STORE, PAYLOAD_STORE, DEVICE_STORE],
-      "readwrite",
-    );
+    const transaction = createStrictReadwriteTransaction(database, [
+      META_STORE,
+      KEYRING_STORE,
+      PAYLOAD_STORE,
+      DEVICE_STORE,
+    ]);
     const metaStore = transaction.objectStore(META_STORE);
     const existing = await Promise.all([
       requestResult(metaStore.get(ACTIVE_VAULT_META_KEY)),
@@ -329,10 +492,21 @@ export async function createPersistedVault(record: PersistedVaultV1): Promise<vo
       transaction.abort();
       throw new Error("Personal vault records already exist or are incomplete.");
     }
-    metaStore.put(checkedRecord.meta, ACTIVE_VAULT_META_KEY);
-    transaction.objectStore(KEYRING_STORE).put(checkedRecord.keyring, ACTIVE_KEYRING_KEY);
-    transaction.objectStore(PAYLOAD_STORE).put(checkedRecord.payload, ACTIVE_PAYLOAD_KEY);
-    transaction.objectStore(DEVICE_STORE).put(checkedRecord.trustedDevice, ACTIVE_DEVICE_KEY);
+    try {
+      // Queue the CryptoKey structured clone first: it is the most likely
+      // synchronous failure and every later write shares this transaction.
+      transaction.objectStore(DEVICE_STORE).put(checkedRecord.trustedDevice, ACTIVE_DEVICE_KEY);
+      metaStore.put(checkedRecord.meta, ACTIVE_VAULT_META_KEY);
+      transaction.objectStore(PAYLOAD_STORE).put(checkedRecord.payload, ACTIVE_PAYLOAD_KEY);
+      transaction.objectStore(KEYRING_STORE).put(checkedRecord.keyring, ACTIVE_KEYRING_KEY);
+    } catch (error) {
+      try {
+        transaction.abort();
+      } catch {
+        // Preserve the structured-clone/write failure as the useful cause.
+      }
+      throw error;
+    }
     await transactionDone(transaction);
   } finally {
     database.close();
@@ -340,63 +514,98 @@ export async function createPersistedVault(record: PersistedVaultV1): Promise<vo
 }
 
 /**
- * Atomically installs a freshly sealed local trusted-device record after a
- * successful recovery-code unlock. The recovery envelope and payload stay
- * unchanged; the keyring receives one new device envelope and increments its
- * own revision in the same transaction as the origin-bound device record. A
- * full prior-keyring compare prevents one recovery session from replacing
- * newer vault state.
+ * Queues all mutable root-key state in one transaction and aborts on a
+ * synchronous structured-clone/write failure. IndexedDB request failures also
+ * abort the transaction by default, so no committed keyring can point at a
+ * payload or local device created by a different rotation.
  */
-export async function replaceTrustedDeviceIfRevision(
+export function writeVaultRotationRecords(
+  transaction: IDBTransaction,
+  keyring: VaultKeyringV1,
+  payload: EncryptedVaultPayloadEnvelopeV1,
+  trustedDevice: TrustedDeviceRecordV1,
+): void {
+  try {
+    transaction.objectStore(DEVICE_STORE).put(trustedDevice, ACTIVE_DEVICE_KEY);
+    transaction.objectStore(PAYLOAD_STORE).put(payload, ACTIVE_PAYLOAD_KEY);
+    transaction.objectStore(KEYRING_STORE).put(keyring, ACTIVE_KEYRING_KEY);
+  } catch (error) {
+    try {
+      transaction.abort();
+    } catch {
+      // Preserve the original write failure.
+    }
+    throw error;
+  }
+}
+
+/**
+ * Atomically rotates the vault root key after recovery. A full prior-keyring
+ * compare and payload revision CAS prevent concurrent sessions from replacing
+ * newer state. The next keyring, re-encrypted payload, and origin-bound device
+ * record are committed together or not at all.
+ */
+export async function replaceVaultAfterRotationIfRevision(
   expectedPayloadRevision: number,
   expectedKeyring: VaultKeyringV1,
   keyring: VaultKeyringV1,
+  payload: EncryptedVaultPayloadEnvelopeV1,
   trustedDevice: TrustedDeviceRecordV1,
-): Promise<boolean> {
+  allowOldestRevocation: boolean,
+): Promise<VaultRotationResult> {
   if (!isTrustedDeviceRecord(trustedDevice)) {
     throw new Error("Trusted-device record is invalid.");
   }
   const checkedExpectedKeyring = VaultKeyringV1Schema.parse(expectedKeyring);
   const checkedKeyring = VaultKeyringV1Schema.parse(keyring);
+  const checkedPayload = EncryptedVaultPayloadEnvelopeV1Schema.parse(payload);
   const database = await openDatabase();
   try {
-    const transaction = database.transaction(
-      [META_STORE, KEYRING_STORE, PAYLOAD_STORE, DEVICE_STORE],
-      "readwrite",
-    );
-    const [meta, persistedKeyring, payload] = await Promise.all([
+    const transaction = createStrictReadwriteTransaction(database, [
+      META_STORE,
+      KEYRING_STORE,
+      PAYLOAD_STORE,
+      DEVICE_STORE,
+    ]);
+    const [meta, persistedKeyring, persistedPayload, persistedTrustedDevice] = await Promise.all([
       requestResult(transaction.objectStore(META_STORE).get(ACTIVE_VAULT_META_KEY)),
       requestResult(transaction.objectStore(KEYRING_STORE).get(ACTIVE_KEYRING_KEY)),
       requestResult(transaction.objectStore(PAYLOAD_STORE).get(ACTIVE_PAYLOAD_KEY)),
+      requestResult(transaction.objectStore(DEVICE_STORE).get(ACTIVE_DEVICE_KEY)),
     ]);
     let recoverable: RecoverableVaultV1;
     try {
-      recoverable = validateRecoverableRecord(meta, persistedKeyring, payload);
+      recoverable = validateRecoverableRecord(
+        meta,
+        persistedKeyring,
+        persistedPayload,
+        persistedTrustedDevice,
+      );
     } catch {
       transaction.abort();
-      return false;
+      return "conflict";
     }
     if (recoverable.payload.revision !== expectedPayloadRevision) {
       transaction.abort();
-      return false;
+      return "conflict";
     }
-    // The payload revision does not advance while rebuilding a device record.
     // Compare the full authenticated prior keyring to prevent two concurrent
-    // recovery sessions from silently replacing each other's device repair.
+    // recovery sessions from silently replacing each other's key rotation.
     if (JSON.stringify(recoverable.keyring) !== JSON.stringify(checkedExpectedKeyring)) {
       transaction.abort();
-      return false;
+      return "conflict";
     }
     if (
       checkedKeyring.vaultId !== recoverable.keyring.vaultId ||
-      checkedKeyring.vaultKeyId !== recoverable.keyring.vaultKeyId ||
+      checkedKeyring.vaultKeyId === recoverable.keyring.vaultKeyId ||
       checkedKeyring.revision !== recoverable.keyring.revision + 1 ||
-      checkedKeyring.createdAt !== recoverable.keyring.createdAt ||
-      Date.parse(checkedKeyring.updatedAt) < Date.parse(recoverable.keyring.updatedAt) ||
-      JSON.stringify(checkedKeyring.recoveryEnvelope) !== JSON.stringify(recoverable.keyring.recoveryEnvelope)
+      checkedPayload.vaultId !== recoverable.meta.vaultId ||
+      checkedPayload.vaultKeyId !== checkedKeyring.vaultKeyId ||
+      checkedPayload.baseRevision !== recoverable.payload.revision ||
+      checkedPayload.revision !== recoverable.payload.revision + 1
     ) {
       transaction.abort();
-      return false;
+      return "conflict";
     }
     const deviceEnvelope = checkedKeyring.deviceEnvelopes.find(
       (candidate) =>
@@ -406,12 +615,29 @@ export async function replaceTrustedDeviceIfRevision(
     );
     if (deviceEnvelope === undefined) {
       transaction.abort();
-      return false;
+      return "conflict";
     }
-    transaction.objectStore(KEYRING_STORE).put(checkedKeyring, ACTIVE_KEYRING_KEY);
-    transaction.objectStore(DEVICE_STORE).put(trustedDevice, ACTIVE_DEVICE_KEY);
+    const plan = planDeviceRecipientRotation(
+      recoverable.keyring,
+      recoverable.trustedDevice,
+      trustedDevice.publicKey,
+      allowOldestRevocation,
+    );
+    if (plan.status === "capacity") {
+      transaction.abort();
+      return "capacity";
+    }
+    if (plan.status === "unavailable") {
+      transaction.abort();
+      return "unavailable";
+    }
+    if (JSON.stringify(checkedKeyring.devicePublicKeys) !== JSON.stringify(plan.recipients)) {
+      transaction.abort();
+      return "conflict";
+    }
+    writeVaultRotationRecords(transaction, checkedKeyring, checkedPayload, trustedDevice);
     await transactionDone(transaction);
-    return true;
+    return "persisted";
   } finally {
     database.close();
   }
@@ -425,10 +651,12 @@ export async function replacePayloadIfRevision(
   const checkedPayload = EncryptedVaultPayloadEnvelopeV1Schema.parse(payload);
   const database = await openDatabase();
   try {
-    const transaction = database.transaction(
-      [META_STORE, KEYRING_STORE, PAYLOAD_STORE, DEVICE_STORE],
-      "readwrite",
-    );
+    const transaction = createStrictReadwriteTransaction(database, [
+      META_STORE,
+      KEYRING_STORE,
+      PAYLOAD_STORE,
+      DEVICE_STORE,
+    ]);
     const store = transaction.objectStore(PAYLOAD_STORE);
     const [meta, keyring, currentValue, trustedDevice] = await Promise.all([
       requestResult(transaction.objectStore(META_STORE).get(ACTIVE_VAULT_META_KEY)),
@@ -440,8 +668,9 @@ export async function replacePayloadIfRevision(
       transaction.abort();
       return false;
     }
+    let persisted: PersistedVaultV1;
     try {
-      validatePersistedRecord(meta, keyring, currentValue, trustedDevice);
+      persisted = validatePersistedRecord(meta, keyring, currentValue, trustedDevice);
     } catch {
       transaction.abort();
       return false;
@@ -452,7 +681,9 @@ export async function replacePayloadIfRevision(
     if (
       current?.revision !== expectedRevision ||
       checkedPayload.baseRevision !== expectedRevision ||
-      checkedPayload.revision !== expectedRevision + 1
+      checkedPayload.revision !== expectedRevision + 1 ||
+      checkedPayload.vaultId !== persisted.meta.vaultId ||
+      checkedPayload.vaultKeyId !== persisted.keyring.vaultKeyId
     ) {
       transaction.abort();
       return false;

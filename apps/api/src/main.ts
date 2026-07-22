@@ -6,21 +6,22 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 
 import { AppModule } from "./app.module.js";
 import { createFastifyAdapter } from "./http/fastify-adapter.js";
-import { parsePort } from "./runtime-config.js";
+import { loadApiRuntimeConfig } from "./runtime-config.js";
 
 async function bootstrap(): Promise<void> {
+  const runtimeConfig = loadApiRuntimeConfig();
   const adapter = createFastifyAdapter();
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
     bufferLogs: true,
   });
   app.enableCors({
     credentials: true,
-    origin: process.env["WEB_ORIGIN"] ?? "http://localhost:3000",
+    origin: [...runtimeConfig.cors.allowedOrigins],
   });
   app.enableShutdownHooks();
 
   const host = process.env["HOST"] ?? "0.0.0.0";
-  const port = parsePort(process.env["PORT"]);
+  const port = runtimeConfig.port;
   await app.listen({ host, port });
   Logger.log(`Campus API listening on ${host}:${String(port)}`, "Bootstrap");
 }

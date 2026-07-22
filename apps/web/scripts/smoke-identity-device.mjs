@@ -13,7 +13,8 @@ export const DEFAULT_MCP_AUDIENCE = "http://127.0.0.1:4100/mcp";
 const requestTimeoutMilliseconds = 10_000;
 const browserActionTimeoutMilliseconds = 30_000;
 const maximumPollingDurationMilliseconds = 120_000;
-const browserCleanupTimeoutMilliseconds = 10_000;
+const browserContextCleanupTimeoutMilliseconds = 5_000;
+const browserCleanupTimeoutMilliseconds = 20_000;
 const identityCleanupTimeoutMilliseconds = 60_000;
 const jwtClockToleranceSeconds = 5;
 
@@ -494,6 +495,17 @@ async function completeBrowserAuthorization(browser, verificationUri, userCode, 
     }
   } catch {
     throw new SmokeError("Headless browser login or consent failed");
+  } finally {
+    try {
+      await withTimeout(
+        () => context.close(),
+        browserContextCleanupTimeoutMilliseconds,
+        "Browser context cleanup",
+      );
+    } catch {
+      // The outer cleanup still owns the browser process and will make one
+      // bounded attempt to close it even when a context is wedged.
+    }
   }
 }
 
@@ -577,7 +589,10 @@ export function assertAccessTokenClaims(
     Array.isArray(audiences) && audiences.every((audience) => typeof audience === "string"),
     "OIDC access token has an invalid audience claim",
   );
-  invariant(audiences.includes(apiAudience), "OIDC access token is missing the exact API audience");
+  invariant(
+    audiences.length === 1 && audiences[0] === apiAudience,
+    "OIDC access token does not have one exact API audience",
+  );
   invariant(!audiences.includes(mcpAudience), "OIDC access token contains the MCP audience");
 
   return {
@@ -594,6 +609,7 @@ export function verifyAccessToken(
 ) {
   const { header, payload, signature, signingInput } = decodeJwt(accessToken);
   invariant(header.alg === "RS256", "OIDC access token does not use RS256");
+  invariant(header.typ === "at+jwt", "OIDC access token does not use the RFC 9068 at+jwt type");
   const keyId = requiredString(header, "kid", "OIDC access token header");
   invariant(Array.isArray(jwks?.keys), "OIDC JWKS is missing keys");
   const matchingKeys = jwks.keys.filter((candidate) => candidate?.kid === keyId);
@@ -632,6 +648,21 @@ export function verifyAccessToken(
       Number.isFinite(payload.exp) &&
       nowSeconds <= payload.exp + jwtClockToleranceSeconds,
     "OIDC access token is expired or missing exp",
+  );
+  invariant(
+    typeof payload.iat === "number" &&
+      Number.isSafeInteger(payload.iat) &&
+      payload.exp > payload.iat &&
+      payload.exp - payload.iat <= 300,
+    "OIDC access token has an invalid or excessive declared lifetime",
+  );
+  invariant(
+    typeof payload.jti === "string" && /^[A-Za-z0-9._~:-]{8,128}$/u.test(payload.jti),
+    "OIDC access token is missing a bounded URI-safe token ID",
+  );
+  invariant(
+    typeof payload.sub === "string" && payload.sub.length > 0 && payload.sub.length <= 512,
+    "OIDC access token is missing a bounded subject",
   );
   if (payload.nbf !== undefined) {
     invariant(
@@ -733,7 +764,17 @@ export async function runIdentityDeviceSmoke() {
   } finally {
     cleanupResult = await runBoundedCleanup({
       browserCleanupRequired: browser !== undefined,
-      closeBrowser: async () => browser.close(),
+      closeBrowser: async () => {
+        try {
+          await withTimeout(() => browser.close(), 15_000, "Browser close");
+        } catch {
+          // On Windows, Playwright can close the browser process and emit the
+          // disconnect event before its close Promise settles. Treat the
+          // observable disconnected state as successful cleanup, never merely
+          // the elapsed timeout.
+          invariant(!browser.isConnected(), "Browser remained connected after close timed out");
+        }
+      },
       deleteIdentity: async () => {
         invariant(adminAccessToken !== undefined, "Temporary-user cleanup has no administrator token");
         await cleanupIdentityWithReauthentication(
@@ -746,10 +787,14 @@ export async function runIdentityDeviceSmoke() {
       identityCleanupRequired: identityState.creationAttempted,
     });
     if (!cleanupResult.browserClosed || !cleanupResult.temporaryUserDeleted) {
+      const failedCleanup = [
+        ...(cleanupResult.browserClosed ? [] : ["browser"]),
+        ...(cleanupResult.temporaryUserDeleted ? [] : ["temporary user"]),
+      ].join(" and ");
       primaryFailure = new SmokeError(
         primaryFailure === undefined
-          ? "Identity device smoke cleanup failed"
-          : "Identity device smoke failed and cleanup also failed",
+          ? `Identity device smoke ${failedCleanup} cleanup failed`
+          : `${primaryFailure.message}; ${failedCleanup} cleanup also failed`,
       );
     }
   }
