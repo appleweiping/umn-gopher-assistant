@@ -26,7 +26,7 @@ describe("endpoint and raw request policy", () => {
     "/v1/sources?x-api-key=secret",
     "/v1/sources?cookie=session",
     "/v1/sources?auth[token]=secret",
-    "/v1/events",
+    "/v1/community/posts",
   ])("rejects an unsafe or contract-only raw path: %s", (path) => {
     expect(() => validateRawRequestPath(path)).toThrow(CliError);
   });
@@ -37,6 +37,10 @@ describe("endpoint and raw request policy", () => {
       "listSources",
     );
     expect(validateRawRequestPath("/v1/worlds/tc/manifest").operationId).toBe("getWorldManifest");
+    expect(validateRawRequestPath("/v1/events?campusId=tc&limit=10").operationId).toBe("listEvents");
+    expect(validateRawRequestPath("/v1/academics/sessions?campusId=rochester&limit=10").operationId).toBe(
+      "listAcademicSessions",
+    );
   });
 
   it.each([
