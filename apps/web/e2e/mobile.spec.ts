@@ -44,8 +44,14 @@ test("supports touch navigation, keyboard shortcuts, and mobile preferences", as
   await page.keyboard.press("Tab");
   const skipLink = page.getByRole("link", { name: "Skip to main content" });
   if (browserName === "webkit") {
-    // Mobile WebKit's default sequential-navigation policy skips links and starts at controls.
-    await expect(page.getByRole("button", { name: "Search campus index" })).toBeFocused();
+    // iOS does not expose desktop Safari's Full Keyboard Access preference, and
+    // Playwright WebKit inherits different sequential-focus policies per host.
+    // Prove the skip link itself is focusable and keyboard-activatable without
+    // asserting a host-specific first-Tab destination.
+    await skipLink.focus();
+    await expect(skipLink).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(app.main).toBeFocused();
   } else {
     await expect(skipLink).toBeFocused();
     await page.keyboard.press("Enter");
