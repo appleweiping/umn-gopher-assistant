@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Get, Headers, Inject, Query, Res } fro
 import type { FastifyReply } from "fastify";
 import { CampusIdSchema, type SourceDescriptor } from "@umn-gopher-assistant/contracts";
 
+import { Public } from "../auth/auth.decorators.js";
 import { SOURCE_REPOSITORY, type SourceRepository } from "../repositories/ports.js";
 import { createEntityTag, ifNoneMatchMatches } from "../http/entity-tag.js";
 import { paginateCursorPage, parsePageLimit, type CursorPage } from "../http/pagination.js";
@@ -11,6 +12,7 @@ export class SourcesController {
   constructor(@Inject(SOURCE_REPOSITORY) private readonly sourceRepository: SourceRepository) {}
 
   @Get()
+  @Public()
   async list(
     @Query("campusId") campusId: string | undefined,
     @Query("cursor") cursor: string | undefined,

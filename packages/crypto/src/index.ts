@@ -1,0 +1,37 @@
+export {
+  PERSONAL_VAULT_CONTENT_TYPE,
+  RECOVERY_MAX_CODE_INPUT_CHARACTERS,
+  RECOVERY_MAX_MEM_LIMIT_BYTES,
+  RECOVERY_MAX_OPS_LIMIT,
+  RECOVERY_MEM_LIMIT_BYTES,
+  RECOVERY_OPS_LIMIT,
+  VAULT_MAX_CIPHERTEXT_BYTES,
+  VAULT_MAX_PLAINTEXT_BYTES,
+  VAULT_PADDING_BLOCK_BYTES,
+} from "./constants.js";
+export { VaultCryptoError, VaultCryptoErrorCode } from "./errors.js";
+export type {
+  CreateRecoveryEnvelopeInput,
+  CreateVaultKeyringInput,
+  DecryptVaultPayloadInput,
+  DeviceKeyEnvelopeV1,
+  DeviceKeyHandle,
+  DevicePublicKeyV1,
+  EncryptedVaultPayloadEnvelopeV1,
+  EncryptVaultPayloadInput,
+  GenerateDeviceKeyInput,
+  GenerateVaultKeyInput,
+  RecoverVaultKeyInput,
+  ReencryptPayloadForRotationInput,
+  RecoveryEnvelopeResult,
+  RecoveryKeyEnvelopeV1,
+  RotateVaultKeyringInput,
+  RotatedVaultKeyringResult,
+  UnwrapVaultKeyForDeviceInput,
+  VaultCrypto,
+  VaultKeyHandle,
+  VaultKeyringResult,
+  VaultKeyringV1,
+  WrapVaultKeyForDeviceInput,
+} from "./types.js";
+export { createVaultCrypto } from "./vault-crypto.js";

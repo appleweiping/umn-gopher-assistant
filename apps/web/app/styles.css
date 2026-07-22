@@ -497,6 +497,26 @@ textarea {
   background: var(--color-surface-strong);
 }
 
+.button-danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.button-danger:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 82%, black);
+}
+
+.button-danger-quiet {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.button-danger-quiet:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--color-surface));
+}
+
 .button-inline {
   width: fit-content;
 }
@@ -740,6 +760,79 @@ textarea {
   font-size: 0.84rem;
 }
 
+.catalog-section {
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--color-line);
+}
+
+.catalog-section > h3 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.catalog-status,
+.catalog-coverage,
+.catalog-load-summary {
+  color: var(--color-text-muted);
+  font-size: 0.84rem;
+}
+
+.catalog-load-summary:empty {
+  display: none;
+}
+
+.catalog-load-summary p,
+.catalog-coverage {
+  margin-block-end: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 3px solid var(--color-lake);
+  background: var(--color-lake-soft);
+}
+
+.catalog-load-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.catalog-list {
+  margin-block: var(--space-4);
+}
+
+.catalog-list li {
+  grid-template-columns: minmax(7rem, 10rem) 1rem minmax(0, 1fr);
+}
+
+.catalog-list .timeline-marker::after {
+  display: none;
+}
+
+.catalog-list .source-badge {
+  margin-block-start: var(--space-2);
+}
+
+.catalog-session-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-session-list li {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-inline-start: 3px solid var(--color-primary);
+  background: var(--color-surface-strong);
+}
+
+.catalog-session-list h3,
+.catalog-session-list p {
+  margin-block-end: var(--space-1);
+}
+
 .text-link {
   display: inline-flex;
   min-height: 2.75rem;
@@ -925,6 +1018,23 @@ legend {
   font-size: 0.85rem;
 }
 
+.result-list .source-badge {
+  margin-block-start: var(--space-3);
+}
+
+.official-map-panel {
+  padding: var(--space-6);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
+
+.official-map-panel ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
 .empty-state {
   display: grid;
   min-height: 14rem;
@@ -1084,6 +1194,58 @@ legend {
   margin-block: var(--space-2) 0;
   color: var(--color-success);
   font-size: 0.82rem;
+}
+
+.form-status.form-error {
+  color: var(--color-danger);
+}
+
+.vault-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin-block-start: var(--space-4);
+}
+
+.vault-actions .fine-print {
+  width: 100%;
+  margin: 0;
+}
+
+.vault-recovery-code {
+  overflow-wrap: anywhere;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-primary);
+  background: var(--color-surface-strong);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+}
+
+.vault-recovery {
+  display: grid;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+}
+
+.vault-recovery summary {
+  min-height: 2.75rem;
+  padding-block: var(--space-2);
+  cursor: pointer;
+  color: var(--color-lake);
+  font-weight: 720;
+}
+
+.vault-progress {
+  margin-block: 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-weight: 650;
+}
+
+.vault-delete-dialog {
+  max-width: 36rem;
 }
 
 .route-fields,
@@ -1703,9 +1865,13 @@ legend {
 }
 
 @media (max-width: 52rem) {
+  html {
+    scroll-padding-block-end: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
   .app-frame {
     display: block;
-    padding-block-end: 5rem;
+    padding-block-end: calc(5.5rem + env(safe-area-inset-bottom));
   }
 
   .sidebar {
@@ -1713,6 +1879,7 @@ legend {
   }
 
   .context-bar {
+    position: static;
     min-height: 4rem;
     padding: var(--space-2) var(--space-3);
   }
@@ -1759,6 +1926,10 @@ legend {
     padding: var(--space-6) var(--space-4);
   }
 
+  .app-main :where(a, button, input, select, textarea, summary, [tabindex]) {
+    scroll-margin-block: 1rem calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
   .mobile-nav {
     position: fixed;
     z-index: 60;
@@ -1802,7 +1973,14 @@ legend {
   .plan-layout,
   .community-layout,
   .world-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plan-layout > *,
+  .explore-workspace > *,
+  .community-layout > *,
+  .world-layout > * {
+    min-width: 0;
   }
 
   .filter-panel,

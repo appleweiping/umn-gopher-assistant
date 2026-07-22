@@ -37,7 +37,7 @@ describe("Chinese localization completeness", () => {
         createElement(SourceBadge, {
           freshness: "aging",
           label: "一站式学生服务",
-          updatedLabel: "核验于 2026-07-19",
+          updatedLabel: "本应用未采集当前状态",
           url: "https://onestop.umn.edu/",
         }),
         createElement(SchematicMap, {

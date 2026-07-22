@@ -5,6 +5,12 @@ import { afterEach } from "vitest";
 
 afterEach(() => {
   if (typeof document !== "undefined") cleanup();
+  if (typeof document !== "undefined") {
+    for (const cookie of document.cookie.split(";")) {
+      const name = cookie.split("=")[0]?.trim();
+      if (name) document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+    }
+  }
   if (typeof window !== "undefined") window.localStorage.clear();
 });
 

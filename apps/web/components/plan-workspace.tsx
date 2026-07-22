@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { createIcsCalendar, findScheduleConflicts } from "../lib/planner";
+import { PersonalVaultProvider } from "./personal-vault-provider";
 import { usePreferences } from "./preferences";
 import { TaskBoard } from "./task-board";
 
@@ -149,7 +150,9 @@ export function PlanWorkspace() {
         </p>
       </section>
 
-      <TaskBoard locale={locale} />
+      <PersonalVaultProvider locale={locale}>
+        <TaskBoard locale={locale} />
+      </PersonalVaultProvider>
 
       <section className="panel route-rehearsal" aria-labelledby="route-title">
         <div className="section-heading">

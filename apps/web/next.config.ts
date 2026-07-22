@@ -18,11 +18,26 @@ const nextConfig: NextConfig = {
           { key: "Service-Worker-Allowed", value: "/" },
         ],
       },
+      {
+        // This tiny bootstrap points at the current content-addressed Worker.
+        // Revalidate it on every online Worker start; the Service Worker owns
+        // the explicit offline copy and never treats this URL as immutable.
+        source: "/__uga-vault/personal-vault.worker.mjs",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
+      {
+        source: "/__uga-vault/personal-vault.worker.:hash([a-f0-9]{64}).mjs",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
     ]);
   },
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ["@umn-gopher-assistant/config", "@umn-gopher-assistant/contracts"],
+  transpilePackages: [
+    "@umn-gopher-assistant/config",
+    "@umn-gopher-assistant/contracts",
+    "@umn-gopher-assistant/crypto",
+  ],
 };
 
 export default nextConfig;

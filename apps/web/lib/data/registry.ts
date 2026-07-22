@@ -12,7 +12,7 @@ export type DemoKind =
   | "library"
   | "safety"
   | "service";
-export type Licensing = "OPEN_REUSE" | "DEEPLINK_ONLY" | "LIVE_ONLY" | "APPROVAL_REQUIRED";
+export type Licensing = "DEEPLINK_ONLY";
 export type Freshness = "fresh" | "aging" | "stale" | "unknown";
 
 export interface LocalizedText {
@@ -39,7 +39,6 @@ export interface DemoRecord {
   };
   readonly licensing: Licensing;
   readonly freshness: Freshness;
-  readonly updatedAt: string;
 }
 
 export const campuses = [
@@ -83,7 +82,7 @@ function demo(
   sourceLabel: LocalizedText,
   url: string,
   licensing: Licensing = "DEEPLINK_ONLY",
-  freshness: Freshness = "fresh",
+  freshness: Freshness = "unknown",
 ): DemoRecord {
   return {
     id,
@@ -93,7 +92,6 @@ function demo(
     source: { label: sourceLabel, url, publisher: "University of Minnesota" },
     licensing,
     freshness,
-    updatedAt: "2026-07-19T00:00:00.000Z",
   };
 }
 
@@ -121,7 +119,7 @@ export const demoRecords = [
     { en: "Campus transit", "zh-CN": "校园交通" },
     { en: "Parking & Transportation Services", "zh-CN": "停车与交通服务" },
     "https://pts.umn.edu/transit/campus",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "tc-dining",
@@ -139,8 +137,8 @@ export const demoRecords = [
     "events",
     { en: "Campus events feed", "zh-CN": "校园活动订阅" },
     { en: "Twin Cities Events", "zh-CN": "双城校区活动" },
-    "https://events.tc.umn.edu/feed_builder",
-    "OPEN_REUSE",
+    "https://events.tc.umn.edu/",
+    "DEEPLINK_ONLY",
   ),
 
   demo(
@@ -166,7 +164,7 @@ export const demoRecords = [
     { en: "Transportation & parking", "zh-CN": "交通与停车" },
     { en: "UMD Transportation & Parking", "zh-CN": "UMD 交通与停车" },
     "https://tps.d.umn.edu/",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "duluth-dining",
@@ -176,16 +174,16 @@ export const demoRecords = [
     { en: "UMD Dining Services", "zh-CN": "UMD 餐饮服务" },
     "https://dining-services.d.umn.edu/locations-and-menus",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "duluth-events-feed",
     "duluth",
     "events",
-    { en: "Public events JSON", "zh-CN": "公开活动 JSON" },
+    { en: "Campus events", "zh-CN": "校园活动" },
     { en: "UMD Events Calendar", "zh-CN": "UMD 活动日历" },
-    "https://calendar.d.umn.edu/live/json/events",
-    "OPEN_REUSE",
+    "https://calendar.d.umn.edu/",
+    "DEEPLINK_ONLY",
   ),
 
   demo(
@@ -204,7 +202,7 @@ export const demoRecords = [
     { en: "UMN Crookston", "zh-CN": "UMN 克鲁克斯顿" },
     "https://crk.umn.edu/campus-maps-and-directions",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "crookston-transit",
@@ -213,7 +211,7 @@ export const demoRecords = [
     { en: "Transportation & lodging", "zh-CN": "交通与住宿" },
     { en: "UMN Crookston", "zh-CN": "UMN 克鲁克斯顿" },
     "https://crk.umn.edu/transportation-and-lodging",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
   demo(
@@ -233,7 +231,7 @@ export const demoRecords = [
     { en: "Campus events", "zh-CN": "校园活动" },
     { en: "Crookston University Relations", "zh-CN": "克鲁克斯顿校务关系" },
     "https://crk.umn.edu/university-relations/events",
-    "APPROVAL_REQUIRED",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
 
@@ -260,7 +258,7 @@ export const demoRecords = [
     { en: "Parking & transportation", "zh-CN": "停车与交通" },
     { en: "UMN Morris", "zh-CN": "UMN 莫里斯" },
     "https://morris.umn.edu/about-morris/visitor-information/parking-and-transportation",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "morris-dining",
@@ -276,10 +274,10 @@ export const demoRecords = [
     "morris-events-feed",
     "morris",
     "events",
-    { en: "Public events JSON", "zh-CN": "公开活动 JSON" },
+    { en: "Campus events", "zh-CN": "校园活动" },
     { en: "Morris Events", "zh-CN": "莫里斯活动" },
-    "https://events.morris.umn.edu/api/2/events",
-    "OPEN_REUSE",
+    "https://events.morris.umn.edu/",
+    "DEEPLINK_ONLY",
   ),
 
   demo(
@@ -305,7 +303,7 @@ export const demoRecords = [
     { en: "Student parking & transportation", "zh-CN": "学生停车与交通" },
     { en: "UMN Rochester", "zh-CN": "UMN 罗切斯特" },
     "https://r.umn.edu/student-life/student-parking-and-transportation",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "rochester-dining",
@@ -324,7 +322,7 @@ export const demoRecords = [
     { en: "RaptorLink events", "zh-CN": "RaptorLink 活动" },
     { en: "UMN Rochester RaptorLink", "zh-CN": "UMN 罗切斯特 RaptorLink" },
     "https://raptorlink.umn.edu/events",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
 
@@ -336,7 +334,7 @@ export const demoRecords = [
     { en: "University Libraries", "zh-CN": "大学图书馆" },
     "https://www.lib.umn.edu/",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "tc-safety",
@@ -345,7 +343,7 @@ export const demoRecords = [
     { en: "Current safety alerts", "zh-CN": "当前安全警报" },
     { en: "Public Safety", "zh-CN": "公共安全部门" },
     "https://publicsafety.umn.edu/alerts",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "tc-service",
@@ -355,7 +353,7 @@ export const demoRecords = [
     { en: "Twin Cities One Stop", "zh-CN": "双城 One Stop" },
     "https://onestop.umn.edu/how-guide-resource-page",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
 
   demo(
@@ -366,7 +364,7 @@ export const demoRecords = [
     { en: "UMD Library", "zh-CN": "UMD 图书馆" },
     "https://lib.d.umn.edu/",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "duluth-safety",
@@ -375,7 +373,7 @@ export const demoRecords = [
     { en: "Emergency current status", "zh-CN": "紧急状态" },
     { en: "UMD Emergency", "zh-CN": "UMD 紧急信息" },
     "https://emergency.d.umn.edu/",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
   ),
   demo(
     "duluth-service",
@@ -385,7 +383,7 @@ export const demoRecords = [
     { en: "Duluth One Stop", "zh-CN": "德卢斯 One Stop" },
     "https://onestop.d.umn.edu/how-guide-resource-page",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
 
   demo(
@@ -396,7 +394,7 @@ export const demoRecords = [
     { en: "Crookston Library", "zh-CN": "克鲁克斯顿图书馆" },
     "https://crk.umn.edu/library",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "crookston-safety",
@@ -405,7 +403,7 @@ export const demoRecords = [
     { en: "SAFE-U notification", "zh-CN": "SAFE-U 通知" },
     { en: "Crookston Public Safety", "zh-CN": "克鲁克斯顿公共安全" },
     "https://crk.umn.edu/public-safety/safe-u",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
   demo(
@@ -416,7 +414,7 @@ export const demoRecords = [
     { en: "Crookston One Stop", "zh-CN": "克鲁克斯顿 One Stop" },
     "https://onestop.crk.umn.edu/how-guide-resource-page",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
 
   demo(
@@ -427,7 +425,7 @@ export const demoRecords = [
     { en: "Morris Library", "zh-CN": "莫里斯图书馆" },
     "https://library.morris.umn.edu/",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "morris-safety",
@@ -436,7 +434,7 @@ export const demoRecords = [
     { en: "Morris SAFE-U", "zh-CN": "莫里斯 SAFE-U" },
     { en: "UMN Morris", "zh-CN": "UMN 莫里斯" },
     "https://morris.umn.edu/safeu",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
   demo(
@@ -447,7 +445,7 @@ export const demoRecords = [
     { en: "Morris One Stop", "zh-CN": "莫里斯 One Stop" },
     "https://onestop.morris.umn.edu/",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
 
   demo(
@@ -458,7 +456,7 @@ export const demoRecords = [
     { en: "UMN Rochester", "zh-CN": "UMN 罗切斯特" },
     "https://r.umn.edu/student-life/library-and-information-commons",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
   demo(
     "rochester-safety",
@@ -467,7 +465,7 @@ export const demoRecords = [
     { en: "Campus safety overview", "zh-CN": "校园安全概览" },
     { en: "UMN Rochester", "zh-CN": "UMN 罗切斯特" },
     "https://r.umn.edu/student-life/campus-safety/campus-safety-and-community-standards-overview",
-    "LIVE_ONLY",
+    "DEEPLINK_ONLY",
     "unknown",
   ),
   demo(
@@ -478,7 +476,7 @@ export const demoRecords = [
     { en: "UMN Rochester", "zh-CN": "UMN 罗切斯特" },
     "https://r.umn.edu/student-services",
     "DEEPLINK_ONLY",
-    "aging",
+    "unknown",
   ),
 ] as const satisfies readonly DemoRecord[];
 

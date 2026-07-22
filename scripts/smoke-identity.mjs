@@ -126,6 +126,12 @@ async function verifyAdminConfiguration() {
     invariant(client.publicClient === expectation.publicClient, `${clientId} has the wrong client type`);
     invariant(client.directAccessGrantsEnabled === false, `${clientId} enables the password grant`);
     invariant(client.serviceAccountsEnabled === false, `${clientId} enables service accounts`);
+    if (expectation.publicClient) {
+      invariant(
+        client.attributes?.["access.token.header.type.rfc9068"] === "true",
+        `${clientId} does not issue RFC 9068 at+jwt access tokens`,
+      );
+    }
     const defaultScopes = await adminGet(
       `admin/realms/${encodedRealm}/clients/${encodeURIComponent(client.id)}/default-client-scopes`,
       accessToken,
@@ -146,6 +152,8 @@ async function verifyAdminConfiguration() {
       invariant(!scopeNames.has("gopher-api-audience"), `${clientId} unexpectedly receives API audience`);
       invariant(!scopeNames.has("gopher-mcp-audience"), `${clientId} unexpectedly receives MCP audience`);
     } else {
+      invariant(scopeNames.has("gopher-platform-roles"), `${clientId} is missing the narrow role scope`);
+      invariant(!scopeNames.has("roles"), `${clientId} enables Keycloak's audience-resolve role scope`);
       invariant(scopeNames.has(expectation.audience), `${clientId} is missing its resource audience`);
       const otherAudience =
         expectation.audience === "gopher-api-audience" ? "gopher-mcp-audience" : "gopher-api-audience";
@@ -154,6 +162,19 @@ async function verifyAdminConfiguration() {
   }
 
   const clientScopes = await adminGet(`admin/realms/${encodedRealm}/client-scopes`, accessToken);
+  const platformRoleScope = clientScopes.find((scope) => scope?.name === "gopher-platform-roles");
+  invariant(platformRoleScope !== undefined, "Keycloak is missing the platform role scope");
+  const platformMappers = await adminGet(
+    `admin/realms/${encodedRealm}/client-scopes/${encodeURIComponent(platformRoleScope.id)}/protocol-mappers/models`,
+    accessToken,
+  );
+  invariant(
+    platformMappers.some(
+      (mapper) =>
+        mapper?.protocolMapper === "oidc-sub-mapper" && mapper?.config?.["access.token.claim"] === "true",
+    ),
+    "Platform scope does not emit the required access-token subject",
+  );
   const mcpAudienceScope = clientScopes.find((scope) => scope?.name === "gopher-mcp-audience");
   invariant(mcpAudienceScope !== undefined, "Keycloak is missing the MCP audience scope");
   const mappers = await adminGet(

@@ -27,8 +27,8 @@
     "quickLibrary": "Library",
     "quickTransit": "Transit",
     "quickOneStop": "One Stop",
-    "online": "Demo data available",
-    "offline": "Offline shell · saved demo data",
+    "online": "Network available",
+    "offline": "Offline shell · live data unavailable",
     "freshness": "Source status",
     "skip": "Skip to main content",
     "close": "Close"
@@ -47,31 +47,66 @@
     "unverified": "Unverified",
     "schematic": "Schematic",
     "readOnly": "Read-only demo",
+    "close": "Close",
     "newTabLabel": "{label} (opens in a new tab)",
     "locationsLabel": "{label} locations"
   },
   "today": {
     "eyebrow": "Daily brief",
     "title": "Your campus day, in one working view",
-    "summary": "A local demo agenda with source-aware shortcuts. Nothing here changes registration or campus systems.",
-    "timeline": "Timeline",
+    "summary": "Upcoming public dates with explicit provenance, plus official campus shortcuts. Nothing here changes registration or campus systems.",
+    "timeline": "Public calendar",
     "signals": "Campus signals",
+    "officialShortcuts": "Official external links",
+    "openPlan": "Open your private plan →",
     "moveUp": "Move up",
     "moveDown": "Move down",
-    "offlineNote": "Offline mode keeps this authored demo only; live checks require a network connection."
+    "offlineNote": "Live catalog checks are unavailable offline. Official shortcuts will work when your connection returns."
   },
   "explore": {
     "eyebrow": "Campus index",
     "title": "Find a place, service, event, or course",
-    "summary": "Search authored demo entries, then follow the provenance link for current official details.",
+    "summary": "Search current public events and academic sessions alongside clearly marked official external links.",
     "query": "Search the campus index",
     "types": "Result types",
-    "openOnly": "Verified open now only",
     "list": "List",
-    "map": "Schematic map",
+    "map": "Official maps",
     "results": "Results",
     "loading": "Loading campus index",
-    "none": "No demo entries match these filters."
+    "none": "No entries match these filters.",
+    "clearFilters": "Clear filters",
+    "resultView": "Result view",
+    "officialEntry": "Official link",
+    "liveResult": "Observed public data",
+    "openStatusNote": "Open-now status is not inferred from these sources.",
+    "mapAccuracyNote": "No coordinates are inferred. Use the official campus map for current geographic details."
+  },
+  "catalog": {
+    "upcomingEvents": "Upcoming public events",
+    "sessionDates": "Academic session dates",
+    "event": "Public event",
+    "cancelled": "Cancelled event",
+    "academicSession": "Academic session",
+    "loadingEvents": "Checking the public events source…",
+    "loadingSessions": "Checking academic session dates…",
+    "loadingCombined": "Checking current public events and session dates. Official links remain available while this loads.",
+    "unavailable": "This live source is temporarily unavailable. No previous live response is shown.",
+    "eventsUnavailable": "Live events are temporarily unavailable; use the official events link below.",
+    "sessionsUnavailable": "Academic session dates are temporarily unavailable; use the official calendar links below.",
+    "deepLinkOnly": "This campus currently provides an official event link only; no event feed was requested.",
+    "openSource": "Open {source} in a new tab",
+    "noEvents": "No public events were returned for {from} through {to}.",
+    "noSessions": "No academic sessions were returned for {from} through {to}.",
+    "partialCoverage": "Showing {count} results from a bounded live retrieval. Additional results have not been loaded.",
+    "limitedView": "Showing the first {count} of {total} loaded results in Today; use Explore or the source link for more.",
+    "loadMoreEvents": "Load more events",
+    "loadMoreSessions": "Load more sessions",
+    "loadingMore": "Loading more…",
+    "loadMoreFailed": "More {resource} could not be loaded; the results already shown remain available.",
+    "eventsResource": "events",
+    "sessionsResource": "sessions",
+    "externalStatusUnknown": "Use the official site for current hours, alerts, routes, or availability.",
+    "notObserved": "current status not observed by this app"
   },
   "plan": {
     "eyebrow": "Personal workspace",
@@ -166,7 +201,7 @@
   "offline": {
     "eyebrow": "Offline shell",
     "title": "The field guide is still here",
-    "summary": "You can open cached project pages and authored demo data. Official links and live checks need a connection.",
+    "summary": "You can open cached application pages and your encrypted local plan. Official links and live checks need a connection.",
     "return": "Return to Today"
   }
 }

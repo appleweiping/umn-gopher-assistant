@@ -144,6 +144,28 @@ export const operationDefinitions = {
     ],
     "supportsNotModified": true
   },
+  "listAcademicSessions": {
+    "idempotencyKeyRequired": false,
+    "method": "GET",
+    "path": "/v1/academics/sessions",
+    "public": true,
+    "queryParameterNames": [
+      "campusId",
+      "cursor",
+      "from",
+      "limit",
+      "to"
+    ],
+    "requiredScopes": [],
+    "runtimeStatus": "implemented",
+    "successMediaTypes": [
+      "application/json"
+    ],
+    "successStatuses": [
+      200
+    ],
+    "supportsNotModified": true
+  },
   "listCampuses": {
     "idempotencyKeyRequired": false,
     "method": "GET",
@@ -188,10 +210,12 @@ export const operationDefinitions = {
     "queryParameterNames": [
       "campusId",
       "cursor",
-      "limit"
+      "from",
+      "limit",
+      "to"
     ],
     "requiredScopes": [],
-    "runtimeStatus": "contract-only",
+    "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
     ],

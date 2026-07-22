@@ -7,11 +7,19 @@ only from synthetic configuration. It contains no users, institutional identity
 provider, client secret, password-grant client, or service account. Importing
 the realm does not establish a University of Minnesota identity integration.
 
-Public API operations do not require a token. Every protected OpenAPI operation
-declares its minimum OAuth scope; there is no global fallback policy. The API
-must still validate issuer, signature, expiry, not-before time, audience, scope,
-role, and object-level authorization. A scope alone is never campus affiliation
-or permission to access another user's data.
+Public API handlers are explicitly marked with `@Public()`. A global Guard
+requires every other handler to declare either `@Authenticated()` or at least
+one `@RequireScopes()` value. An unmarked handler fails closed; `@Public()` in
+combination with either protected marker is a configuration error rather than a
+public override. Class and method scopes are merged with AND semantics. The API
+verifies an RS256 signature, exact `at+jwt` type, exact issuer, one exact
+audience, expiry, not-before and issued-at times, a token ID, a maximum declared
+lifetime, non-empty subject, approved `azp`/`client_id`, and a bounded scope
+claim before attaching a frozen `{ clientId, subject, scopes }` principal.
+Identity-shaped request headers are ignored; the server does not claim to
+remove arbitrary inbound headers. Role and object-level authorization remain
+mandatory at the owning resource module; a scope alone is never campus
+affiliation or permission to access another user's data.
 
 ## Local clients
 
@@ -45,11 +53,49 @@ client: the current web and MCP clients receive only `campus:read`, while the
 CLI additionally permits `offline_access` for keychain-backed refresh. No
 current public client may request a write or administrator scope. Realm roles (`visitor`,
 `campus-verified`, `moderator`, `admin`, and `security-reviewer`) express local
-test personas; production role-to-scope policy belongs to reviewed server-side
+test personas. They use a project-owned realm-role mapper without Keycloak's
+audience-resolve mapper, keeping each token bound to one exact resource;
+production role-to-scope policy belongs to reviewed server-side
 authorization configuration. The `anonymous` role is vocabulary for product
 policy and is never assigned to a token.
 
 ## Runtime verification
+
+The Core API development defaults target the synthetic loopback realm:
+`http://127.0.0.1:8080/realms/gopher-assistant-dev` with audience
+`gopher-api`, a five-minute maximum token lifetime, and the three synthetic
+public client IDs. Production startup fails unless `API_OIDC_ISSUER`,
+`API_OIDC_AUDIENCE`, `API_OIDC_JWKS_URL`,
+`API_OIDC_ALLOWED_CLIENT_IDS`, and `API_CORS_ALLOWED_ORIGINS` are explicit.
+OIDC and CORS production endpoints must use HTTPS, `*` is never a valid CORS
+origin, and the JWKS endpoint must share the issuer origin.
+`API_OIDC_MAX_TOKEN_LIFETIME_SECONDS` defaults to 300 and cannot exceed 600.
+The verifier uses bounded JWKS fetch timeouts, caching, and cooldown and accepts
+no signing algorithm other than RS256. The synthetic Keycloak clients explicitly
+enable `access.token.header.type.rfc9068`; Keycloak otherwise emits `typ=JWT`
+and such a token is deliberately rejected. API unit and injected HTTP tests use an
+in-process local JWK set and make no network request. Bearer authentication
+failures carry an RFC 6750 `WWW-Authenticate` challenge and an
+`X-Request-Id`; successful and other problem responses also carry the request
+ID for correlation.
+
+Every identity-provider client that can mint a `gopher-api` token must emit the
+RFC 9068 `at+jwt` access-token header type. In Keycloak this is the per-client
+**Use "at+jwt" as access token header type** advanced setting; Keycloak's
+default `JWT` value is intentionally rejected by the API. A realm export and
+token-level smoke test must prove this setting before an identity integration
+is considered usable.
+
+`iat`, `exp`, and `jti` validation limits the usefulness of old or malformed
+tokens, but a `jti` is not a replay-prevention mechanism by itself. Ordinary
+read access tokens intentionally remain reusable during their short lifetime;
+making every token process-local and one-time would break normal OAuth clients
+and would fail across replicas. Before consequential write routes launch, they
+must combine durable idempotency semantics with a reviewed sender-constrained
+token design such as complete DPoP proof validation (including method, URI,
+nonce/replay storage, key binding, and proxy normalization). Until that exists,
+the residual risk is stated plainly: a stolen Bearer token can be replayed until
+it expires or is revoked.
 
 After the Compose Keycloak service is healthy, run `pnpm smoke:identity`. The
 default check reads the live discovery document and starts RFC 8628 device

@@ -19,6 +19,42 @@ const { contractSourceSha256, generateValidatorArtifact, normalizeContractSource
   new URL("../scripts/generator.mjs", import.meta.url).href
 )) as unknown as GeneratorModule;
 
+const validSourceObservation = {
+  appliedCacheDisposition: "DISCARDED_AFTER_RESPONSE",
+  cachePolicy: "NO_CONTENT_CACHE",
+  campusId: "tc",
+  dataClassification: "PUBLIC",
+  durationMs: 12,
+  failureCode: null,
+  freshnessState: "FRESH",
+  httpStatus: 200,
+  licenseStatus: "LIVE_ONLY",
+  observationId: "210f27aa-203d-4a87-a93a-a23b89044b2a",
+  observedAt: "2026-07-22T12:00:00.000Z",
+  outcome: "SUCCESS",
+  parserVersion: "livewhale-events@1",
+  rawByteLength: 512,
+  rawSha256: "a".repeat(64),
+  recordsAccepted: 0,
+  recordsRejected: 0,
+  sourceId: "tc-events-feed",
+} as const;
+
+const validEventPage = {
+  items: [],
+  nextCursor: null,
+  range: { defaulted: false, from: "2026-09-01", to: "2026-09-30" },
+  retrievalCoverage: {
+    nextUpstreamPage: null,
+    pagesFetched: 1,
+    recordsFetched: 0,
+    sourceTotalPages: 0,
+    sourceTotalRecords: 0,
+    truncatedByPolicy: false,
+  },
+  sourceObservations: [validSourceObservation],
+} as const;
+
 describe("OpenAPI generated artifacts", () => {
   it("contains every current operation and its runtime transport data", () => {
     expect(Object.keys(operationDefinitions).sort()).toEqual(
@@ -30,6 +66,7 @@ describe("OpenAPI generated artifacts", () => {
         "getWorldManifest",
         "joinLiveEvent",
         "listAcademicCourses",
+        "listAcademicSessions",
         "listCampuses",
         "listCommunityPosts",
         "listEvents",
@@ -54,6 +91,32 @@ describe("OpenAPI generated artifacts", () => {
       "campusId",
       "cursor",
       "limit",
+    ]);
+    expect(operationDefinitions.listAcademicSessions).toMatchObject({
+      path: "/v1/academics/sessions",
+      public: true,
+      runtimeStatus: "implemented",
+      supportsNotModified: true,
+    });
+    expect(operationDefinitions.listAcademicSessions.queryParameterNames).toEqual([
+      "campusId",
+      "cursor",
+      "from",
+      "limit",
+      "to",
+    ]);
+    expect(operationDefinitions.listEvents).toMatchObject({
+      path: "/v1/events",
+      public: true,
+      runtimeStatus: "implemented",
+      supportsNotModified: true,
+    });
+    expect(operationDefinitions.listEvents.queryParameterNames).toEqual([
+      "campusId",
+      "cursor",
+      "from",
+      "limit",
+      "to",
     ]);
   });
 
@@ -102,8 +165,16 @@ describe("OpenAPI generated artifacts", () => {
       reason: "unexpected-success-status",
       success: false,
     });
+    expect(validateImplementedSuccessBody("listEvents", 200, validEventPage)).toEqual({
+      data: validEventPage,
+      success: true,
+    });
+    expect(validateImplementedSuccessBody("listAcademicSessions", 200, validEventPage)).toEqual({
+      data: validEventPage,
+      success: true,
+    });
     expect(validateImplementedSuccessBody("listEvents", 200, {})).toEqual({
-      reason: "operation-not-implemented",
+      reason: "invalid-success-body",
       success: false,
     });
     expect(validateImplementedSuccessBody("getHealth", 200, {})).toEqual({

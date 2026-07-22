@@ -30,6 +30,19 @@ function writeCookie(name: "campus" | "locale" | "theme", value: string): void {
   document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
+function readCookie(name: "campus" | "locale" | "theme"): string | undefined {
+  for (const part of document.cookie.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 0 || part.slice(0, separator).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(separator + 1));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 function applyTheme(theme: ThemePreference): void {
   const resolved =
     theme === "system"
@@ -50,6 +63,21 @@ export function PreferencesProvider(props: {
   const [campus, updateCampus] = useState<CampusId>(props.initialCampus);
   const [locale, updateLocale] = useState<Locale>(props.initialLocale);
   const [theme, updateTheme] = useState<ThemePreference>(props.initialTheme);
+
+  useEffect(() => {
+    // The deliberately anonymous offline Plan shell is installed with
+    // credentials omitted, so its server-rendered defaults cannot see these
+    // non-sensitive preference cookies. Reconcile them only after hydration;
+    // vault records and identity state are never read here.
+    const savedCampus = readCookie("campus");
+    const savedLocale = readCookie("locale");
+    const savedTheme = readCookie("theme");
+    if (savedCampus !== undefined && isCampusId(savedCampus)) updateCampus(savedCampus);
+    if (savedLocale === "en" || savedLocale === "zh-CN") updateLocale(savedLocale);
+    if (savedTheme === "light" || savedTheme === "dark" || savedTheme === "system") {
+      updateTheme(savedTheme);
+    }
+  }, []);
 
   useEffect(() => {
     applyTheme(theme);

@@ -4,34 +4,189 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 
+import type { AcademicSession, PublicEvent } from "@umn-gopher-assistant/contracts";
+
+import {
+  eventDateLabel,
+  freshnessForObservation,
+  observedAtLabel,
+  officialCatalogSource,
+  sessionDateLabel,
+} from "../lib/catalog/presentation";
+import { observationForItem, type CatalogPage } from "../lib/catalog/client";
+import { usePublicCatalog, type CatalogResourceState } from "../lib/catalog/use-public-catalog";
 import { demoRecords, getCampus, type DemoKind } from "../lib/data/registry";
 import { usePreferences } from "./preferences";
 import { SourceBadge } from "./ui";
 
 const signalKinds: readonly DemoKind[] = ["transit", "dining", "library", "safety"];
 
-const timeline = {
-  en: [
-    { time: "08:15", type: "Class", title: "Biology seminar", detail: "Science classroom · authored demo" },
-    { time: "11:30", type: "Task", title: "Submit reading response", detail: "Saved in this browser" },
-    {
-      time: "15:00",
-      type: "Event",
-      title: "Student organization fair",
-      detail: "Verify venue at the cited events source",
-    },
-  ],
-  "zh-CN": [
-    { time: "08:15", type: "课程", title: "生物学研讨课", detail: "理科教室 · 项目自编演示" },
-    { time: "11:30", type: "任务", title: "提交阅读回应", detail: "保存在此浏览器" },
-    { time: "15:00", type: "活动", title: "学生组织交流会", detail: "请通过活动来源核对场地" },
-  ],
-} as const;
+function CatalogFallback(props: {
+  readonly resource: "events" | "sessions";
+  readonly state: CatalogResourceState<AcademicSession | PublicEvent>;
+}) {
+  const t = useTranslations("catalog");
+  const { locale } = usePreferences();
+  const source = officialCatalogSource(props.state.campusId, props.resource, locale);
+  if (props.state.status === "loading") {
+    return (
+      <p aria-live="polite" className="catalog-status" role="status">
+        {props.resource === "events" ? t("loadingEvents") : t("loadingSessions")}
+      </p>
+    );
+  }
+  if (props.state.status === "unavailable") {
+    const url = props.state.error?.officialUrl ?? source.url;
+    return (
+      <div aria-live="polite" className="notice notice-warning" role="status">
+        <p>{props.state.reason === "DEEPLINK_ONLY" ? t("deepLinkOnly") : t("unavailable")}</p>
+        <a href={url} rel="noopener noreferrer" target="_blank">
+          {t("openSource", { source: source.label })}
+        </a>
+      </div>
+    );
+  }
+  return null;
+}
+
+function CoverageNote<T extends AcademicSession | PublicEvent>(props: {
+  readonly page: CatalogPage<T>;
+  readonly visibleCount: number;
+}) {
+  const t = useTranslations("catalog");
+  const viewLimited = props.visibleCount < props.page.items.length;
+  const partial =
+    props.page.nextCursor !== null ||
+    viewLimited ||
+    props.page.retrievalCoverage.nextUpstreamPage !== null ||
+    props.page.retrievalCoverage.truncatedByPolicy;
+  return partial ? (
+    <p aria-live="polite" className="catalog-coverage" role="status">
+      {viewLimited
+        ? t("limitedView", { count: props.visibleCount, total: props.page.items.length })
+        : t("partialCoverage", { count: props.visibleCount })}
+    </p>
+  ) : null;
+}
+
+function EventList(props: { readonly state: CatalogResourceState<PublicEvent> }) {
+  const t = useTranslations("catalog");
+  const { locale } = usePreferences();
+  if (props.state.status !== "ready") return <CatalogFallback resource="events" state={props.state} />;
+  const page = props.state.page;
+  if (page.items.length === 0) {
+    const observation = page.sourceObservations[page.sourceObservations.length - 1];
+    const source = officialCatalogSource(props.state.campusId, "events", locale);
+    return (
+      <div>
+        <p aria-live="polite" className="catalog-status" role="status">
+          {t("noEvents", { from: page.range.from, to: page.range.to })}
+        </p>
+        {observation === undefined ? null : (
+          <SourceBadge
+            freshness={freshnessForObservation(observation.freshnessState)}
+            label={source.label}
+            updatedLabel={observedAtLabel(observation, locale)}
+            url={source.url}
+          />
+        )}
+        <CoverageNote page={page} visibleCount={0} />
+      </div>
+    );
+  }
+  return (
+    <>
+      <ol className="timeline-list catalog-list">
+        {page.items.slice(0, 4).map((event) => {
+          const observation = observationForItem(page, event);
+          const source = officialCatalogSource(event.campusId, "events", locale);
+          return (
+            <li key={event.id}>
+              <time dateTime={event.startsAt}>{eventDateLabel(event, locale)}</time>
+              <span aria-hidden="true" className="timeline-marker" />
+              <div>
+                <span className="mini-label">
+                  {event.status === "CANCELLED" ? t("cancelled") : t("event")}
+                </span>
+                <h3>{event.title}</h3>
+                {event.location?.name === null || event.location === null ? null : (
+                  <p>{event.location.name}</p>
+                )}
+                <SourceBadge
+                  freshness={freshnessForObservation(observation.freshnessState)}
+                  label={source.label}
+                  updatedLabel={observedAtLabel(observation, locale)}
+                  url={event.canonicalUrl}
+                />
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <CoverageNote page={page} visibleCount={Math.min(4, page.items.length)} />
+    </>
+  );
+}
+
+function SessionList(props: { readonly state: CatalogResourceState<AcademicSession> }) {
+  const t = useTranslations("catalog");
+  const { locale } = usePreferences();
+  if (props.state.status !== "ready") return <CatalogFallback resource="sessions" state={props.state} />;
+  const page = props.state.page;
+  if (page.items.length === 0) {
+    const observation = page.sourceObservations[0];
+    const source = officialCatalogSource(props.state.campusId, "sessions", locale);
+    return (
+      <div>
+        <p aria-live="polite" className="catalog-status" role="status">
+          {t("noSessions", { from: page.range.from, to: page.range.to })}
+        </p>
+        {observation === undefined ? null : (
+          <SourceBadge
+            freshness={freshnessForObservation(observation.freshnessState)}
+            label={source.label}
+            updatedLabel={observedAtLabel(observation, locale)}
+            url={source.url}
+          />
+        )}
+        <CoverageNote page={page} visibleCount={0} />
+      </div>
+    );
+  }
+  return (
+    <>
+      <ul className="catalog-session-list">
+        {page.items.slice(0, 3).map((session) => {
+          const observation = observationForItem(page, session);
+          const source = officialCatalogSource(session.campusId, "sessions", locale);
+          return (
+            <li key={session.id}>
+              <div>
+                <span className="mini-label">{t("academicSession")}</span>
+                <h3>{session.name}</h3>
+                <p>{sessionDateLabel(session, locale)}</p>
+              </div>
+              <SourceBadge
+                freshness={freshnessForObservation(observation.freshnessState)}
+                label={source.label}
+                updatedLabel={observedAtLabel(observation, locale)}
+                url={source.url}
+              />
+            </li>
+          );
+        })}
+      </ul>
+      <CoverageNote page={page} visibleCount={Math.min(3, page.items.length)} />
+    </>
+  );
+}
 
 export function TodayDashboard() {
   const t = useTranslations("today");
+  const tCatalog = useTranslations("catalog");
   const { campus: campusId, locale } = usePreferences();
   const campus = getCampus(campusId);
+  const catalog = usePublicCatalog(campusId);
   const initialIds = useMemo(
     () =>
       signalKinds
@@ -74,33 +229,24 @@ export function TodayDashboard() {
             <p className="section-kicker">{campus.name[locale]}</p>
             <h2 id="timeline-title">{t("timeline")}</h2>
           </div>
-          <span className="weather-chip">
-            <strong>72°F</strong>
-            {locale === "zh-CN" ? "晴间多云 · 演示" : "Partly cloudy · demo"}
-          </span>
         </div>
-        <ol className="timeline-list">
-          {timeline[locale].map((item) => (
-            <li key={`${item.time}-${item.title}`}>
-              <time>{item.time}</time>
-              <span className="timeline-marker" aria-hidden="true" />
-              <div>
-                <span className="mini-label">{item.type}</span>
-                <h3>{item.title}</h3>
-                <p>{item.detail}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <section aria-labelledby="upcoming-events-title" className="catalog-section">
+          <h3 id="upcoming-events-title">{tCatalog("upcomingEvents")}</h3>
+          <EventList state={catalog.events} />
+        </section>
+        <section aria-labelledby="academic-sessions-title" className="catalog-section">
+          <h3 id="academic-sessions-title">{tCatalog("sessionDates")}</h3>
+          <SessionList state={catalog.sessions} />
+        </section>
         <Link className="text-link" href="/plan">
-          {locale === "zh-CN" ? "打开完整计划 →" : "Open the full plan →"}
+          {t("openPlan")}
         </Link>
       </section>
 
       <section aria-labelledby="signals-title" className="signal-section">
         <div className="section-heading">
           <div>
-            <p className="section-kicker">{locale === "zh-CN" ? "可重排" : "Reorderable"}</p>
+            <p className="section-kicker">{t("officialShortcuts")}</p>
             <h2 id="signals-title">{t("signals")}</h2>
           </div>
         </div>
@@ -113,16 +259,6 @@ export function TodayDashboard() {
           {orderedIds.map((id, index) => {
             const record = demoRecords.find((candidate) => candidate.id === id);
             if (record === undefined) return null;
-            const summaries: Record<DemoKind, string> = {
-              calendar: locale === "zh-CN" ? "查看学期日期" : "Review term dates",
-              map: locale === "zh-CN" ? "打开示意入口" : "Open map entry",
-              transit: locale === "zh-CN" ? "班次需要联网核对" : "Schedule needs a live check",
-              dining: locale === "zh-CN" ? "菜单由餐饮平台维护" : "Menus are maintained by dining platforms",
-              events: locale === "zh-CN" ? "查看活动来源" : "Review event source",
-              library: locale === "zh-CN" ? "营业时间随学期变化" : "Hours vary by term",
-              safety: locale === "zh-CN" ? "不是实时警报替代品" : "Not a replacement for live alerts",
-              service: locale === "zh-CN" ? "查看办事指南" : "Open service guidance",
-            };
             return (
               <article className="signal-card" key={record.id}>
                 <div className="card-tools">
@@ -143,13 +279,13 @@ export function TodayDashboard() {
                     ↓
                   </button>
                 </div>
-                <span className={`kind-marker kind-${record.kind}`} aria-hidden="true" />
+                <span aria-hidden="true" className={`kind-marker kind-${record.kind}`} />
                 <h3>{record.title[locale]}</h3>
-                <p>{summaries[record.kind]}</p>
+                <p>{tCatalog("externalStatusUnknown")}</p>
                 <SourceBadge
-                  freshness={record.freshness}
+                  freshness="unknown"
                   label={record.source.label[locale]}
-                  updatedLabel={locale === "zh-CN" ? "核验于 2026-07-19" : "checked 2026-07-19"}
+                  updatedLabel={tCatalog("notObserved")}
                   url={record.source.url}
                 />
               </article>

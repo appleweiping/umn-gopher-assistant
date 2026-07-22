@@ -2,6 +2,7 @@ import { Controller, Get, Header, Headers, Inject, NotFoundException, Param, Res
 import type { FastifyReply } from "fastify";
 import { CampusIdSchema, type CampusWorldManifest } from "@umn-gopher-assistant/contracts";
 
+import { Public } from "../auth/auth.decorators.js";
 import { ifNoneMatchMatches } from "../http/entity-tag.js";
 import { WORLD_MANIFEST_REPOSITORY, type WorldManifestRepository } from "../repositories/ports.js";
 
@@ -14,6 +15,7 @@ export class WorldsController {
 
   @Get(":campusId/manifest")
   @Header("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+  @Public()
   async getManifest(
     @Param("campusId") campusId: string,
     @Headers("if-none-match") ifNoneMatch: string | undefined,

@@ -15,16 +15,38 @@ const campus = {
 
 const source = {
   attribution: "Synthetic test fixture",
+  authorizationEvidenceUrl: null,
+  cacheDisposition: {
+    derivedArtifacts: "PROHIBITED",
+    normalizedRecords: "NEVER_STORE",
+    rawResponse: "NEVER_STORE",
+    retentionSeconds: null,
+  },
   cachePolicy: "METADATA_ONLY",
   campusIds: ["tc"],
+  dataClasses: ["PUBLIC_METADATA"],
+  dataClassification: "PUBLIC",
   freshnessState: "FRESH",
   id: "test-source",
+  killSwitch: {
+    defaultState: "ENABLED",
+    fallback: "DEEPLINK_ONLY",
+    key: "source.test-source.enabled",
+  },
   lastCheckedAt: "2026-07-19T00:00:00.000Z",
+  licenseEvidenceUrl: null,
   licenseStatus: "DEEPLINK_ONLY",
   name: { en: "Test source", "zh-CN": "测试来源" },
   officialStatus: "UNVERIFIED",
+  owner: {
+    contactUrl: "https://example.edu/contact",
+    teamId: "test-team",
+  },
   publisher: "Fixture publisher",
+  resourceKinds: ["CAMPUS_DEEPLINK"],
   sourceUrl: "https://example.edu/source",
+  termsReviewExpiresAt: null,
+  termsReviewedAt: null,
   verificationState: "schematic",
 } as const;
 

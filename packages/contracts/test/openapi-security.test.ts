@@ -42,6 +42,7 @@ const expectedSecurity = new Map<string, readonly string[]>([
   ["listCampuses", []],
   ["listSources", []],
   ["listEvents", []],
+  ["listAcademicSessions", []],
   ["listPlaces", []],
   ["calculateRoute", []],
   ["getWorldManifest", []],
@@ -95,7 +96,16 @@ describe("OpenAPI authorization contract", () => {
       .sort();
 
     expect(operations().every((operation) => operation["x-runtime-status"] !== undefined)).toBe(true);
-    expect(implemented).toEqual(["getHealth", "getWorldManifest", "listCampuses", "listSources"].sort());
+    expect(implemented).toEqual(
+      [
+        "getHealth",
+        "getWorldManifest",
+        "listAcademicSessions",
+        "listCampuses",
+        "listEvents",
+        "listSources",
+      ].sort(),
+    );
   });
 
   it("documents PKCE and the local RFC 8628 endpoint without overstating MCP support", () => {

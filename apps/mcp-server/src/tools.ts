@@ -1,6 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import {
+  CampusIdSchema,
+  CampusMetadataSchema,
+  CampusWorldManifestSchema,
+  SourceDescriptorSchema,
+} from "@umn-gopher-assistant/contracts";
+import {
   GopherApiError,
   GopherClient,
   GopherProtocolError,
@@ -9,60 +15,10 @@ import {
 import type { OperationDefinition, OperationId } from "@umn-gopher-assistant/sdk";
 import { z } from "zod";
 
-const campusIdSchema = z.enum(["tc", "duluth", "crookston", "morris", "rochester"]);
-const bilingualTextSchema = z.object({ en: z.string().min(1), "zh-CN": z.string().min(1) }).strict();
-const dateTimeSchema = z.iso.datetime({ offset: true });
-const httpsUrlSchema = z.url().regex(/^https:\/\//u);
+const campusIdSchema = CampusIdSchema;
 const requestIdSchema = z.string().min(8).max(128).nullable();
-const licenseStatusSchema = z.enum([
-  "OPEN_REUSE",
-  "LIVE_ONLY",
-  "DEEPLINK_ONLY",
-  "APPROVAL_REQUIRED",
-  "PROHIBITED",
-]);
-const freshnessStateSchema = z.enum(["FRESH", "STALE", "EXPIRED", "UNKNOWN"]);
-const verificationStateSchema = z.enum(["schematic", "surveyed", "campus-reviewed", "verified", "retired"]);
-const officialStatusSchema = z.enum(["UNVERIFIED", "PUBLISHER_ASSERTED", "PARTNERSHIP_VERIFIED"]);
-
-const campusSchema = z
-  .object({
-    academicCalendarCampusId: campusIdSchema,
-    academicInstitutionCode: z.enum(["UMNTC", "UMNDL", "UMNCR", "UMNMO"]),
-    city: bilingualTextSchema,
-    id: campusIdSchema,
-    name: bilingualTextSchema,
-    officialStatus: officialStatusSchema,
-    sourceUrl: httpsUrlSchema,
-    timeZone: z.string(),
-  })
-  .strict();
-
-const sourceDescriptorSchema = z
-  .object({
-    attribution: z.string().min(1),
-    cachePolicy: z.enum(["CACHE_ALLOWED", "METADATA_ONLY", "NO_CONTENT_CACHE", "NO_ACCESS"]),
-    campusIds: z.array(campusIdSchema).min(1),
-    freshnessState: freshnessStateSchema,
-    id: z.string(),
-    lastCheckedAt: dateTimeSchema.nullable(),
-    licenseStatus: licenseStatusSchema,
-    name: bilingualTextSchema,
-    officialStatus: officialStatusSchema,
-    publisher: z.string(),
-    sourceUrl: httpsUrlSchema,
-    verificationState: verificationStateSchema,
-  })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.licenseStatus === "PROHIBITED" && value.cachePolicy !== "NO_ACCESS") {
-      context.addIssue({
-        code: "custom",
-        message: "PROHIBITED sources must use NO_ACCESS",
-        path: ["cachePolicy"],
-      });
-    }
-  });
+const campusSchema = CampusMetadataSchema;
+const sourceDescriptorSchema = SourceDescriptorSchema;
 const sourcePageSchema = z
   .object({
     items: z.array(sourceDescriptorSchema),
@@ -70,46 +26,7 @@ const sourcePageSchema = z
   })
   .strict();
 
-const worldTileSchema = z
-  .object({
-    bounds: z.array(z.number()).length(4),
-    byteLength: z.number().int().positive(),
-    contentType: z.string(),
-    id: z.string(),
-    licenseStatus: licenseStatusSchema,
-    maxZoom: z.number().int().min(0).max(24),
-    minZoom: z.number().int().min(0).max(24),
-    sha256: z.string().regex(/^[a-f0-9]{64}$/u),
-    url: z.url(),
-    verificationState: verificationStateSchema,
-  })
-  .strict();
-
-const worldPortalSchema = z
-  .object({
-    fromCampusId: campusIdSchema,
-    id: z.string(),
-    label: bilingualTextSchema,
-    position: z.array(z.number()).length(3),
-    targetWorldVersion: z.string(),
-    toCampusId: campusIdSchema,
-    verificationState: verificationStateSchema,
-  })
-  .strict();
-
-const worldManifestSchema = z
-  .object({
-    campusId: campusIdSchema,
-    etag: z.string(),
-    generatedAt: dateTimeSchema,
-    portals: z.array(worldPortalSchema),
-    revision: z.number().int().positive(),
-    sourceIds: z.array(z.string()).min(1),
-    tiles: z.array(worldTileSchema),
-    verificationState: verificationStateSchema,
-    worldVersion: z.string(),
-  })
-  .strict();
+const worldManifestSchema = CampusWorldManifestSchema;
 
 const campusesOutputShape = {
   campuses: z.array(campusSchema),

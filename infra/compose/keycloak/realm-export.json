@@ -83,6 +83,43 @@
       ]
     },
     {
+      "name": "gopher-platform-roles",
+      "description": "Adds realm roles without Keycloak's broad audience-resolve mapper",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "gopher-platform-realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "gopher-platform-subject",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "consentRequired": false,
+          "config": {
+            "access.token.claim": "true",
+            "lightweight.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
       "name": "campus:read",
       "description": "Read campus-scoped public and approved data",
       "protocol": "openid-connect",
@@ -206,6 +243,7 @@
       "redirectUris": ["http://localhost:3000/auth/callback", "http://127.0.0.1:3000/auth/callback"],
       "webOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
       "attributes": {
+        "access.token.header.type.rfc9068": "true",
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/##http://127.0.0.1:3000/"
       },
@@ -213,7 +251,7 @@
         "web-origins",
         "acr",
         "profile",
-        "roles",
+        "gopher-platform-roles",
         "basic",
         "email",
         "gopher-api-audience",
@@ -233,12 +271,13 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "attributes": {
+        "access.token.header.type.rfc9068": "true",
         "oauth2.device.authorization.grant.enabled": "true"
       },
       "defaultClientScopes": [
         "acr",
         "profile",
-        "roles",
+        "gopher-platform-roles",
         "basic",
         "email",
         "gopher-api-audience",
@@ -261,10 +300,18 @@
       "redirectUris": ["http://127.0.0.1:4100/oauth/callback"],
       "webOrigins": ["http://127.0.0.1:4100"],
       "attributes": {
+        "access.token.header.type.rfc9068": "true",
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1:4100/"
       },
-      "defaultClientScopes": ["acr", "profile", "roles", "basic", "gopher-mcp-audience", "campus:read"],
+      "defaultClientScopes": [
+        "acr",
+        "profile",
+        "gopher-platform-roles",
+        "basic",
+        "gopher-mcp-audience",
+        "campus:read"
+      ],
       "optionalClientScopes": []
     },
     {

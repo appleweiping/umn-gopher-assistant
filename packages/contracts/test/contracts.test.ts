@@ -4,6 +4,7 @@ import * as campusContracts from "../src/campus.js";
 import {
   ACADEMIC_CALENDAR_CAMPUS_MAP,
   AuditEventSchema,
+  buildPayloadAadV1,
   CampusIdSchema,
   CampusMetadataSchema,
   CampusWorldManifestSchema,
@@ -14,6 +15,7 @@ import {
   RouteProfileSchema,
   RouteSegmentSchema,
   SourceDescriptorSchema,
+  SourceRegistrySchema,
   VerificationStateSchema,
   WorldJoinTicketSchema,
   resolveAcademicCalendarCampus,
@@ -24,15 +26,37 @@ const encodedBytes = (length: number): string => Buffer.alloc(length, 7).toStrin
 const source = {
   id: "tc-campus-home",
   campusIds: ["tc"],
+  resourceKinds: ["CAMPUS_DEEPLINK"],
   name: { en: "Twin Cities campus website", "zh-CN": "双城校区网站" },
   publisher: "University of Minnesota",
   sourceUrl: "https://twin-cities.umn.edu/",
   licenseStatus: "DEEPLINK_ONLY",
+  licenseEvidenceUrl: null,
+  authorizationEvidenceUrl: null,
   freshnessState: "UNKNOWN",
   verificationState: "surveyed",
   officialStatus: "UNVERIFIED",
   attribution: "Source link: University of Minnesota Twin Cities",
   cachePolicy: "NO_CONTENT_CACHE",
+  cacheDisposition: {
+    rawResponse: "NEVER_STORE",
+    normalizedRecords: "NEVER_STORE",
+    derivedArtifacts: "PROHIBITED",
+    retentionSeconds: null,
+  },
+  dataClassification: "PUBLIC",
+  dataClasses: ["PUBLIC_METADATA"],
+  owner: {
+    teamId: "catalog-integrations",
+    contactUrl: "https://example.invalid/security",
+  },
+  killSwitch: {
+    key: "source.tc-campus-home.enabled",
+    defaultState: "ENABLED",
+    fallback: "UNAVAILABLE",
+  },
+  termsReviewedAt: null,
+  termsReviewExpiresAt: null,
   lastCheckedAt: null,
 } as const;
 
@@ -104,7 +128,7 @@ describe("source contracts", () => {
     expect(SourceDescriptorSchema.parse(source)).toEqual(source);
   });
 
-  it("rejects prohibited sources that allow access or caching", () => {
+  it("rejects prohibited sources that allow access, caching, or default enablement", () => {
     expect(
       SourceDescriptorSchema.safeParse({
         ...source,
@@ -112,6 +136,101 @@ describe("source contracts", () => {
         cachePolicy: "CACHE_ALLOWED",
       }).success,
     ).toBe(false);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        licenseStatus: "APPROVAL_REQUIRED",
+        cachePolicy: "NO_ACCESS",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires evidence before claiming open reuse or fresh data", () => {
+    expect(SourceDescriptorSchema.safeParse({ ...source, licenseStatus: "OPEN_REUSE" }).success).toBe(false);
+    expect(SourceDescriptorSchema.safeParse({ ...source, freshnessState: "FRESH" }).success).toBe(false);
+  });
+
+  it("requires bounded authorization review evidence for LIVE_ONLY access", () => {
+    const reviewedLiveSource = {
+      ...source,
+      licenseStatus: "LIVE_ONLY",
+      authorizationEvidenceUrl: "https://example.invalid/review/live-access",
+      termsReviewedAt: "2026-07-22T00:00:00.000Z",
+      termsReviewExpiresAt: "2027-07-22T00:00:00.000Z",
+    } as const;
+
+    expect(SourceDescriptorSchema.safeParse(reviewedLiveSource).success).toBe(true);
+    for (const incomplete of [
+      { ...reviewedLiveSource, authorizationEvidenceUrl: null },
+      { ...reviewedLiveSource, termsReviewedAt: null },
+      { ...reviewedLiveSource, termsReviewExpiresAt: null },
+    ]) {
+      expect(SourceDescriptorSchema.safeParse(incomplete).success).toBe(false);
+    }
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: reviewedLiveSource.termsReviewedAt,
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: "2027-07-23T00:00:00.000Z",
+      }).success,
+    ).toBe(true);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...reviewedLiveSource,
+        termsReviewExpiresAt: "2027-07-24T00:00:00.001Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("does not let a terms review timestamp enable unapproved or prohibited access", () => {
+    for (const licenseStatus of ["APPROVAL_REQUIRED", "PROHIBITED"] as const) {
+      expect(
+        SourceDescriptorSchema.safeParse({
+          ...source,
+          licenseStatus,
+          authorizationEvidenceUrl: "https://example.invalid/review/denied-access",
+          termsReviewedAt: "2026-07-22T00:00:00.000Z",
+          termsReviewExpiresAt: "2027-07-22T00:00:00.000Z",
+          cachePolicy: "NO_ACCESS",
+          cacheDisposition: {
+            rawResponse: "NEVER_STORE",
+            normalizedRecords: "NEVER_STORE",
+            derivedArtifacts: "PROHIBITED",
+            retentionSeconds: null,
+          },
+          killSwitch: { ...source.killSwitch, defaultState: "DISABLED" },
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("rejects persistent content under NO_CONTENT_CACHE", () => {
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        cacheDisposition: {
+          rawResponse: "PERSIST_WITH_TTL",
+          normalizedRecords: "NEVER_STORE",
+          derivedArtifacts: "PROHIBITED",
+          retentionSeconds: 60,
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("binds kill switches to source IDs and rejects duplicate registry entries", () => {
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...source,
+        killSwitch: { ...source.killSwitch, key: "source.another-source.enabled" },
+      }).success,
+    ).toBe(false);
+    expect(SourceRegistrySchema.safeParse([source, source]).success).toBe(false);
   });
 });
 
@@ -255,35 +374,52 @@ describe("live and encrypted state contracts", () => {
 
   it("accepts device-key and encrypted-vault envelopes", () => {
     const deviceEnvelope = DeviceKeyEnvelopeSchema.parse({
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      recipientDeviceId: "018fb9d8-3ec5-7e8b-a512-35f8ff523112",
+      recipientKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523113",
+      recipientPublicKeyFingerprint: encodedBytes(32),
+      cipherSuite: "X25519_XCHACHA20_POLY1305",
       ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
+      wrappedKey: encodedBytes(80),
       nonce: encodedBytes(24),
       createdAt: "2026-07-19T00:00:00.000Z",
     });
+    const payloadHeader = {
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      revision: 1,
+      baseRevision: null,
+      cipherSuite: "XCHACHA20_POLY1305",
+      contentType: "application/vnd.umn-gopher-assistant.personal-vault+json",
+      contentSchemaVersion: 1,
+      padding: { algorithm: "SODIUM_PAD", blockSize: 4096 },
+      nonce: encodedBytes(24),
+      createdAt: "2026-07-19T00:00:00.000Z",
+    } as const;
     expect(
       EncryptedVaultEnvelopeSchema.safeParse({
-        version: 1,
-        algorithm: "XCHACHA20_POLY1305",
-        keyId: "vault-key-1",
-        ciphertext: "RW5jcnlwdGVkVmF1bHQ",
-        nonce: encodedBytes(24),
-        aad: "VmF1bHQtMQ",
-        deviceEnvelopes: [deviceEnvelope],
-        createdAt: "2026-07-19T00:00:00.000Z",
+        ...payloadHeader,
+        ciphertext: encodedBytes(4_112),
+        aad: buildPayloadAadV1(payloadHeader),
       }).success,
     ).toBe(true);
+    expect(deviceEnvelope.recipientDeviceId).toBe("018fb9d8-3ec5-7e8b-a512-35f8ff523112");
   });
 
   it("enforces X25519 and XChaCha20-Poly1305 byte lengths", () => {
     const baseEnvelope = {
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      recipientDeviceId: "018fb9d8-3ec5-7e8b-a512-35f8ff523112",
+      recipientKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523113",
+      recipientPublicKeyFingerprint: encodedBytes(32),
+      cipherSuite: "X25519_XCHACHA20_POLY1305",
       ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
+      wrappedKey: encodedBytes(80),
       nonce: encodedBytes(24),
       createdAt: "2026-07-19T00:00:00.000Z",
     } as const;
@@ -302,53 +438,23 @@ describe("live and encrypted state contracts", () => {
     }
   });
 
-  it("uses algorithm-specific encrypted-vault nonce lengths", () => {
-    const deviceEnvelope = DeviceKeyEnvelopeSchema.parse({
-      deviceId: "device-1",
-      keyId: "vault-key-1",
-      algorithm: "X25519_XCHACHA20_POLY1305",
-      ephemeralPublicKey: encodedBytes(32),
-      wrappedKey: "V3JhcHBlZEtleQ",
-      nonce: encodedBytes(24),
+  it("fails closed instead of accepting the retired AES placeholder", () => {
+    const payload = {
+      formatVersion: 1,
+      vaultId: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+      vaultKeyId: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+      revision: 1,
+      baseRevision: null,
+      cipherSuite: "AES_256_GCM",
+      contentType: "application/vnd.umn-gopher-assistant.personal-vault+json",
+      contentSchemaVersion: 1,
+      padding: { algorithm: "SODIUM_PAD", blockSize: 4096 },
+      ciphertext: encodedBytes(4_112),
+      nonce: encodedBytes(12),
+      aad: encodedBytes(32),
       createdAt: "2026-07-19T00:00:00.000Z",
-    });
-    const baseVault = {
-      version: 1,
-      keyId: "vault-key-1",
-      ciphertext: "RW5jcnlwdGVkVmF1bHQ",
-      aad: "VmF1bHQtMQ",
-      deviceEnvelopes: [deviceEnvelope],
-      createdAt: "2026-07-19T00:00:00.000Z",
-    } as const;
-
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "XCHACHA20_POLY1305",
-        nonce: encodedBytes(24),
-      }).success,
-    ).toBe(true);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "XCHACHA20_POLY1305",
-        nonce: encodedBytes(12),
-      }).success,
-    ).toBe(false);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "AES_256_GCM",
-        nonce: encodedBytes(12),
-      }).success,
-    ).toBe(true);
-    expect(
-      EncryptedVaultEnvelopeSchema.safeParse({
-        ...baseVault,
-        algorithm: "AES_256_GCM",
-        nonce: encodedBytes(24),
-      }).success,
-    ).toBe(false);
+    };
+    expect(EncryptedVaultEnvelopeSchema.safeParse(payload).success).toBe(false);
   });
 });
 

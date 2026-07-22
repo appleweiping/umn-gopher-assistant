@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**", "public/sw.js", "public/__uga-vault/**"]
     },
     "dev": {
       "dependsOn": ["^build"],
@@ -24,6 +24,11 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
+      "outputs": ["coverage/**"]
+    },
+    "@umn-gopher-assistant/web#test": {
+      "dependsOn": ["^build", "@umn-gopher-assistant/api#test"],
       "inputs": ["$TURBO_DEFAULT$", "vitest.config.*"],
       "outputs": ["coverage/**"]
     },

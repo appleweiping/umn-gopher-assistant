@@ -24,6 +24,30 @@ export interface paths {
         readonly patch?: never;
         readonly trace?: never;
     };
+    readonly "/v1/academics/sessions": {
+        readonly parameters: {
+            readonly query?: never;
+            readonly header?: never;
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        /**
+         * List normalized academic sessions for one campus
+         * @description Uses only reviewed, explicit UMN term IDs and never performs an unfiltered Sessions request.
+         *     `from` and `to` must be supplied together and span at most 183 days. When omitted, the server
+         *     uses and discloses a 120-day America/Chicago window. Unsupported term windows fail closed.
+         *     The upstream dataset is revalidated for every request, including conditional requests, so
+         *     callers must tolerate official-source latency and 503 degradation to the supplied official URL.
+         */
+        readonly get: operations["listAcademicSessions"];
+        readonly put?: never;
+        readonly post?: never;
+        readonly delete?: never;
+        readonly options?: never;
+        readonly head?: never;
+        readonly patch?: never;
+        readonly trace?: never;
+    };
     readonly "/v1/admin/sources/{sourceId}": {
         readonly parameters: {
             readonly query?: never;
@@ -108,7 +132,19 @@ export interface paths {
         };
         /**
          * List normalized public events
-         * @description Contract-only until an approved connector is enabled.
+         * @description Returns a bounded, transient view from a reviewed live source. `campusId` is required.
+         *     `from` and `to` must be supplied together and span at most 183 days. When both are omitted,
+         *     the server uses a disclosed 120-day America/Chicago window. Each request fetches at most
+         *     three upstream pages on demand; `retrievalCoverage` discloses the partial live view and any
+         *     source-policy truncation. Cursors bind the query and the revalidated upstream page snapshot,
+         *     so a changed page returns 410 instead of silently mixing snapshots. LIVE_ONLY content is
+         *     never cached and cross-page snapshot consistency is not claimed. A signed cursor also carries
+         *     the accepted raw-byte traversal total. The 8 MiB accepted-content budget is checked after each
+         *     independently 2 MiB-capped fetch; a crossing page is discarded, never returned, and terminates
+         *     traversal with `truncatedByPolicy=true`. A single response never contains duplicate event IDs:
+         *     byte-identical cross-page duplicates are skipped and conflicting duplicates fail closed. Because
+         *     this LIVE_ONLY cursor is stateless, a distant overlap may repeat an identical ID in a later response;
+         *     clients merging cursor pages must drop semantically identical IDs and reject conflicting content.
          */
         readonly get: operations["listEvents"];
         readonly put?: never;
@@ -280,6 +316,29 @@ export interface components {
         };
         /** @enum {string} */
         readonly AcademicInstitutionCode: "UMNTC" | "UMNDL" | "UMNCR" | "UMNMO";
+        readonly AcademicSession: {
+            readonly academicCareerCode: string;
+            readonly beginDate: string;
+            readonly campusId: components["schemas"]["CampusId"];
+            readonly endDate: string;
+            readonly enrollmentOpenDate: string | null;
+            readonly id: string;
+            readonly institutionCode: components["schemas"]["AcademicInstitutionCode"];
+            readonly name: string;
+            /** Format: date-time */
+            readonly observedAt: string;
+            readonly sessionCode: string;
+            readonly sourceId: string;
+            readonly sourceObservationId: string;
+            readonly termCode: string;
+        } & (unknown & unknown & unknown & unknown);
+        readonly AcademicSessionPage: {
+            readonly items: readonly components["schemas"]["AcademicSession"][];
+            readonly nextCursor: string | null;
+            readonly range: components["schemas"]["CatalogRange"];
+            readonly retrievalCoverage: components["schemas"]["RetrievalCoverage"];
+            readonly sourceObservations: readonly components["schemas"]["SourceObservation"][];
+        };
         readonly AdminSourcePolicyUpdate: {
             readonly attribution?: string;
             /** @enum {string} */
@@ -329,6 +388,12 @@ export interface components {
             readonly verificationState: components["schemas"]["VerificationState"];
             readonly worldVersion: string;
         };
+        readonly CatalogCursor: string;
+        readonly CatalogRange: {
+            readonly defaulted: boolean;
+            readonly from: string;
+            readonly to: string;
+        };
         readonly Citation: {
             readonly freshnessState: components["schemas"]["FreshnessState"];
             readonly sourceId: string;
@@ -351,6 +416,16 @@ export interface components {
         readonly CommunityPostPage: components["schemas"]["PageEnvelope"] & {
             readonly items: readonly components["schemas"]["CommunityPost"][];
         };
+        readonly ConnectorUnavailableProblem: components["schemas"]["Problem"] & {
+            readonly failureCode: string;
+            /** Format: uri */
+            readonly officialUrl: string;
+            readonly sourceId: string;
+            /** @constant */
+            readonly status?: 503;
+            /** @constant */
+            readonly title?: "Service Unavailable";
+        };
         readonly CreateCommunityPost: {
             readonly body: string;
             readonly campusId: components["schemas"]["CampusId"];
@@ -360,20 +435,34 @@ export interface components {
             readonly recipientActorId: string;
         };
         readonly Event: {
+            readonly allDay: boolean;
             readonly campusId: components["schemas"]["CampusId"];
-            /** Format: date-time */
-            readonly endsAt?: string | null;
-            readonly freshnessState: components["schemas"]["FreshnessState"];
-            readonly id: string;
-            readonly sourceId: string;
             /** Format: uri */
-            readonly sourceUrl: string;
+            readonly canonicalUrl: string;
+            readonly categories: readonly string[];
+            readonly descriptionText: string | null;
+            /** Format: date-time */
+            readonly endsAt: string | null;
+            readonly id: string;
+            readonly language: string;
+            readonly location: components["schemas"]["PublicEventLocation"];
+            /** Format: date-time */
+            readonly observedAt: string;
+            readonly sourceId: string;
+            readonly sourceObservationId: string;
             /** Format: date-time */
             readonly startsAt: string;
-            readonly title: components["schemas"]["BilingualText"];
+            /** @enum {string} */
+            readonly status: "SCHEDULED" | "POSTPONED" | "CANCELLED";
+            readonly timeZone: string;
+            readonly title: string;
         };
-        readonly EventPage: components["schemas"]["PageEnvelope"] & {
+        readonly EventPage: {
             readonly items: readonly components["schemas"]["Event"][];
+            readonly nextCursor: string | null;
+            readonly range: components["schemas"]["CatalogRange"];
+            readonly retrievalCoverage: components["schemas"]["RetrievalCoverage"];
+            readonly sourceObservations: readonly components["schemas"]["SourceObservation"][];
         };
         /** @enum {string} */
         readonly FreshnessState: "FRESH" | "STALE" | "EXPIRED" | "UNKNOWN";
@@ -477,6 +566,23 @@ export interface components {
             /** Format: uri-reference */
             readonly type: string;
         };
+        readonly PublicEventLocation: (({
+            readonly address: string | null;
+            readonly coordinates: readonly number[] | null;
+            readonly name: string | null;
+            /** Format: uri */
+            readonly onlineUrl: string | null;
+        } & unknown) | null) & unknown;
+        readonly RetrievalCoverage: {
+            readonly nextUpstreamPage: number | null;
+            readonly pagesFetched: number;
+            /** @description Sessions may contain up to 50,000 records; the events runtime is independently capped at 150 per request. */
+            readonly recordsFetched: number;
+            readonly sourceTotalPages: number;
+            readonly sourceTotalRecords: number;
+            /** @description True when the source exceeds the reviewed 20-page or 1,000-record access ceiling. */
+            readonly truncatedByPolicy: boolean;
+        };
         /** @enum {string} */
         readonly RouteProfile: "walking" | "wheelchair";
         readonly RouteRequest: {
@@ -506,23 +612,87 @@ export interface components {
             readonly validUntil: string | null;
             readonly verificationState: components["schemas"]["VerificationState"];
         };
+        /**
+         * @description Public source-governance record. LIVE_ONLY access is fail-closed unless authorization evidence,
+         *     a review timestamp, and a later review expiry are all present. The review interval is validated
+         *     by the shared contract to be no longer than 366 days. APPROVAL_REQUIRED and PROHIBITED sources
+         *     cannot carry live-access review timestamps.
+         */
         readonly SourceDescriptor: {
             readonly attribution: string;
+            /** Format: uri */
+            readonly authorizationEvidenceUrl: string | null;
+            readonly cacheDisposition: {
+                /** @enum {string} */
+                readonly derivedArtifacts: "PROHIBITED" | "SAME_RETENTION" | "SEPARATE_APPROVAL";
+                /** @enum {string} */
+                readonly normalizedRecords: "NEVER_STORE" | "TRANSIENT_ONLY" | "PERSIST_WITH_TTL";
+                /** @enum {string} */
+                readonly rawResponse: "NEVER_STORE" | "TRANSIENT_ONLY" | "PERSIST_WITH_TTL";
+                readonly retentionSeconds: number | null;
+            };
             /** @enum {string} */
             readonly cachePolicy: "CACHE_ALLOWED" | "METADATA_ONLY" | "NO_CONTENT_CACHE" | "NO_ACCESS";
             readonly campusIds: readonly components["schemas"]["CampusId"][];
+            readonly dataClasses: readonly ("PUBLIC_METADATA" | "COPYRIGHTED_CONTENT" | "PRECISE_LOCATION" | "PERSONAL_DATA" | "SENSITIVE_DATA" | "SAFETY_CRITICAL" | "MEDIA")[];
+            /** @enum {string} */
+            readonly dataClassification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED";
             readonly freshnessState: components["schemas"]["FreshnessState"];
             readonly id: string;
+            readonly killSwitch: {
+                /** @enum {string} */
+                readonly defaultState: "ENABLED" | "DISABLED";
+                /** @enum {string} */
+                readonly fallback: "DEEPLINK_ONLY" | "UNAVAILABLE";
+                readonly key: string;
+            };
             /** Format: date-time */
             readonly lastCheckedAt: string | null;
+            /** Format: uri */
+            readonly licenseEvidenceUrl: string | null;
             readonly licenseStatus: components["schemas"]["LicenseStatus"];
             readonly name: components["schemas"]["BilingualText"];
             readonly officialStatus: components["schemas"]["OfficialStatus"];
+            readonly owner: {
+                /** Format: uri */
+                readonly contactUrl: string;
+                readonly teamId: string;
+            };
             readonly publisher: string;
+            readonly resourceKinds: readonly ("CAMPUS_DEEPLINK" | "ACADEMIC_SESSION" | "PUBLIC_EVENT")[];
             /** Format: uri */
             readonly sourceUrl: string;
+            /** Format: date-time */
+            readonly termsReviewedAt: string | null;
+            /** Format: date-time */
+            readonly termsReviewExpiresAt: string | null;
             readonly verificationState: components["schemas"]["VerificationState"];
-        } & unknown;
+        } & (unknown & unknown & unknown & unknown & unknown);
+        readonly SourceObservation: {
+            /** @enum {string} */
+            readonly appliedCacheDisposition: "NO_ACCESS" | "DISCARDED_AFTER_RESPONSE" | "OPERATIONAL_METADATA_ONLY" | "CONTENT_CACHED";
+            /** @enum {string} */
+            readonly cachePolicy: "CACHE_ALLOWED" | "METADATA_ONLY" | "NO_CONTENT_CACHE" | "NO_ACCESS";
+            readonly campusId: components["schemas"]["CampusId"];
+            /** @enum {string} */
+            readonly dataClassification: "PUBLIC" | "INTERNAL" | "CONFIDENTIAL" | "RESTRICTED";
+            readonly durationMs: number;
+            readonly failureCode: null;
+            readonly freshnessState: components["schemas"]["FreshnessState"];
+            readonly httpStatus: number;
+            readonly licenseStatus: components["schemas"]["LicenseStatus"];
+            readonly observationId: string;
+            /** Format: date-time */
+            readonly observedAt: string;
+            /** @constant */
+            readonly outcome: "SUCCESS";
+            readonly parserVersion: string;
+            readonly rawByteLength: number;
+            readonly rawSha256: string;
+            readonly recordsAccepted: number;
+            readonly recordsRejected: number;
+            readonly sourceId: string;
+        };
         readonly SourcePage: components["schemas"]["PageEnvelope"] & {
             readonly items: readonly components["schemas"]["SourceDescriptor"][];
         };
@@ -587,7 +757,19 @@ export interface components {
         /** @description Required connector is disabled, unapproved, or temporarily unavailable */
         readonly ConnectorUnavailable: {
             headers: {
+                readonly "Cache-Control": components["headers"]["NoStore"];
                 readonly "Retry-After"?: number;
+                readonly "X-Request-Id": components["headers"]["RequestId"];
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["ConnectorUnavailableProblem"];
+            };
+        };
+        /** @description Cursor snapshot is no longer the current normalized source snapshot */
+        readonly CursorExpired: {
+            headers: {
+                readonly "Cache-Control": components["headers"]["NoStore"];
                 readonly [name: string]: unknown;
             };
             content: {
@@ -611,6 +793,19 @@ export interface components {
             content: {
                 readonly "application/problem+json": components["schemas"]["Problem"];
             };
+        };
+        /**
+         * @description The live source was revalidated and the normalized representation has not changed;
+         *     the response has no body and remains non-cacheable.
+         */
+        readonly LiveCatalogNotModified: {
+            headers: {
+                readonly "Cache-Control": components["headers"]["NoStore"];
+                readonly ETag: components["headers"]["ETag"];
+                readonly "X-Request-Id": components["headers"]["RequestId"];
+                readonly [name: string]: unknown;
+            };
+            content?: never;
         };
         /** @description Resource was not found */
         readonly NotFound: {
@@ -662,15 +857,20 @@ export interface components {
         readonly AcademicInstitutionQuery: components["schemas"]["AcademicInstitutionCode"];
         readonly CampusPath: components["schemas"]["CampusId"];
         readonly CampusQuery: components["schemas"]["CampusId"];
-        /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
-        readonly Cursor: string;
+        /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
+        readonly Cursor: components["schemas"]["CatalogCursor"];
         readonly EventIdPath: string;
+        /** @description Inclusive local calendar date; must be supplied together with `to`. */
+        readonly FromDate: string;
         /** @description Unique opaque key retained for 24 hours; reuse with a different body returns 409. */
         readonly IdempotencyKey: string;
         /** @description Conditional request validator from a previous ETag response. */
         readonly IfNoneMatch: string;
         readonly Limit: number;
+        readonly RequiredCampusQuery: components["schemas"]["CampusId"];
         readonly SourceIdPath: string;
+        /** @description Inclusive local calendar date; must be supplied together with `from`. */
+        readonly ToDate: string;
     };
     requestBodies: never;
     headers: {
@@ -678,6 +878,8 @@ export interface components {
         readonly ETag: string;
         /** @description True when the response is a replay of a prior request with the same key and body. */
         readonly IdempotencyReplayed: boolean;
+        /** @description LIVE_ONLY catalog content must not be stored by clients or intermediaries. */
+        readonly NoStore: "no-store";
         /** @description Correlation ID suitable for support, not an authentication credential. */
         readonly RequestId: string;
     };
@@ -690,7 +892,7 @@ export interface operations {
             readonly query?: {
                 readonly academicInstitutionCode?: components["parameters"]["AcademicInstitutionQuery"];
                 readonly campusId?: components["parameters"]["CampusQuery"];
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
             };
@@ -717,6 +919,46 @@ export interface operations {
             readonly 400: components["responses"]["BadRequest"];
             readonly 401: components["responses"]["Unauthorized"];
             readonly 403: components["responses"]["Forbidden"];
+            readonly 503: components["responses"]["ConnectorUnavailable"];
+        };
+    };
+    readonly listAcademicSessions: {
+        readonly parameters: {
+            readonly query: {
+                readonly campusId: components["parameters"]["RequiredCampusQuery"];
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                readonly cursor?: components["parameters"]["Cursor"];
+                /** @description Inclusive local calendar date; must be supplied together with `to`. */
+                readonly from?: components["parameters"]["FromDate"];
+                readonly limit?: components["parameters"]["Limit"];
+                /** @description Inclusive local calendar date; must be supplied together with `from`. */
+                readonly to?: components["parameters"]["ToDate"];
+            };
+            readonly header?: {
+                /** @description Conditional request validator from a previous ETag response. */
+                readonly "If-None-Match"?: components["parameters"]["IfNoneMatch"];
+            };
+            readonly path?: never;
+            readonly cookie?: never;
+        };
+        readonly requestBody?: never;
+        readonly responses: {
+            /** @description Cursor page of academic sessions */
+            readonly 200: {
+                headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly ETag: components["headers"]["ETag"];
+                    readonly "X-Request-Id": components["headers"]["RequestId"];
+                    readonly [name: string]: unknown;
+                };
+                content: {
+                    readonly "application/json": components["schemas"]["AcademicSessionPage"];
+                };
+            };
+            readonly 304: components["responses"]["LiveCatalogNotModified"];
+            readonly 400: components["responses"]["BadRequest"];
+            readonly 410: components["responses"]["CursorExpired"];
+            readonly 500: components["responses"]["InternalServerError"];
             readonly 503: components["responses"]["ConnectorUnavailable"];
         };
     };
@@ -821,7 +1063,7 @@ export interface operations {
         readonly parameters: {
             readonly query?: {
                 readonly campusId?: components["parameters"]["CampusQuery"];
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
             };
@@ -880,11 +1122,15 @@ export interface operations {
     };
     readonly listEvents: {
         readonly parameters: {
-            readonly query?: {
-                readonly campusId?: components["parameters"]["CampusQuery"];
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+            readonly query: {
+                readonly campusId: components["parameters"]["RequiredCampusQuery"];
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
+                /** @description Inclusive local calendar date; must be supplied together with `to`. */
+                readonly from?: components["parameters"]["FromDate"];
                 readonly limit?: components["parameters"]["Limit"];
+                /** @description Inclusive local calendar date; must be supplied together with `from`. */
+                readonly to?: components["parameters"]["ToDate"];
             };
             readonly header?: {
                 /** @description Conditional request validator from a previous ETag response. */
@@ -898,15 +1144,19 @@ export interface operations {
             /** @description Cursor page of events */
             readonly 200: {
                 headers: {
+                    readonly "Cache-Control": components["headers"]["NoStore"];
                     readonly ETag: components["headers"]["ETag"];
+                    readonly "X-Request-Id": components["headers"]["RequestId"];
                     readonly [name: string]: unknown;
                 };
                 content: {
                     readonly "application/json": components["schemas"]["EventPage"];
                 };
             };
-            readonly 304: components["responses"]["NotModified"];
+            readonly 304: components["responses"]["LiveCatalogNotModified"];
             readonly 400: components["responses"]["BadRequest"];
+            readonly 410: components["responses"]["CursorExpired"];
+            readonly 500: components["responses"]["InternalServerError"];
             readonly 503: components["responses"]["ConnectorUnavailable"];
         };
     };
@@ -973,7 +1223,7 @@ export interface operations {
     readonly listMessages: {
         readonly parameters: {
             readonly query?: {
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
             };
@@ -1039,7 +1289,7 @@ export interface operations {
     readonly listModerationCases: {
         readonly parameters: {
             readonly query?: {
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
             };
@@ -1067,7 +1317,7 @@ export interface operations {
         readonly parameters: {
             readonly query?: {
                 readonly campusId?: components["parameters"]["CampusQuery"];
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
                 readonly query?: string;
@@ -1132,7 +1382,7 @@ export interface operations {
         readonly parameters: {
             readonly query?: {
                 readonly campusId?: components["parameters"]["CampusQuery"];
-                /** @description Opaque cursor returned as nextCursor; clients must not parse or modify it. */
+                /** @description Integrity-protected opaque cursor returned as nextCursor; clients must not parse or modify it. */
                 readonly cursor?: components["parameters"]["Cursor"];
                 readonly limit?: components["parameters"]["Limit"];
             };

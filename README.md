@@ -14,11 +14,13 @@ Cities, Duluth, Crookston, Morris, and Rochester.
 ## Foundation status
 
 This repository is an engineering foundation, not a production campus service.
-The current API implementation is deliberately narrow: health, campus metadata,
-source metadata, and schematic world manifests are served from in-memory
-repositories behind ports. OpenAPI and AsyncAPI files describe the intended
-contract surface; a documented operation or event is not proof that its backing
-connector or workflow is enabled.
+The current API implementation includes health, campus/source metadata,
+schematic world manifests, and an evidence-gated public catalog. Academic
+sessions for all five campuses and public events for Twin Cities and Duluth are
+retrieved live with no content cache; unsupported event campuses fall back to
+official links. OpenAPI and AsyncAPI also describe intended contract surfaces,
+so a documented operation or event is not proof that its backing connector or
+workflow is enabled.
 
 The platform is designed around:
 
@@ -120,7 +122,9 @@ script does not print or pass those credentials to either runtime.
 
 After `pnpm build`, `pnpm smoke:api` starts the compiled API on an ephemeral
 loopback port and verifies health, all five campus records, source filtering,
-schematic world labeling, ETags, and the fail-closed contract-only event route.
+schematic world labeling, ETags, and the fail-closed disabled-campus event
+fallback. Live Sessions and event feeds have a separate deliberately
+low-frequency smoke procedure so the ordinary build never polls UMN systems.
 This specifically checks that workspace package runtime exports work after
 compilation; typechecking alone is not accepted as runtime evidence.
 
@@ -131,6 +135,21 @@ a reviewed network boundary.
 The development command starts workspace development tasks. Consult package
 scripts and the API contracts before assuming a planned endpoint is backed by a
 runtime implementation.
+
+### Live public catalog
+
+Run the API and web app together to use live public Sessions data for all five
+campuses and live Twin Cities/Duluth event feeds. Set
+`GOPHER_API_BASE_URL=http://127.0.0.1:4000` for the local web development
+process; production requires an explicit HTTPS origin. Responses are
+`LIVE_ONLY`, carry source observations and coverage, and use
+`Cache-Control: no-store`. Rochester academic data uses the reviewed `UMNTC`
+mapping. Morris events remain approval-required and disabled, while Crookston
+and Rochester events remain official deep links.
+
+See the [public catalog operations runbook](docs/public-catalog-operations.md)
+for copyable startup and low-frequency smoke commands, cursor-key deployment,
+source switches, review expiry, pagination semantics, and incident fallback.
 
 ## Identity and developer tools
 
@@ -146,9 +165,10 @@ committed artifacts with:
     pnpm generate
     pnpm check:generated
 
-Every OpenAPI operation has an `x-runtime-status`. Only health, campus metadata,
-source metadata, and schematic world manifests are currently marked
-`implemented`; the other public contract surfaces remain `contract-only`.
+Every OpenAPI operation has an `x-runtime-status`. Health, campus metadata,
+source metadata, schematic world manifests, academic sessions, and public
+events are currently implemented; the other public contract surfaces remain
+`contract-only`.
 
 The `uga` CLI uses the same implemented operation catalog, RFC 8628 device
 authorization, exact exit codes, JSON envelopes, and operating-system keychain
@@ -172,8 +192,47 @@ The web app is an installable, responsive field guide for all five campuses. It
 provides English and Simplified Chinese interfaces for Today, Explore, Plan,
 Community, World, Ask, Operations, and Developer routes. Campus, language, and
 theme preferences are stored in first-party cookies so the initial server render
-matches the browser state. Demo tasks and assistant settings remain local to the
-browser.
+matches the browser state. The Plan task board is a separate local encrypted
+vault; it never uses the old plaintext task `localStorage` value.
+
+### Local encrypted task vault
+
+The Plan page offers an offline, single-browser task vault. It is deliberately
+not an account, sync service, or cross-device backup.
+
+- First use requires an explicit **Create private vault** action. A recovery
+  code is shown once and must be acknowledged before the encrypted records are
+  written.
+- The page requires an explicit unlock for every browser session. It locks on
+  demand, after 15 minutes without activity, and immediately when the page is
+  hidden or unloaded.
+- A module Worker owns live vault/device-key handles and IndexedDB operations.
+  The page receives task view models only; it never receives vault-key bytes.
+- The X25519 device private key is sealed with an origin-bound,
+  non-extractable AES-256-GCM `CryptoKey`; encrypted task payloads and keyring
+  records live in IndexedDB. Legacy `uga.tasks` values are only removed after
+  strict validation, encrypted write, and exact decrypt/read-back verification.
+- If a legacy value is malformed or a migration fails, it remains available for
+  explicit export or deletion. The application does not fall back to plaintext
+  task storage.
+- Clearing site data or losing the local ciphertext makes these tasks
+  unrecoverable. The recovery code does not promise recovery on another device.
+  Store it offline and do not upload, screenshot-share, or send it to others.
+- Browsers without Worker, IndexedDB, WebCrypto, or non-extractable `CryptoKey`
+  persistence are shown an unavailable/read-only state; existing legacy data is
+  retained without a plaintext fallback.
+- The encrypted vault requires Safari/iOS 26 or newer. Older Apple WebKit
+  releases are disabled because WebKit bug 288682 can partially commit an
+  IndexedDB transaction when a Worker is terminated; the rest of the public
+  field guide remains available and legacy plaintext is retained untouched.
+
+The vault is intentionally isolated from the AI page, API, logs, Service
+Worker, and response caches. The Service Worker never caches a normal `/plan`
+response and never accepts vault messages. It may cache only an internally
+marked, credentials-omitted anonymous Plan shell plus the project-owned Vault
+Worker bootstrap and its SHA-256 content-addressed artifact. The artifact is
+verified before publication; task plaintext, recovery codes, ciphertext,
+keyrings, and trusted-device records remain outside Cache Storage.
 
 Run the web app alone from the repository root with:
 
@@ -187,9 +246,12 @@ under `/api/` and `/v1/`. To exercise the production PWA locally:
     pnpm --filter @umn-gopher-assistant/web build
     pnpm --filter @umn-gopher-assistant/web start
 
-The PWA preserves access to project-authored demo material when offline. It does
-not make external official sources, live schedules, safety alerts, registration,
-or campus systems available offline.
+The PWA preserves a bilingual, project-authored offline status shell and the
+anonymous Plan vault shell. It deliberately does not cache runtime navigation
+HTML—even for a page that is public today—so a later authenticated or
+personalized response cannot be replayed on a shared browser. External official
+sources, live schedules, safety alerts, registration, and campus systems are not
+made available offline.
 
 ## Web tests
 
@@ -198,11 +260,18 @@ Component and domain tests run in Vitest:
     pnpm --filter @umn-gopher-assistant/web test
 
 Playwright covers English-to-Chinese switching, all five persisted campus
-choices, the Today-to-Explore-to-Plan journey, mobile and keyboard navigation,
-the production offline fallback, manifest and service-worker policy, and
-automated WCAG A/AA checks. Install the pinned Chromium binary once, then run:
+choices, the Today-to-Explore-to-Plan journey, local vault setup/migration,
+recovery, background lock, offline writes, production Worker/CSP behavior,
+mobile and keyboard navigation, the production offline fallback, manifest and
+service-worker policy, and automated WCAG A/AA checks. The Vault suite runs on
+desktop Firefox/WebKit and Pixel 5/iPhone 13 profiles as well as Chromium.
+The same serial five-project Vault matrix—including an iPhone 13 layout on the
+supported iOS/WebKit 26 path—is a required GitHub Actions job;
+failures retain the browser trace, screenshot, video, and HTML report as a
+short-lived CI artifact.
+Install the pinned browser binaries once, then run:
 
-    pnpm --filter @umn-gopher-assistant/web exec playwright install chromium
+    pnpm --filter @umn-gopher-assistant/web exec playwright install chromium firefox webkit
     pnpm --filter @umn-gopher-assistant/web test:e2e
 
 The Playwright configuration builds and serves the production app when
@@ -212,18 +281,32 @@ instance. Failed runs retain a trace, screenshot, and video under the ignored
 `apps/web/playwright-report` directory. Tests rely on browser events and web
 assertions rather than fixed sleeps.
 
+The full offline-vault reload test intentionally stops and restores the local
+Next.js process, so it is enabled only in its serial managed-server gate. CI
+runs this command (PowerShell users can set the variable with
+`$env:PLAYWRIGHT_MANAGED_OFFLINE='1'` first):
+
+    PLAYWRIGHT_MANAGED_OFFLINE=1 pnpm --filter @umn-gopher-assistant/web test:e2e e2e/vault.spec.ts --workers=1
+
+The launcher binds its stop/start control endpoint to loopback, authenticates
+each request with a per-run random token, and automatically restores the app
+after a bounded offline lease if a test worker crashes. Ordinary parallel E2E
+runs leave this destructive-origin test skipped.
+
 ### Current web limitations
 
-- Entries, weather, routes, schedules, community posts, moderation items, and
-  assistant answers are authored demonstrations unless a provenance link says
-  otherwise.
+- Weather, routes, personal class schedules, community posts, moderation items,
+  and assistant answers are authored demonstrations unless a provenance link
+  says otherwise. Public Sessions and TC/Duluth events are live-only views with
+  per-request provenance and are unavailable offline.
 - Official links leave the app and require a network connection. Their content,
   availability, accessibility, and licensing remain the source owner's
   responsibility.
 - The schematic map is paired with a text list and is not an official map,
   accessible-route guarantee, emergency route, or live navigation system.
-- Browser storage is not an account, synchronization service, private vault, or
-  institutional record. Clearing site data removes local preferences and tasks.
+- The local task vault is single-browser and offline-only; it is not an account,
+  synchronization service, backup, or institutional record. Clearing site data
+  or losing its ciphertext makes its tasks unrecoverable.
 - Installability and offline behavior require a supported browser and a secure
   context (localhost is accepted for development).
 
@@ -236,6 +319,7 @@ assertions rather than fixed sleeps.
 | apps/cli           | RFC 8628 command-line client and guarded read commands   |
 | apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server        |
 | packages/contracts | Shared schemas and public contract types                 |
+| packages/crypto    | Browser-friendly E2EE primitives and local key envelopes |
 | packages/config    | Campus and source registries with provenance             |
 | packages/db        | Database schema, migrations, and persistence adapters    |
 | packages/testing   | Shared test configuration and utilities                  |
@@ -262,6 +346,7 @@ permission to republish the target.
 
 - [Architecture](docs/architecture.md)
 - [Data source policy](docs/data-source-policy.md)
+- [Public catalog operations](docs/public-catalog-operations.md)
 - [Threat model](docs/threat-model.md)
 - [Identity and authorization boundary](docs/identity.md)
 - [Selective service architecture decision](docs/adr/0001-selective-service-architecture.md)
