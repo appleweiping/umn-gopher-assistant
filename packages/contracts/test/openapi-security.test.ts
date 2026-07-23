@@ -48,7 +48,7 @@ const expectedSecurity = new Map<string, readonly string[]>([
   ["getWorldManifest", []],
   ["listCommunityPosts", []],
   ["createCommunityPost", ["community:write"]],
-  ["queryAssistant", ["campus:read"]],
+  ["queryCampusAssistant", []],
   ["listAcademicCourses", ["campus:read"]],
   ["listMessages", ["messages:read"]],
   ["createMessage", ["messages:write"]],
@@ -104,6 +104,7 @@ describe("OpenAPI authorization contract", () => {
         "listCampuses",
         "listEvents",
         "listSources",
+        "queryCampusAssistant",
       ].sort(),
     );
   });

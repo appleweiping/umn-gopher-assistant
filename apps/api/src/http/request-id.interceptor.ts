@@ -5,7 +5,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Observable } from "rxjs";
 
 function isContractRequestId(value: unknown): value is string {
-  return typeof value === "string" && value.length >= 8 && value.length <= 128;
+  return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(value);
 }
 
 const resolvedRequestIds = new WeakMap<FastifyRequest, string>();

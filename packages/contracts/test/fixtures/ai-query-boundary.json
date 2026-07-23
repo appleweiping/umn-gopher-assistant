@@ -1,0 +1,173 @@
+{
+  "validRequests": [
+    {
+      "name": "English campus question",
+      "value": { "campusId": "tc", "locale": "en", "query": "Where is the library?" }
+    },
+    {
+      "name": "Chinese campus question",
+      "value": { "campusId": "duluth", "locale": "zh-CN", "query": "图书馆在哪里？" }
+    },
+    {
+      "name": "ordinary ampersand text",
+      "value": { "campusId": "crookston", "locale": "en", "query": "R&D student services" }
+    }
+  ],
+  "invalidRequests": [
+    { "name": "HTML delimiters", "value": { "campusId": "tc", "locale": "en", "query": "<library>" } },
+    {
+      "name": "control character",
+      "value": { "campusId": "tc", "locale": "en", "query": "library\u0000hours" }
+    },
+    { "name": "non-NFC text", "value": { "campusId": "tc", "locale": "en", "query": "cafe\u0301" } },
+    { "name": "encoded HTML", "value": { "campusId": "tc", "locale": "en", "query": "&#x3c;script&#x3e;" } },
+    { "name": "too short", "value": { "campusId": "tc", "locale": "en", "query": "a" } },
+    {
+      "name": "too long",
+      "value": {
+        "campusId": "tc",
+        "locale": "en",
+        "query": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "name": "unsupported campus",
+      "value": { "campusId": "unknown", "locale": "en", "query": "library hours" }
+    },
+    {
+      "name": "unknown secret field",
+      "value": {
+        "campusId": "tc",
+        "locale": "en",
+        "query": "library hours",
+        "apiKey": "must-not-be-accepted"
+      }
+    }
+  ],
+  "validResponses": [
+    {
+      "name": "fresh evidence answer",
+      "value": {
+        "state": "answered",
+        "queryId": "123e4567-e89b-42d3-a456-426614174000",
+        "campusId": "tc",
+        "locale": "en",
+        "paragraphs": [
+          {
+            "id": "paragraph.1",
+            "text": "Use the reviewed library starting point.",
+            "citationIds": ["citation.1"]
+          }
+        ],
+        "citations": [
+          {
+            "id": "citation.1",
+            "campusId": "tc",
+            "sourceId": "official-tc-library",
+            "category": "library",
+            "title": { "en": "Library", "zh-CN": "图书馆" },
+            "sourceUrl": "https://www.lib.umn.edu/",
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "updatedAt": "2026-07-22T12:00:00.000Z",
+            "freshnessState": "FRESH",
+            "verificationState": "schematic",
+            "excerpt": "Use the reviewed library starting point."
+          }
+        ],
+        "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
+      }
+    },
+    {
+      "name": "empty no results",
+      "value": {
+        "state": "no-results",
+        "queryId": "123e4567-e89b-42d3-a456-426614174001",
+        "campusId": "morris",
+        "locale": "zh-CN",
+        "paragraphs": [],
+        "citations": [],
+        "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
+      }
+    }
+  ],
+  "invalidResponses": [
+    {
+      "name": "answered with expired evidence",
+      "value": {
+        "state": "answered",
+        "queryId": "123e4567-e89b-42d3-a456-426614174000",
+        "campusId": "tc",
+        "locale": "en",
+        "paragraphs": [{ "id": "paragraph.1", "text": "Old answer", "citationIds": ["citation.1"] }],
+        "citations": [
+          {
+            "id": "citation.1",
+            "campusId": "tc",
+            "sourceId": "official-tc-library",
+            "category": "library",
+            "title": { "en": "Library", "zh-CN": "图书馆" },
+            "sourceUrl": "https://www.lib.umn.edu/",
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "updatedAt": "2020-01-01T00:00:00.000Z",
+            "freshnessState": "EXPIRED",
+            "verificationState": "schematic",
+            "excerpt": "Old answer"
+          }
+        ],
+        "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
+      }
+    },
+    {
+      "name": "cross-campus evidence",
+      "value": {
+        "state": "answered",
+        "queryId": "123e4567-e89b-42d3-a456-426614174000",
+        "campusId": "tc",
+        "locale": "en",
+        "paragraphs": [{ "id": "paragraph.1", "text": "Wrong campus", "citationIds": ["citation.1"] }],
+        "citations": [
+          {
+            "id": "citation.1",
+            "campusId": "duluth",
+            "sourceId": "official-duluth-library",
+            "category": "library",
+            "title": { "en": "Library", "zh-CN": "图书馆" },
+            "sourceUrl": "https://lib.d.umn.edu/",
+            "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "updatedAt": "2026-07-22T12:00:00.000Z",
+            "freshnessState": "FRESH",
+            "verificationState": "schematic",
+            "excerpt": "Wrong campus"
+          }
+        ],
+        "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
+      }
+    },
+    {
+      "name": "retired evidence",
+      "value": {
+        "state": "answered",
+        "queryId": "123e4567-e89b-42d3-a456-426614174000",
+        "campusId": "tc",
+        "locale": "en",
+        "paragraphs": [{ "id": "paragraph.1", "text": "Retired answer", "citationIds": ["citation.1"] }],
+        "citations": [
+          {
+            "id": "citation.1",
+            "campusId": "tc",
+            "sourceId": "official-tc-library",
+            "category": "library",
+            "title": { "en": "Library", "zh-CN": "图书馆" },
+            "sourceUrl": "https://www.lib.umn.edu/",
+            "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "updatedAt": "2026-07-22T12:00:00.000Z",
+            "freshnessState": "FRESH",
+            "verificationState": "retired",
+            "excerpt": "Retired answer"
+          }
+        ],
+        "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
+      }
+    }
+  ]
+}

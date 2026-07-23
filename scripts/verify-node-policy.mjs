@@ -13,6 +13,7 @@ const manifests = [
   "package.json",
   "apps/api/package.json",
   "apps/cli/package.json",
+  "apps/edge-gateway/package.json",
   "apps/mcp-server/package.json",
   "apps/web/package.json",
   "packages/config/package.json",

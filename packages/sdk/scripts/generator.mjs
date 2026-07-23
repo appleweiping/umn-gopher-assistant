@@ -84,7 +84,87 @@ const annotationSchemaKeys = new Set([
   "readOnly",
   "title",
   "writeOnly",
+  "x-uga-trim",
+  "x-uga-semantic-validator",
 ]);
+
+function semanticRefinementSource(name, context) {
+  if (name === "ai-query-text-v1") {
+    return `.refine((value) => value.normalize("NFC") === value, { message: "Query must use NFC Unicode normalization" })
+      .refine((value) => !/[\\p{Cc}\\p{Cf}\\p{Cs}]/u.test(value), { message: "Query cannot contain control or format characters" })
+      .refine((value) => !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value), { message: "Query cannot contain HTML or encoded HTML" })`;
+  }
+  if (name === "ai-evidence-text-v1") {
+    return `.refine((value) => value === value.trim(), { message: "Evidence text cannot have boundary whitespace" })
+      .refine((value) => value.normalize("NFC") === value, { message: "Evidence text must use NFC Unicode normalization" })
+      .refine((value) => !/[\\p{Cc}\\p{Cf}\\p{Cs}]/u.test(value), { message: "Evidence text cannot contain control or format characters" })
+      .refine((value) => !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value), { message: "Evidence text cannot contain HTML or encoded HTML" })`;
+  }
+  if (name !== "ai-query-response-v1") {
+    throw new Error(`${context} uses unsupported semantic validator ${String(name)}`);
+  }
+  return `.superRefine((value, refinement) => {
+    const paragraphIds = value.paragraphs.map((paragraph) => paragraph.id);
+    if (new Set(paragraphIds).size !== paragraphIds.length) {
+      refinement.addIssue({ code: "custom", message: "paragraph ids must be unique", path: ["paragraphs"] });
+    }
+    const citationIds = value.citations.map((citation) => citation.id);
+    if (new Set(citationIds).size !== citationIds.length) {
+      refinement.addIssue({ code: "custom", message: "citation ids must be unique", path: ["citations"] });
+    }
+    const knownCitationIds = new Set(citationIds);
+    const referencedCitationIds = new Set();
+    value.paragraphs.forEach((paragraph, paragraphIndex) => {
+      const paragraphCitationIds = new Set();
+      paragraph.citationIds.forEach((citationId, citationIndex) => {
+        if (paragraphCitationIds.has(citationId)) {
+          refinement.addIssue({ code: "custom", message: "citationIds must be unique within a paragraph", path: ["paragraphs", paragraphIndex, "citationIds", citationIndex] });
+        }
+        paragraphCitationIds.add(citationId);
+        referencedCitationIds.add(citationId);
+        if (!knownCitationIds.has(citationId)) {
+          refinement.addIssue({ code: "custom", message: "paragraph citationIds must reference citations in this response", path: ["paragraphs", paragraphIndex, "citationIds", citationIndex] });
+        }
+      });
+    });
+    value.citations.forEach((citation, citationIndex) => {
+      if (citation.campusId !== value.campusId) {
+        refinement.addIssue({ code: "custom", message: "cross-campus citations are not allowed", path: ["citations", citationIndex, "campusId"] });
+      }
+      if (!referencedCitationIds.has(citation.id)) {
+        refinement.addIssue({ code: "custom", message: "every citation must support at least one answer paragraph", path: ["citations", citationIndex, "id"] });
+      }
+      if (citation.verificationState === "retired") {
+        refinement.addIssue({ code: "custom", message: "retired evidence cannot be cited", path: ["citations", citationIndex, "verificationState"] });
+      }
+      if (citation.freshnessState === "UNKNOWN") {
+        refinement.addIssue({ code: "custom", message: "evidence with unknown freshness cannot be cited", path: ["citations", citationIndex, "freshnessState"] });
+      }
+    });
+    if (value.state === "no-results") {
+      if (value.paragraphs.length !== 0) refinement.addIssue({ code: "custom", message: "no-results responses cannot contain answer paragraphs", path: ["paragraphs"] });
+      if (value.citations.length !== 0) refinement.addIssue({ code: "custom", message: "no-results responses cannot contain citations", path: ["citations"] });
+      return;
+    }
+    if (value.paragraphs.length === 0) refinement.addIssue({ code: "custom", message: "non-empty responses require at least one evidence-backed paragraph", path: ["paragraphs"] });
+    if (value.citations.length === 0) refinement.addIssue({ code: "custom", message: "non-empty responses require at least one citation", path: ["citations"] });
+    if (value.state === "answered") {
+      value.citations.forEach((citation, citationIndex) => {
+        if (citation.freshnessState !== "FRESH") refinement.addIssue({ code: "custom", message: "answered responses may cite only FRESH evidence", path: ["citations", citationIndex, "freshnessState"] });
+      });
+    }
+    if (value.state === "stale") {
+      value.citations.forEach((citation, citationIndex) => {
+        if (citation.freshnessState !== "STALE" && citation.freshnessState !== "EXPIRED") refinement.addIssue({ code: "custom", message: "stale responses may cite only STALE or EXPIRED evidence", path: ["citations", citationIndex, "freshnessState"] });
+      });
+    }
+    if (value.state === "conflict") {
+      if (value.citations.length < 2) refinement.addIssue({ code: "custom", message: "conflict responses require at least two citations", path: ["citations"] });
+      if (new Set(value.citations.map((citation) => citation.sourceId)).size < 2) refinement.addIssue({ code: "custom", message: "conflict responses require at least two distinct sources", path: ["citations"] });
+      if (new Set(value.citations.map((citation) => citation.contentSha256)).size < 2) refinement.addIssue({ code: "custom", message: "conflict responses require genuinely different evidence", path: ["citations"] });
+    }
+  })`;
+}
 
 function assertSupportedSchemaKeys(schema, allowedKeys, context) {
   for (const key of Object.keys(schema)) {
@@ -254,6 +334,20 @@ function zodSchemaSource(document, schema, context) {
   if (resolved === true) return "z.unknown()";
   if (resolved === false) return "z.never()";
   if (!resolved || typeof resolved !== "object") throw new Error(`${context} is not a schema`);
+  const isObjectSchema =
+    resolved.type === "object" ||
+    resolved.properties !== undefined ||
+    resolved.required !== undefined ||
+    resolved.allOf !== undefined;
+  if (resolved["x-uga-trim"] !== undefined && resolved["x-uga-trim"] !== true) {
+    throw new Error(`${context} must set x-uga-trim to true when present`);
+  }
+  if (resolved["x-uga-trim"] === true && resolved.type !== "string") {
+    throw new Error(`${context} applies x-uga-trim to a non-string schema`);
+  }
+  if (resolved["x-uga-semantic-validator"] !== undefined && resolved.type !== "string" && !isObjectSchema) {
+    throw new Error(`${context} applies a semantic validator to an unsupported schema kind`);
+  }
 
   if (resolved.const !== undefined) {
     assertSupportedSchemaKeys(resolved, new Set(["type", "const"]), context);
@@ -279,12 +373,7 @@ function zodSchemaSource(document, schema, context) {
       .join(", ")}])`;
   }
 
-  if (
-    resolved.type === "object" ||
-    resolved.properties !== undefined ||
-    resolved.required !== undefined ||
-    resolved.allOf !== undefined
-  ) {
+  if (isObjectSchema) {
     const composition = collectObjectComposition(document, resolved, context);
     const shape = [...composition.properties.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
@@ -311,6 +400,9 @@ function zodSchemaSource(document, schema, context) {
         `Conditional constraint from ${condition.context} failed`,
       )} })`;
     }
+    if (resolved["x-uga-semantic-validator"] !== undefined) {
+      source += semanticRefinementSource(resolved["x-uga-semantic-validator"], context);
+    }
     return source;
   }
 
@@ -321,6 +413,7 @@ function zodSchemaSource(document, schema, context) {
       context,
     );
     let source = "z.string()";
+    if (resolved["x-uga-trim"] === true) source += ".trim()";
     if (resolved.format === "date-time") source = "z.iso.datetime({ offset: true })";
     else if (resolved.format === "uri") source = "z.url()";
     else if (resolved.format !== undefined)
@@ -328,6 +421,9 @@ function zodSchemaSource(document, schema, context) {
     if (resolved.minLength !== undefined) source += `.min(${JSON.stringify(resolved.minLength)})`;
     if (resolved.maxLength !== undefined) source += `.max(${JSON.stringify(resolved.maxLength)})`;
     if (resolved.pattern !== undefined) source += `.regex(new RegExp(${JSON.stringify(resolved.pattern)}))`;
+    if (resolved["x-uga-semantic-validator"] !== undefined) {
+      source += semanticRefinementSource(resolved["x-uga-semantic-validator"], context);
+    }
     return source;
   }
 
@@ -398,6 +494,54 @@ function operationSource(document) {
       if (runtimeStatus !== "implemented" && runtimeStatus !== "contract-only") {
         throw new Error(`${operation.operationId} must declare x-runtime-status`);
       }
+      const responseRequestBindings = operation["x-uga-response-request-bindings"] ?? [];
+      if (
+        !Array.isArray(responseRequestBindings) ||
+        responseRequestBindings.some(
+          (name) => typeof name !== "string" || !/^[A-Za-z][A-Za-z0-9]*$/u.test(name),
+        ) ||
+        new Set(responseRequestBindings).size !== responseRequestBindings.length
+      ) {
+        throw new Error(`${operation.operationId} has invalid x-uga-response-request-bindings`);
+      }
+      if (responseRequestBindings.length > 0) {
+        const requestSchema = operation.requestBody?.content?.["application/json"]?.schema;
+        if (requestSchema === undefined) {
+          throw new Error(`${operation.operationId} binds response fields without a JSON request body`);
+        }
+        const requestShape = collectObjectComposition(
+          document,
+          requestSchema,
+          `${operation.operationId}.requestBody.application/json`,
+        );
+        for (const name of responseRequestBindings) {
+          if (!requestShape.required.has(name)) {
+            throw new Error(`${operation.operationId} binds non-required request field ${name}`);
+          }
+        }
+        for (const [status, unresolved] of Object.entries(operation.responses ?? {})) {
+          if (!/^2\d\d$/u.test(status)) continue;
+          const response = resolvedResponse(
+            document,
+            unresolved,
+            `${operation.operationId}.responses.${status}`,
+          );
+          const responseSchema = response?.content?.["application/json"]?.schema;
+          if (responseSchema === undefined) {
+            throw new Error(`${operation.operationId} binds fields on a non-JSON ${status} response`);
+          }
+          const responseShape = collectObjectComposition(
+            document,
+            responseSchema,
+            `${operation.operationId}.responses.${status}.application/json`,
+          );
+          for (const name of responseRequestBindings) {
+            if (!responseShape.required.has(name)) {
+              throw new Error(`${operation.operationId} binds non-required ${status} response field ${name}`);
+            }
+          }
+        }
+      }
 
       const responses = operation.responses ?? {};
       const successStatuses = Object.keys(responses)
@@ -423,6 +567,7 @@ function operationSource(document) {
           .map((parameter) => parameter.name)
           .sort((left, right) => left.localeCompare(right)),
         requiredScopes,
+        responseRequestBindings,
         runtimeStatus,
         successMediaTypes,
         successStatuses,
@@ -445,6 +590,7 @@ export interface OperationDefinition {
   readonly public: boolean;
   readonly queryParameterNames: readonly string[];
   readonly requiredScopes: readonly string[];
+  readonly responseRequestBindings: readonly string[];
   readonly runtimeStatus: "contract-only" | "implemented";
   readonly successMediaTypes: readonly string[];
   readonly successStatuses: readonly number[];
@@ -470,6 +616,7 @@ function resolvedResponse(document, response, context, seen = new Set()) {
 
 function validatorSource(document, contractSha256) {
   const operationSchemas = {};
+  const requestBodySchemas = {};
 
   for (const [path, pathItem] of Object.entries(document.paths ?? {})) {
     for (const method of httpMethods) {
@@ -478,6 +625,14 @@ function validatorSource(document, contractSha256) {
       const operationId = operation.operationId;
       if (!operationId) throw new Error(`${method.toUpperCase()} ${path} is missing operationId`);
       const statusSchemas = {};
+      const jsonRequestBody = operation.requestBody?.content?.["application/json"];
+      if (jsonRequestBody?.schema !== undefined) {
+        requestBodySchemas[operationId] = zodSchemaSource(
+          document,
+          jsonRequestBody.schema,
+          `${operationId}.requestBody.application/json`,
+        );
+      }
 
       for (const [status, unresolvedResponse] of Object.entries(operation.responses ?? {})) {
         if (!/^2\d\d$/u.test(status)) continue;
@@ -519,6 +674,10 @@ function validatorSource(document, contractSha256) {
       return `${JSON.stringify(operationId)}: {\n${statuses}\n}`;
     })
     .join(",\n");
+  const requestBodyEntries = Object.entries(requestBodySchemas)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([operationId, source]) => `${JSON.stringify(operationId)}: ${source}`)
+    .join(",\n");
 
   return `${generatedHeader}
 import { z } from "zod";
@@ -538,9 +697,34 @@ const implementedSuccessSchemas = {
 ${operationEntries}
 } satisfies Record<ImplementedOperationId, Readonly<Record<number, z.ZodType>>>;
 
+const implementedRequestBodySchemas = {
+${requestBodyEntries}
+} satisfies Partial<Record<ImplementedOperationId, z.ZodType>>;
+
 const schemasByOperation: Readonly<
   Partial<Record<OperationId, Readonly<Record<number, z.ZodType>>>>
 > = implementedSuccessSchemas;
+
+const requestBodySchemasByOperation: Readonly<Partial<Record<OperationId, z.ZodType>>> =
+  implementedRequestBodySchemas;
+
+export type RequestBodyValidationResult =
+  | { readonly success: true; readonly data: unknown }
+  | { readonly success: false; readonly reason: "invalid-request-body" | "request-body-not-declared" };
+
+export function validateImplementedRequestBody(
+  operationId: OperationId,
+  value: unknown,
+): RequestBodyValidationResult {
+  const schema = requestBodySchemasByOperation[operationId];
+  if (schema === undefined) {
+    return { success: false, reason: "request-body-not-declared" };
+  }
+  const result = schema.safeParse(value);
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, reason: "invalid-request-body" };
+}
 
 export type SuccessBodyValidationFailureReason =
   | "invalid-success-body"

@@ -6,3 +6,4 @@
 | [0002](0002-client-side-e2ee-vault.md)                          | Versioned client-side E2EE personal vault                       | accepted | 2026-07-20 |
 | [0003](0003-browser-vault-worker-and-trusted-device-storage.md) | Browser vault worker and trusted-device storage                 | accepted | 2026-07-20 |
 | [0004](0004-live-only-public-catalog.md)                        | Evidence-gated live public catalog                              | accepted | 2026-07-22 |
+| [0005](0005-evidence-first-campus-ai.md)                        | Evidence-first campus AI with a no-key retrieval baseline       | accepted | 2026-07-23 |

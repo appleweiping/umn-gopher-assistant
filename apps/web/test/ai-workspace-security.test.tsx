@@ -10,8 +10,9 @@ import { PreferencesProvider } from "../components/preferences";
 import messages from "../messages/en.json";
 
 describe("AI workspace secrets", () => {
-  it("removes a legacy BYOK value and keeps the submitted key in memory only", async () => {
+  it("purges legacy settings and leaves unimplemented model connections visibly disabled", async () => {
     window.localStorage.setItem("uga.byok", "legacy-secret");
+    window.localStorage.setItem("uga.local-model", "http://private-model.internal");
     const user = userEvent.setup();
     render(
       createElement(PreferencesProvider, {
@@ -27,15 +28,16 @@ describe("AI workspace secrets", () => {
     );
 
     await waitFor(() => expect(window.localStorage.getItem("uga.byok")).toBeNull());
-    await user.click(screen.getByRole("tab", { name: "BYOK" }));
+    expect(window.localStorage.getItem("uga.local-model")).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "Bring your own key (BYOK)" }));
     const keyInput = screen.getByLabelText("Bring your own key");
-    expect(keyInput).toHaveValue("");
-
-    await user.type(keyInput, "new-secret");
-    await user.click(screen.getByRole("button", { name: "Use for this tab" }));
-
-    expect(keyInput).toHaveValue("new-secret");
+    expect(keyInput).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Connection unavailable" })).toBeDisabled();
+    expect(screen.getByText("BYOK is not connected")).toBeInTheDocument();
     expect(window.localStorage.getItem("uga.byok")).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("Key kept in memory for this tab only.");
+
+    await user.click(screen.getByRole("tab", { name: "Local" }));
+    expect(screen.getByLabelText("Local model endpoint")).toBeDisabled();
+    expect(screen.getByText("Local models are not connected")).toBeInTheDocument();
   });
 });

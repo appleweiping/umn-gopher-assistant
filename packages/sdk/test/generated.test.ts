@@ -74,7 +74,7 @@ describe("OpenAPI generated artifacts", () => {
         "listModerationCases",
         "listPlaces",
         "listSources",
-        "queryAssistant",
+        "queryCampusAssistant",
         "updateSourcePolicy",
       ].sort(),
     );
@@ -118,6 +118,15 @@ describe("OpenAPI generated artifacts", () => {
       "limit",
       "to",
     ]);
+    expect(operationDefinitions.queryCampusAssistant).toMatchObject({
+      idempotencyKeyRequired: false,
+      method: "POST",
+      path: "/v1/ai/query",
+      public: true,
+      requiredScopes: [],
+      runtimeStatus: "implemented",
+      successStatuses: [200],
+    });
   });
 
   it("marks generated files as derived from the shared contract", () => {

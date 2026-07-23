@@ -1,6 +1,98 @@
 name: ${COMPOSE_PROJECT_NAME:-gopher-assistant}
 
 services:
+  ai-knowledge:
+    build:
+      context: ../../apps/ai-knowledge
+      dockerfile: Dockerfile
+    image: gopher-assistant/ai-knowledge:0.1.0
+    restart: unless-stopped
+    init: true
+    read_only: true
+    environment:
+      NODE_ENV: development
+      AI_KNOWLEDGE_BACKEND: postgres
+      AI_KNOWLEDGE_SERVICE_HMAC_KEY: ${AI_KNOWLEDGE_SERVICE_HMAC_KEY:-ZGV2ZWxvcG1lbnQtb25seS1haS1zZXJ2aWNlLWhtYWMta2V5LXYx}
+      AI_KNOWLEDGE_CORPUS_PATH: /app/ai_knowledge/data/corpus.json
+      AI_KNOWLEDGE_ENABLED: ${AI_KNOWLEDGE_ENABLED:-true}
+      AI_KNOWLEDGE_DATABASE_POOL_MIN_SIZE: ${AI_KNOWLEDGE_DATABASE_POOL_MIN_SIZE:-1}
+      AI_KNOWLEDGE_DATABASE_POOL_MAX_SIZE: ${AI_KNOWLEDGE_DATABASE_POOL_MAX_SIZE:-10}
+      AI_KNOWLEDGE_DATABASE_POOL_WAIT_SECONDS: ${AI_KNOWLEDGE_DATABASE_POOL_WAIT_SECONDS:-3}
+      AI_KNOWLEDGE_SNAPSHOT_CACHE_TTL_SECONDS: ${AI_KNOWLEDGE_SNAPSHOT_CACHE_TTL_SECONDS:-30}
+      AI_KNOWLEDGE_REVISION_CHECK_INTERVAL_SECONDS: ${AI_KNOWLEDGE_REVISION_CHECK_INTERVAL_SECONDS:-1}
+      DATABASE_URL: ${AI_KNOWLEDGE_READER_DATABASE_URL:-postgresql://gopher_ai_reader:local-ai-reader-password-only@postgres:5432/gopher}
+    ports:
+      - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:${AI_KNOWLEDGE_PORT:-8100}:8081"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-migrate:
+        condition: service_completed_successfully
+      ai-knowledge-sync:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json,urllib.request;
+          response=urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=2);
+          body=json.load(response);
+          assert response.status == 200 and body['status'] == 'ok'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [platform]
+
+  ai-knowledge-sync:
+    build:
+      context: ../../apps/ai-knowledge
+      dockerfile: Dockerfile
+    image: gopher-assistant/ai-knowledge:0.1.0
+    restart: "no"
+    init: true
+    read_only: true
+    command: [python, -m, ai_knowledge.sync]
+    environment:
+      NODE_ENV: development
+      AI_KNOWLEDGE_BACKEND: postgres
+      AI_KNOWLEDGE_SERVICE_HMAC_KEY: ${AI_KNOWLEDGE_SERVICE_HMAC_KEY:-ZGV2ZWxvcG1lbnQtb25seS1haS1zZXJ2aWNlLWhtYWMta2V5LXYx}
+      AI_KNOWLEDGE_CORPUS_PATH: /app/ai_knowledge/data/corpus.json
+      AI_KNOWLEDGE_ENABLED: ${AI_KNOWLEDGE_ENABLED:-true}
+      DATABASE_URL: ${AI_KNOWLEDGE_SYNC_DATABASE_URL:-postgresql://gopher_ai_sync:local-ai-sync-password-only@postgres:5432/gopher}
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    networks: [platform]
+
+  postgres-permissions:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: gopher-assistant/postgres:17-postgis3.5-pgvector0.8.2
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    entrypoint: [sh, -ec]
+    command:
+      - |
+        chown -R 70:70 /var/lib/postgresql/data
+        chmod 0700 /var/lib/postgresql/data
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    security_opt: [no-new-privileges:true]
+
   postgres:
     build:
       context: ./postgres
@@ -11,25 +103,62 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-gopher}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
       POSTGRES_DB: ${POSTGRES_DB:-gopher}
+      AI_KNOWLEDGE_READER_DB_USER: ${AI_KNOWLEDGE_READER_DB_USER:-gopher_ai_reader}
+      AI_KNOWLEDGE_READER_DB_PASSWORD: ${AI_KNOWLEDGE_READER_DB_PASSWORD:-local-ai-reader-password-only}
+      AI_KNOWLEDGE_SYNC_DB_USER: ${AI_KNOWLEDGE_SYNC_DB_USER:-gopher_ai_sync}
+      AI_KNOWLEDGE_SYNC_DB_PASSWORD: ${AI_KNOWLEDGE_SYNC_DB_PASSWORD:-local-ai-sync-password-only}
+      KEYCLOAK_DB: ${KEYCLOAK_DB:-keycloak}
+      KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:-gopher_keycloak}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-local-keycloak-password-only}
     ports:
       - "${COMPOSE_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init/00-databases.sql:/docker-entrypoint-initdb.d/00-databases.sql:ro
-      - ../../packages/db/migrations/0000_foundation.sql:/docker-entrypoint-initdb.d/10-foundation.sql:ro
+      - ./postgres/bootstrap-runtime-roles.sh:/docker-entrypoint-initdb.d/00-bootstrap-runtime-roles.sh:ro
+    depends_on:
+      postgres-permissions:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD-SHELL
         - >-
-          pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" &&
-          psql -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -Atqc
-          "SELECT count(*) = 2 FROM pg_extension WHERE extname IN ('postgis', 'vector')" | grep -qx t &&
-          psql -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -Atqc
-          "SELECT to_regclass('public.campuses') IS NOT NULL" | grep -qx t
+          test "$$(cat /proc/1/comm)" = postgres &&
+          pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks: [platform]
+
+  postgres-migrate:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    image: gopher-assistant/postgres:17-postgis3.5-pgvector0.8.2
+    restart: "no"
+    entrypoint: [sh, /migrations/migrate.sh]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-gopher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
+      POSTGRES_DB: ${POSTGRES_DB:-gopher}
+      AI_KNOWLEDGE_READER_DB_USER: ${AI_KNOWLEDGE_READER_DB_USER:-gopher_ai_reader}
+      AI_KNOWLEDGE_READER_DB_PASSWORD: ${AI_KNOWLEDGE_READER_DB_PASSWORD:-local-ai-reader-password-only}
+      AI_KNOWLEDGE_SYNC_DB_USER: ${AI_KNOWLEDGE_SYNC_DB_USER:-gopher_ai_sync}
+      AI_KNOWLEDGE_SYNC_DB_PASSWORD: ${AI_KNOWLEDGE_SYNC_DB_PASSWORD:-local-ai-sync-password-only}
+      KEYCLOAK_DB: ${KEYCLOAK_DB:-keycloak}
+      KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:-gopher_keycloak}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-local-keycloak-password-only}
+    volumes:
+      - ./postgres/migrate.sh:/migrations/migrate.sh:ro
+      - ./postgres/bootstrap-runtime-roles.sh:/migrations/bootstrap-runtime-roles.sh:ro
+      - ./postgres/runtime-grants.sql:/migrations/runtime-grants.sql:ro
+      - ../../packages/db/migrations/0000_foundation.sql:/migrations/0000_foundation.sql:ro
+      - ../../packages/db/migrations/0001_ai_knowledge.sql:/migrations/0001_ai_knowledge.sql:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks: [platform]
 
   keycloak:
@@ -42,9 +171,9 @@ services:
       KC_DB: postgres
       KC_DB_URL_HOST: postgres
       KC_DB_URL_PORT: 5432
-      KC_DB_URL_DATABASE: keycloak
-      KC_DB_USERNAME: ${POSTGRES_USER:-gopher}
-      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-local-postgres-password-only}
+      KC_DB_URL_DATABASE: ${KEYCLOAK_DB:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-gopher_keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-local-keycloak-password-only}
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
@@ -53,8 +182,8 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD-SHELL

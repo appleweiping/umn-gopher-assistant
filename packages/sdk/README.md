@@ -27,9 +27,11 @@ details. Unexpected 2xx/304 statuses, content types, malformed success JSON, or
 success bodies that fail an implemented operation's strict runtime schema
 become `GopherProtocolError` instead of being cast to the advertised result.
 The runtime validators are generated directly from each implemented OpenAPI
-success schema; unsupported schema keywords fail generation instead of being
-silently ignored. Objects reject undeclared fields, while declared values are
-validated without trimming, coercion, defaults, or extra domain rules.
+request-body and success schema; unsupported schema keywords fail generation
+instead of being silently ignored. Objects reject undeclared fields. Values
+are not coerced or defaulted; an explicit `x-uga-trim` policy may normalize
+string edges before bounds are checked, and named semantic validators enforce
+the documented NFC/safe-text and evidence cross-field rules.
 Neither error retains request headers or an access token. Redirects are
 disabled and operation URLs are constrained to the configured origin so
 credentials and request bodies cannot silently cross origins. Tokens are not
@@ -39,6 +41,15 @@ headers use dedicated SDK behavior or remain reserved. Remote API base URLs
 must use HTTPS; plaintext HTTP is accepted only for explicit loopback
 development hosts. Problem details are trusted only when their media type and
 status match the actual HTTP response.
+
+Operation results keep the convenient `result.data` API and also expose
+`requestId`/`traceId`, `retryAfterSeconds`, and parsed `rateLimit` metadata when
+the corresponding safe integer response headers are present. `RateLimit-Reset`
+is exposed as `resetAfterSeconds` because the API defines a relative client
+window TTL, not an epoch timestamp. `GopherApiError` exposes the same bounded
+retry and correlation metadata without retaining raw headers. AI responses are
+additionally bound to the request's `campusId` and `locale`; a valid response
+for a different tenant or language fails with `response-request-mismatch`.
 
 Successful JSON responses are limited to 2 MiB and RFC 9457 error responses
 to 64 KiB by default. For unencoded or explicitly `identity` responses, the

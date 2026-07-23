@@ -103,7 +103,7 @@ export class ConfiguredPublicCatalogGateway implements PublicCatalogGateway {
     const sourcesByKey = new Map<string, SourceDescriptor>();
     for (const descriptor of sourceRegistry) {
       for (const resourceKind of descriptor.resourceKinds) {
-        if (resourceKind === "CAMPUS_DEEPLINK") continue;
+        if (resourceKind !== "ACADEMIC_SESSION" && resourceKind !== "PUBLIC_EVENT") continue;
         for (const campusId of descriptor.campusIds) {
           const key = sourceKey(campusId, resourceKind);
           if (sourcesByKey.has(key)) {

@@ -3,7 +3,10 @@
     "id": "tc-campus-home",
     "campusIds": ["tc"],
     "resourceKinds": ["CAMPUS_DEEPLINK"],
-    "name": { "en": "Twin Cities campus website", "zh-CN": "双城校区网站" },
+    "name": {
+      "en": "Twin Cities campus website",
+      "zh-CN": "双城校区网站"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://twin-cities.umn.edu/",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -39,7 +42,10 @@
     "id": "duluth-campus-home",
     "campusIds": ["duluth"],
     "resourceKinds": ["CAMPUS_DEEPLINK"],
-    "name": { "en": "Duluth campus website", "zh-CN": "德卢斯校区网站" },
+    "name": {
+      "en": "Duluth campus website",
+      "zh-CN": "德卢斯校区网站"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://www.d.umn.edu/",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -75,7 +81,10 @@
     "id": "crookston-campus-home",
     "campusIds": ["crookston"],
     "resourceKinds": ["CAMPUS_DEEPLINK"],
-    "name": { "en": "Crookston campus website", "zh-CN": "克鲁克斯顿校区网站" },
+    "name": {
+      "en": "Crookston campus website",
+      "zh-CN": "克鲁克斯顿校区网站"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://crk.umn.edu/",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -111,7 +120,10 @@
     "id": "morris-campus-home",
     "campusIds": ["morris"],
     "resourceKinds": ["CAMPUS_DEEPLINK"],
-    "name": { "en": "Morris campus website", "zh-CN": "莫里斯校区网站" },
+    "name": {
+      "en": "Morris campus website",
+      "zh-CN": "莫里斯校区网站"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://morris.umn.edu/",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -147,7 +159,10 @@
     "id": "rochester-campus-home",
     "campusIds": ["rochester"],
     "resourceKinds": ["CAMPUS_DEEPLINK"],
-    "name": { "en": "Rochester campus website", "zh-CN": "罗切斯特校区网站" },
+    "name": {
+      "en": "Rochester campus website",
+      "zh-CN": "罗切斯特校区网站"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://r.umn.edu/",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -183,7 +198,10 @@
     "id": "umn-sessions-tc",
     "campusIds": ["tc"],
     "resourceKinds": ["ACADEMIC_SESSION"],
-    "name": { "en": "UMN Sessions — Twin Cities", "zh-CN": "UMN 学期时段—双城校区" },
+    "name": {
+      "en": "UMN Sessions — Twin Cities",
+      "zh-CN": "UMN 学期时段—双城校区"
+    },
     "publisher": "University of Minnesota Academic Support Resources",
     "sourceUrl": "https://sessions.umn.edu/sessions.json?q=institution_id=UMNTC",
     "licenseStatus": "LIVE_ONLY",
@@ -219,7 +237,10 @@
     "id": "umn-sessions-duluth",
     "campusIds": ["duluth"],
     "resourceKinds": ["ACADEMIC_SESSION"],
-    "name": { "en": "UMN Sessions — Duluth", "zh-CN": "UMN 学期时段—德卢斯校区" },
+    "name": {
+      "en": "UMN Sessions — Duluth",
+      "zh-CN": "UMN 学期时段—德卢斯校区"
+    },
     "publisher": "University of Minnesota Academic Support Resources",
     "sourceUrl": "https://sessions.umn.edu/sessions.json?q=institution_id=UMNDL",
     "licenseStatus": "LIVE_ONLY",
@@ -255,7 +276,10 @@
     "id": "umn-sessions-crookston",
     "campusIds": ["crookston"],
     "resourceKinds": ["ACADEMIC_SESSION"],
-    "name": { "en": "UMN Sessions — Crookston", "zh-CN": "UMN 学期时段—克鲁克斯顿校区" },
+    "name": {
+      "en": "UMN Sessions — Crookston",
+      "zh-CN": "UMN 学期时段—克鲁克斯顿校区"
+    },
     "publisher": "University of Minnesota Academic Support Resources",
     "sourceUrl": "https://sessions.umn.edu/sessions.json?q=institution_id=UMNCR",
     "licenseStatus": "LIVE_ONLY",
@@ -291,7 +315,10 @@
     "id": "umn-sessions-morris",
     "campusIds": ["morris"],
     "resourceKinds": ["ACADEMIC_SESSION"],
-    "name": { "en": "UMN Sessions — Morris", "zh-CN": "UMN 学期时段—莫里斯校区" },
+    "name": {
+      "en": "UMN Sessions — Morris",
+      "zh-CN": "UMN 学期时段—莫里斯校区"
+    },
     "publisher": "University of Minnesota Academic Support Resources",
     "sourceUrl": "https://sessions.umn.edu/sessions.json?q=institution_id=UMNMO",
     "licenseStatus": "LIVE_ONLY",
@@ -327,7 +354,10 @@
     "id": "umn-sessions-rochester",
     "campusIds": ["rochester"],
     "resourceKinds": ["ACADEMIC_SESSION"],
-    "name": { "en": "UMN Sessions — Rochester (UMNTC)", "zh-CN": "UMN 学期时段—罗切斯特校区（UMNTC）" },
+    "name": {
+      "en": "UMN Sessions — Rochester (UMNTC)",
+      "zh-CN": "UMN 学期时段—罗切斯特校区（UMNTC）"
+    },
     "publisher": "University of Minnesota Academic Support Resources",
     "sourceUrl": "https://sessions.umn.edu/sessions.json?q=institution_id=UMNTC",
     "licenseStatus": "LIVE_ONLY",
@@ -363,7 +393,10 @@
     "id": "tc-events-feed",
     "campusIds": ["tc"],
     "resourceKinds": ["PUBLIC_EVENT"],
-    "name": { "en": "Twin Cities public events feed", "zh-CN": "双城校区公开活动源" },
+    "name": {
+      "en": "Twin Cities public events feed",
+      "zh-CN": "双城校区公开活动源"
+    },
     "publisher": "University of Minnesota",
     "sourceUrl": "https://events.tc.umn.edu/feed_builder",
     "licenseStatus": "LIVE_ONLY",
@@ -399,7 +432,10 @@
     "id": "duluth-events-feed",
     "campusIds": ["duluth"],
     "resourceKinds": ["PUBLIC_EVENT"],
-    "name": { "en": "Duluth public events JSON", "zh-CN": "德卢斯校区公开活动 JSON" },
+    "name": {
+      "en": "Duluth public events JSON",
+      "zh-CN": "德卢斯校区公开活动 JSON"
+    },
     "publisher": "University of Minnesota Duluth",
     "sourceUrl": "https://calendar.d.umn.edu/live/json/events",
     "licenseStatus": "LIVE_ONLY",
@@ -435,7 +471,10 @@
     "id": "crookston-events",
     "campusIds": ["crookston"],
     "resourceKinds": ["PUBLIC_EVENT"],
-    "name": { "en": "Crookston campus events", "zh-CN": "克鲁克斯顿校区活动" },
+    "name": {
+      "en": "Crookston campus events",
+      "zh-CN": "克鲁克斯顿校区活动"
+    },
     "publisher": "University of Minnesota Crookston",
     "sourceUrl": "https://crk.umn.edu/university-relations/events",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -471,7 +510,10 @@
     "id": "morris-events-feed",
     "campusIds": ["morris"],
     "resourceKinds": ["PUBLIC_EVENT"],
-    "name": { "en": "Morris public events JSON", "zh-CN": "莫里斯校区公开活动 JSON" },
+    "name": {
+      "en": "Morris public events JSON",
+      "zh-CN": "莫里斯校区公开活动 JSON"
+    },
     "publisher": "University of Minnesota Morris",
     "sourceUrl": "https://events.morris.umn.edu/api/2/events",
     "licenseStatus": "APPROVAL_REQUIRED",
@@ -507,7 +549,10 @@
     "id": "rochester-events",
     "campusIds": ["rochester"],
     "resourceKinds": ["PUBLIC_EVENT"],
-    "name": { "en": "Rochester RaptorLink events", "zh-CN": "罗切斯特 RaptorLink 活动" },
+    "name": {
+      "en": "Rochester RaptorLink events",
+      "zh-CN": "罗切斯特 RaptorLink 活动"
+    },
     "publisher": "University of Minnesota Rochester",
     "sourceUrl": "https://raptorlink.umn.edu/events",
     "licenseStatus": "DEEPLINK_ONLY",
@@ -532,6 +577,1020 @@
     },
     "killSwitch": {
       "key": "source.rochester-events.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "uga-ai-summary-corpus-v1",
+    "campusIds": ["tc", "duluth", "crookston", "morris", "rochester"],
+    "resourceKinds": ["AI_KNOWLEDGE_SUMMARY"],
+    "name": {
+      "en": "Gopher Assistant authored campus summaries",
+      "zh-CN": "Gopher Assistant 原创校园摘要"
+    },
+    "publisher": "UMN Gopher Assistant contributors",
+    "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+    "licenseStatus": "OPEN_REUSE",
+    "licenseEvidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "schematic",
+    "officialStatus": "UNVERIFIED",
+    "attribution": "Original bilingual summary records by UMN Gopher Assistant contributors; not official UMN content",
+    "cachePolicy": "CACHE_ALLOWED",
+    "cacheDisposition": {
+      "rawResponse": "PERSIST_WITH_TTL",
+      "normalizedRecords": "PERSIST_WITH_TTL",
+      "derivedArtifacts": "SAME_RETENTION",
+      "retentionSeconds": 31536000
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.uga-ai-summary-corpus-v1.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-tc-library",
+    "campusIds": ["tc"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Twin Cities library official verification link",
+      "zh-CN": "双城校区图书馆官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://www.lib.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Twin Cities link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-tc-library.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-tc-one-stop",
+    "campusIds": ["tc"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Twin Cities student services official verification link",
+      "zh-CN": "双城校区学生服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://onestop.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Twin Cities link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-tc-one-stop.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-tc-safe-campus",
+    "campusIds": ["tc"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Twin Cities safety official verification link",
+      "zh-CN": "双城校区安全服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://safe-campus.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Twin Cities link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-tc-safe-campus.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-tc-transportation",
+    "campusIds": ["tc"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Twin Cities transportation official verification link",
+      "zh-CN": "双城校区交通服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://pts.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Twin Cities link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-tc-transportation.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-tc-dining",
+    "campusIds": ["tc"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Twin Cities dining official verification link",
+      "zh-CN": "双城校区餐饮服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://dining.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Twin Cities link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-tc-dining.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-duluth-library",
+    "campusIds": ["duluth"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Duluth library official verification link",
+      "zh-CN": "德卢斯校区图书馆官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://lib.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Duluth link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-duluth-library.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-duluth-students",
+    "campusIds": ["duluth"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Duluth student services official verification link",
+      "zh-CN": "德卢斯校区学生服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://student-life.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Duluth link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-duluth-students.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-duluth-police",
+    "campusIds": ["duluth"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Duluth safety official verification link",
+      "zh-CN": "德卢斯校区安全服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://police.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Duluth link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-duluth-police.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-duluth-transportation",
+    "campusIds": ["duluth"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Duluth transportation official verification link",
+      "zh-CN": "德卢斯校区交通服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://tps.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Duluth link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-duluth-transportation.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-duluth-dining",
+    "campusIds": ["duluth"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Duluth dining official verification link",
+      "zh-CN": "德卢斯校区餐饮服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://dining-services.d.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Duluth link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-duluth-dining.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-crookston-library",
+    "campusIds": ["crookston"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Crookston library official verification link",
+      "zh-CN": "克鲁克斯顿校区图书馆官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/academics/library",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Crookston link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-crookston-library.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-crookston-student-life",
+    "campusIds": ["crookston"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Crookston student services official verification link",
+      "zh-CN": "克鲁克斯顿校区学生服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/student-life",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Crookston link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-crookston-student-life.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-crookston-public-safety",
+    "campusIds": ["crookston"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Crookston safety official verification link",
+      "zh-CN": "克鲁克斯顿校区安全服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/public-safety",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Crookston link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-crookston-public-safety.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-crookston-parking",
+    "campusIds": ["crookston"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Crookston transportation official verification link",
+      "zh-CN": "克鲁克斯顿校区交通服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/parking",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Crookston link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-crookston-parking.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-crookston-dining",
+    "campusIds": ["crookston"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Crookston dining official verification link",
+      "zh-CN": "克鲁克斯顿校区餐饮服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://crk.umn.edu/student-life/dining-services",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Crookston link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-crookston-dining.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-morris-library",
+    "campusIds": ["morris"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Morris library official verification link",
+      "zh-CN": "莫里斯校区图书馆官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://morris.umn.edu/academics/library",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Morris link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-morris-library.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-morris-one-stop",
+    "campusIds": ["morris"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Morris student services official verification link",
+      "zh-CN": "莫里斯校区学生服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://onestop.morris.umn.edu/",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Morris link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-morris-one-stop.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-morris-public-safety",
+    "campusIds": ["morris"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Morris safety official verification link",
+      "zh-CN": "莫里斯校区安全服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://morris.umn.edu/morris-public-safety",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Morris link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-morris-public-safety.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-morris-parking",
+    "campusIds": ["morris"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Morris transportation official verification link",
+      "zh-CN": "莫里斯校区交通服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://morris.umn.edu/morris-public-safety/parking",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Morris link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-morris-parking.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-morris-dining",
+    "campusIds": ["morris"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Morris dining official verification link",
+      "zh-CN": "莫里斯校区餐饮服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://morris.umn.edu/campus-community/student-affairs/student-affairs-offices",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Morris link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-morris-dining.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-rochester-library",
+    "campusIds": ["rochester"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Rochester library official verification link",
+      "zh-CN": "罗切斯特校区图书馆官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/student-life/library-and-information-commons",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Rochester link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-rochester-library.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-rochester-student-services",
+    "campusIds": ["rochester"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Rochester student services official verification link",
+      "zh-CN": "罗切斯特校区学生服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/student-services",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Rochester link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-rochester-student-services.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-rochester-safety",
+    "campusIds": ["rochester"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Rochester safety official verification link",
+      "zh-CN": "罗切斯特校区安全服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/student-life/campus-safety/campus-safety-and-community-standards-overview",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Rochester link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-rochester-safety.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-rochester-transportation",
+    "campusIds": ["rochester"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Rochester transportation official verification link",
+      "zh-CN": "罗切斯特校区交通服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/student-life/student-parking-and-transportation",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Rochester link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-rochester-transportation.enabled",
+      "defaultState": "ENABLED",
+      "fallback": "UNAVAILABLE"
+    },
+    "termsReviewedAt": null,
+    "termsReviewExpiresAt": null,
+    "lastCheckedAt": null
+  },
+  {
+    "id": "official-rochester-dining",
+    "campusIds": ["rochester"],
+    "resourceKinds": ["AI_VERIFICATION_LINK"],
+    "name": {
+      "en": "Rochester dining official verification link",
+      "zh-CN": "罗切斯特校区餐饮服务官方核验链接"
+    },
+    "publisher": "University of Minnesota",
+    "sourceUrl": "https://r.umn.edu/student-life/raptor-eats/raptor-eats-dining-services-overview",
+    "licenseStatus": "DEEPLINK_ONLY",
+    "licenseEvidenceUrl": null,
+    "authorizationEvidenceUrl": null,
+    "freshnessState": "UNKNOWN",
+    "verificationState": "surveyed",
+    "officialStatus": "PUBLISHER_ASSERTED",
+    "attribution": "Official University of Minnesota Rochester link; linked content is not copied or relicensed",
+    "cachePolicy": "NO_CONTENT_CACHE",
+    "cacheDisposition": {
+      "rawResponse": "NEVER_STORE",
+      "normalizedRecords": "NEVER_STORE",
+      "derivedArtifacts": "PROHIBITED",
+      "retentionSeconds": null
+    },
+    "dataClassification": "PUBLIC",
+    "dataClasses": ["PUBLIC_METADATA", "COPYRIGHTED_CONTENT"],
+    "owner": {
+      "teamId": "ai-knowledge",
+      "contactUrl": "https://github.com/appleweiping/umn-gopher-assistant/security/policy"
+    },
+    "killSwitch": {
+      "key": "source.official-rochester-dining.enabled",
       "defaultState": "ENABLED",
       "fallback": "UNAVAILABLE"
     },

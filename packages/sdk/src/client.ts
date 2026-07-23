@@ -1,13 +1,14 @@
 import { operationDefinitions } from "./generated/operations.js";
 import type { OperationDefinition, OperationId } from "./generated/operations.js";
 import type { components, operations } from "./generated/schema.js";
-import { validateImplementedSuccessBody } from "./generated/validators.js";
+import { validateImplementedRequestBody, validateImplementedSuccessBody } from "./generated/validators.js";
 
 export type AccessTokenProvider = () => Promise<string | undefined> | string | undefined;
 export type ProblemDetails = components["schemas"]["Problem"];
 export type ProtocolErrorCode =
   | "invalid-success-body"
   | "malformed-success-json"
+  | "response-request-mismatch"
   | "response-body-too-large"
   | "unexpected-error-status"
   | "unexpected-not-modified"
@@ -119,16 +120,38 @@ type JsonContent<Response> = Response extends {
 export interface NotModifiedResult {
   readonly etag?: string;
   readonly notModified: true;
+  readonly rateLimit?: RateLimitMetadata;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
   readonly status: 304;
+  readonly traceId?: string;
 }
 
 export interface SuccessResult<Id extends OperationId> {
   readonly data: JsonContent<SuccessfulResponseFor<Id>>;
   readonly etag?: string;
   readonly notModified: false;
+  readonly rateLimit?: RateLimitMetadata;
   readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
   readonly status: StatusFor<Id>;
+  readonly traceId?: string;
+}
+
+export interface RateLimitMetadata {
+  /** Maximum requests in the active client window. */
+  readonly limit?: number;
+  /** Requests remaining in the active client window. */
+  readonly remaining?: number;
+  /** Whole seconds until the active client window resets (not an epoch timestamp). */
+  readonly resetAfterSeconds?: number;
+}
+
+export interface ResponseMetadata {
+  readonly rateLimit?: RateLimitMetadata;
+  readonly requestId?: string;
+  readonly retryAfterSeconds?: number;
+  readonly traceId?: string;
 }
 
 type NotModifiedFor<Id extends OperationId> =
@@ -225,6 +248,54 @@ interface ParsedJson {
   readonly value?: unknown;
 }
 
+function boundedIntegerHeader(headers: Headers, name: string, minimum: number): number | undefined {
+  const raw = headers.get(name);
+  if (raw === null || !/^(?:0|[1-9]\d*)$/u.test(raw)) return undefined;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value >= minimum ? value : undefined;
+}
+
+function responseMetadata(response: Response, requestId: string | undefined): ResponseMetadata {
+  const limit = boundedIntegerHeader(response.headers, "ratelimit-limit", 1);
+  const remaining = boundedIntegerHeader(response.headers, "ratelimit-remaining", 0);
+  const resetAfterSeconds = boundedIntegerHeader(response.headers, "ratelimit-reset", 1);
+  const retryAfterSeconds = boundedIntegerHeader(response.headers, "retry-after", 1);
+  const rateLimit =
+    limit === undefined && remaining === undefined && resetAfterSeconds === undefined
+      ? undefined
+      : {
+          ...(limit === undefined ? {} : { limit }),
+          ...(remaining === undefined ? {} : { remaining }),
+          ...(resetAfterSeconds === undefined ? {} : { resetAfterSeconds }),
+        };
+  return {
+    ...(rateLimit === undefined ? {} : { rateLimit }),
+    ...(requestId === undefined ? {} : { requestId, traceId: requestId }),
+    ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
+  };
+}
+
+function matchesResponseRequestBindings(
+  definition: OperationDefinition,
+  requestBody: unknown,
+  responseBody: unknown,
+): boolean {
+  if (definition.responseRequestBindings.length === 0) return true;
+  if (
+    requestBody === null ||
+    typeof requestBody !== "object" ||
+    responseBody === null ||
+    typeof responseBody !== "object"
+  ) {
+    return false;
+  }
+  const requestRecord = requestBody as Readonly<Record<string, unknown>>;
+  const responseRecord = responseBody as Readonly<Record<string, unknown>>;
+  return definition.responseRequestBindings.every(
+    (name) => Object.hasOwn(requestRecord, name) && Object.is(requestRecord[name], responseRecord[name]),
+  );
+}
+
 function normalizeResponseBodyLimit(value: number | undefined, fallback: number, optionName: string): number {
   const limit = value ?? fallback;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > ABSOLUTE_MAX_RESPONSE_BODY_BYTES) {
@@ -315,23 +386,39 @@ async function parseJson(response: Response, limit: number): Promise<ParsedJson>
 }
 
 export class GopherApiError extends Error {
+  readonly rateLimit: RateLimitMetadata | undefined;
   readonly problem: ProblemDetails;
   readonly requestId: string | undefined;
+  readonly retryAfterSeconds: number | undefined;
   readonly status: number;
+  readonly traceId: string;
 
-  constructor(problem: ProblemDetails, requestId?: string) {
+  constructor(problem: ProblemDetails, requestId?: string, metadata: ResponseMetadata = {}) {
     super(`${problem.status} ${problem.title}`);
     this.name = "GopherApiError";
     this.problem = problem;
     this.requestId = requestId;
+    this.rateLimit = metadata.rateLimit;
+    this.retryAfterSeconds = metadata.retryAfterSeconds;
     this.status = problem.status;
+    this.traceId = problem.traceId;
   }
 
-  toJSON(): { problem: ProblemDetails; requestId?: string; status: number } {
+  toJSON(): {
+    problem: ProblemDetails;
+    rateLimit?: RateLimitMetadata;
+    requestId?: string;
+    retryAfterSeconds?: number;
+    status: number;
+    traceId: string;
+  } {
     return {
       problem: this.problem,
+      ...(this.rateLimit === undefined ? {} : { rateLimit: this.rateLimit }),
       ...(this.requestId === undefined ? {} : { requestId: this.requestId }),
+      ...(this.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: this.retryAfterSeconds }),
       status: this.status,
+      traceId: this.traceId,
     };
   }
 }
@@ -340,14 +427,22 @@ export class GopherProtocolError extends Error {
   readonly code: ProtocolErrorCode;
   readonly operationId: OperationId;
   readonly requestId: string | undefined;
+  readonly responseMetadata: ResponseMetadata;
   readonly status: number;
 
-  constructor(code: ProtocolErrorCode, operationId: OperationId, status: number, requestId?: string) {
+  constructor(
+    code: ProtocolErrorCode,
+    operationId: OperationId,
+    status: number,
+    requestId?: string,
+    responseMetadata: ResponseMetadata = {},
+  ) {
     super(`API protocol violation (${code}) for ${operationId}`);
     this.name = "GopherProtocolError";
     this.code = code;
     this.operationId = operationId;
     this.requestId = requestId;
+    this.responseMetadata = responseMetadata;
     this.status = status;
   }
 
@@ -355,12 +450,14 @@ export class GopherProtocolError extends Error {
     code: ProtocolErrorCode;
     operationId: OperationId;
     requestId?: string;
+    responseMetadata?: ResponseMetadata;
     status: number;
   } {
     return {
       code: this.code,
       operationId: this.operationId,
       ...(this.requestId === undefined ? {} : { requestId: this.requestId }),
+      ...(Object.keys(this.responseMetadata).length === 0 ? {} : { responseMetadata: this.responseMetadata }),
       status: this.status,
     };
   }
@@ -436,10 +533,19 @@ export class GopherClient {
       if (token) headers.set("Authorization", `Bearer ${token}`);
     }
 
+    let requestBody = options.body;
+    if (definition.runtimeStatus === "implemented" && requestBody !== undefined) {
+      const validation = validateImplementedRequestBody(operationId, requestBody);
+      if (!validation.success) {
+        throw new TypeError(`${operationId} request body does not match the generated OpenAPI contract`);
+      }
+      requestBody = validation.data;
+    }
+
     let body: string | undefined;
-    if (options.body !== undefined) {
+    if (requestBody !== undefined) {
       headers.set("Content-Type", "application/json");
-      body = JSON.stringify(options.body);
+      body = JSON.stringify(requestBody);
     }
 
     const request = new Request(url, {
@@ -454,16 +560,23 @@ export class GopherClient {
     const response = await this.#fetch(request);
     const etag = response.headers.get("etag") ?? undefined;
     const requestId = response.headers.get("x-request-id") ?? undefined;
+    const metadata = responseMetadata(response, requestId);
 
     if (response.status === 304) {
       if (!definition.supportsNotModified || !options.etag) {
         cancelUnlockedBody(response);
-        throw new GopherProtocolError("unexpected-not-modified", operationId, response.status, requestId);
+        throw new GopherProtocolError(
+          "unexpected-not-modified",
+          operationId,
+          response.status,
+          requestId,
+          metadata,
+        );
       }
       const result: NotModifiedResult = {
         ...(etag === undefined ? {} : { etag }),
         notModified: true,
-        ...(requestId === undefined ? {} : { requestId }),
+        ...metadata,
         status: 304,
       };
       return result as OperationResult<Id>;
@@ -472,7 +585,13 @@ export class GopherClient {
     if (!response.ok) {
       if (response.status < 400 || response.status > 599) {
         cancelUnlockedBody(response);
-        throw new GopherProtocolError("unexpected-error-status", operationId, response.status, requestId);
+        throw new GopherProtocolError(
+          "unexpected-error-status",
+          operationId,
+          response.status,
+          requestId,
+          metadata,
+        );
       }
       const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
       let parsed: ParsedJson = { valid: false };
@@ -482,7 +601,13 @@ export class GopherClient {
         cancelUnlockedBody(response);
       }
       if (parsed.tooLarge) {
-        throw new GopherProtocolError("response-body-too-large", operationId, response.status, requestId);
+        throw new GopherProtocolError(
+          "response-body-too-large",
+          operationId,
+          response.status,
+          requestId,
+          metadata,
+        );
       }
       const problem: ProblemDetails =
         contentType === "application/problem+json" &&
@@ -497,12 +622,18 @@ export class GopherClient {
               traceId: requestId ?? "unavailable",
               type: "about:blank",
             };
-      throw new GopherApiError(problem, requestId);
+      throw new GopherApiError(problem, requestId, metadata);
     }
 
     if (!definition.successStatuses.includes(response.status)) {
       cancelUnlockedBody(response);
-      throw new GopherProtocolError("unexpected-success-status", operationId, response.status, requestId);
+      throw new GopherProtocolError(
+        "unexpected-success-status",
+        operationId,
+        response.status,
+        requestId,
+        metadata,
+      );
     }
 
     const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
@@ -513,30 +644,59 @@ export class GopherClient {
         operationId,
         response.status,
         requestId,
+        metadata,
       );
     }
     const parsed = await parseJson(response, this.#maxSuccessResponseBodyBytes);
     if (parsed.tooLarge) {
-      throw new GopherProtocolError("response-body-too-large", operationId, response.status, requestId);
+      throw new GopherProtocolError(
+        "response-body-too-large",
+        operationId,
+        response.status,
+        requestId,
+        metadata,
+      );
     }
     if (!parsed.valid) {
-      throw new GopherProtocolError("malformed-success-json", operationId, response.status, requestId);
+      throw new GopherProtocolError(
+        "malformed-success-json",
+        operationId,
+        response.status,
+        requestId,
+        metadata,
+      );
     }
 
     let successBody = parsed.value;
     if (definition.runtimeStatus === "implemented") {
       const validation = validateImplementedSuccessBody(operationId, response.status, successBody);
       if (!validation.success) {
-        throw new GopherProtocolError("invalid-success-body", operationId, response.status, requestId);
+        throw new GopherProtocolError(
+          "invalid-success-body",
+          operationId,
+          response.status,
+          requestId,
+          metadata,
+        );
       }
       successBody = validation.data;
+    }
+
+    if (!matchesResponseRequestBindings(definition, requestBody, successBody)) {
+      throw new GopherProtocolError(
+        "response-request-mismatch",
+        operationId,
+        response.status,
+        requestId,
+        metadata,
+      );
     }
 
     return {
       data: successBody as JsonContent<SuccessfulResponseFor<Id>>,
       ...(etag === undefined ? {} : { etag }),
       notModified: false,
-      ...(requestId === undefined ? {} : { requestId }),
+      ...metadata,
       status: response.status as StatusFor<Id>,
     };
   }

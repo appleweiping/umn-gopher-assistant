@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 export function parsePort(value: string | undefined): number {
   const candidate = value ?? "4000";
   if (!/^[0-9]+$/u.test(candidate)) {
@@ -24,7 +26,22 @@ export interface CorsRuntimeConfig {
   readonly allowedOrigins: readonly string[];
 }
 
+export interface AiRuntimeConfig {
+  readonly knowledgeBaseUrl: URL;
+  readonly maxResponseBytes: number;
+  readonly serviceHmacKey: Uint8Array;
+  readonly rateLimit: {
+    readonly clientLimit: number;
+    readonly globalLimit: number;
+    readonly networkLimit: number;
+    readonly redisUrl: URL;
+    readonly windowSeconds: number;
+  };
+  readonly requestTimeoutMs: number;
+}
+
 export interface ApiRuntimeConfig {
+  readonly ai: AiRuntimeConfig;
   readonly cors: CorsRuntimeConfig;
   readonly nodeEnv: "development" | "production" | "test";
   readonly oidc: OidcRuntimeConfig;
@@ -32,6 +49,8 @@ export interface ApiRuntimeConfig {
 }
 
 const LOCAL_ISSUER = "http://127.0.0.1:8080/realms/gopher-assistant-dev";
+const LOCAL_AI_KNOWLEDGE_URL = "http://127.0.0.1:8100";
+const LOCAL_AI_REDIS_URL = "redis://:local-redis-password-only@127.0.0.1:6379";
 const DEFAULT_ALLOWED_CLIENT_IDS = ["gopher-web", "gopher-cli", "gopher-mcp"] as const;
 const DEFAULT_CORS_ORIGINS = ["http://localhost:3000"] as const;
 const DEFAULT_MAX_TOKEN_LIFETIME_SECONDS = 300;
@@ -41,6 +60,12 @@ const MAX_CORS_ORIGINS = 32;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9._~:-]{1,128}$/u;
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/u;
 const DEVELOPMENT_CURSOR_HMAC_KEY = Buffer.from("development-only-catalog-cursor-hmac-key-v1", "utf8");
+const DEVELOPMENT_AI_RATE_LIMIT_HMAC_KEY = Buffer.from("development-only-ai-rate-limit-hmac-key-v1", "utf8");
+const DEVELOPMENT_AI_SERVICE_HMAC_KEY = Buffer.from("development-only-ai-service-hmac-key-v1", "utf8");
+const DEVELOPMENT_AI_BFF_PROOF_HMAC_KEY = Buffer.from(
+  "development-only-ai-bff-core-proof-hmac-key-v1",
+  "utf8",
+);
 
 function parseNodeEnvironment(value: string | undefined): ApiRuntimeConfig["nodeEnv"] {
   const nodeEnv = value ?? "development";
@@ -76,6 +101,85 @@ export function loadCatalogCursorHmacKey(environment: Environment = process.env)
   return new Uint8Array(decoded);
 }
 
+export function loadAiRateLimitHmacKey(environment: Environment = process.env): Uint8Array {
+  const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
+  const encoded = environment["API_AI_RATE_LIMIT_HMAC_KEY"];
+  if (encoded === undefined) {
+    if (nodeEnv === "production") {
+      throw new TypeError("API_AI_RATE_LIMIT_HMAC_KEY is required in production");
+    }
+    return new Uint8Array(DEVELOPMENT_AI_RATE_LIMIT_HMAC_KEY);
+  }
+  if (!BASE64URL_PATTERN.test(encoded)) {
+    throw new TypeError("API_AI_RATE_LIMIT_HMAC_KEY must be canonical base64url");
+  }
+  const decoded = Buffer.from(encoded, "base64url");
+  if (decoded.toString("base64url") !== encoded || decoded.byteLength < 32 || decoded.byteLength > 64) {
+    throw new TypeError(
+      "API_AI_RATE_LIMIT_HMAC_KEY must be canonical base64url encoding of 32 through 64 bytes",
+    );
+  }
+  if (nodeEnv === "production" && decoded.equals(DEVELOPMENT_AI_RATE_LIMIT_HMAC_KEY)) {
+    throw new TypeError("API_AI_RATE_LIMIT_HMAC_KEY must not use the fixed development key in production");
+  }
+  return new Uint8Array(decoded);
+}
+
+export function loadAiKnowledgeServiceHmacKey(environment: Environment = process.env): Uint8Array {
+  const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
+  const encoded = environment["API_AI_KNOWLEDGE_HMAC_KEY"];
+  if (encoded === undefined) {
+    if (nodeEnv === "production") {
+      throw new TypeError("API_AI_KNOWLEDGE_HMAC_KEY is required in production");
+    }
+    return new Uint8Array(DEVELOPMENT_AI_SERVICE_HMAC_KEY);
+  }
+  if (!BASE64URL_PATTERN.test(encoded)) {
+    throw new TypeError("API_AI_KNOWLEDGE_HMAC_KEY must be canonical base64url");
+  }
+  const decoded = Buffer.from(encoded, "base64url");
+  if (decoded.toString("base64url") !== encoded || decoded.byteLength < 32 || decoded.byteLength > 64) {
+    throw new TypeError(
+      "API_AI_KNOWLEDGE_HMAC_KEY must be canonical base64url encoding of 32 through 64 bytes",
+    );
+  }
+  if (nodeEnv === "production" && decoded.equals(DEVELOPMENT_AI_SERVICE_HMAC_KEY)) {
+    throw new TypeError("API_AI_KNOWLEDGE_HMAC_KEY must not use the fixed development key in production");
+  }
+  return new Uint8Array(decoded);
+}
+
+export function loadAiBffProofHmacKey(environment: Environment = process.env): Uint8Array {
+  const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
+  const encoded = environment["INTERNAL_AI_BFF_PROOF_HMAC_KEY"];
+  if (encoded === undefined) {
+    if (nodeEnv === "production") {
+      throw new TypeError("INTERNAL_AI_BFF_PROOF_HMAC_KEY is required in production");
+    }
+    return new Uint8Array(DEVELOPMENT_AI_BFF_PROOF_HMAC_KEY);
+  }
+  if (!BASE64URL_PATTERN.test(encoded)) {
+    throw new TypeError("INTERNAL_AI_BFF_PROOF_HMAC_KEY must be canonical base64url");
+  }
+  const decoded = Buffer.from(encoded, "base64url");
+  if (decoded.toString("base64url") !== encoded || decoded.byteLength < 32 || decoded.byteLength > 64) {
+    throw new TypeError(
+      "INTERNAL_AI_BFF_PROOF_HMAC_KEY must be canonical base64url encoding of 32 through 64 bytes",
+    );
+  }
+  if (nodeEnv === "production" && decoded.equals(DEVELOPMENT_AI_BFF_PROOF_HMAC_KEY)) {
+    throw new TypeError(
+      "INTERNAL_AI_BFF_PROOF_HMAC_KEY must not use the fixed development key in production",
+    );
+  }
+  return new Uint8Array(decoded);
+}
+
+function sameSecret(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.byteLength !== right.byteLength) return false;
+  return timingSafeEqual(Buffer.from(left), Buffer.from(right));
+}
+
 function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase();
   if (normalized === "[::1]" || normalized === "::1") return true;
@@ -103,6 +207,38 @@ function parseEndpoint(raw: string, name: string): URL {
   }
   if (endpoint.protocol === "http:" && !isLoopbackHostname(endpoint.hostname)) {
     throw new TypeError(`${name} may use HTTP only on an explicit loopback address`);
+  }
+  return endpoint;
+}
+
+function parseRedisEndpoint(raw: string, nodeEnv: ApiRuntimeConfig["nodeEnv"]): URL {
+  if (raw.trim() !== raw) {
+    throw new TypeError("API_AI_REDIS_URL must not contain surrounding whitespace");
+  }
+  let endpoint: URL;
+  try {
+    endpoint = new URL(raw);
+  } catch {
+    throw new TypeError("API_AI_REDIS_URL must be an absolute Redis URL");
+  }
+  if (endpoint.protocol !== "redis:" && endpoint.protocol !== "rediss:") {
+    throw new TypeError("API_AI_REDIS_URL must use redis or rediss");
+  }
+  if (endpoint.search || endpoint.hash || (endpoint.pathname !== "" && endpoint.pathname !== "/")) {
+    throw new TypeError("API_AI_REDIS_URL must not contain a database path, query, or fragment");
+  }
+  if (endpoint.password.length === 0) {
+    throw new TypeError("API_AI_REDIS_URL must contain a password");
+  }
+  if (nodeEnv === "production" && endpoint.protocol !== "rediss:") {
+    throw new TypeError("API_AI_REDIS_URL must use rediss in production");
+  }
+  if (
+    endpoint.protocol === "redis:" &&
+    !isLoopbackHostname(endpoint.hostname) &&
+    endpoint.hostname.toLowerCase() !== "localhost"
+  ) {
+    throw new TypeError("Plaintext API_AI_REDIS_URL is allowed only on loopback");
   }
   return endpoint;
 }
@@ -211,6 +347,11 @@ export function loadApiRuntimeConfig(environment: Environment = process.env): Ap
         throw new TypeError(`${name} is required in production`);
       }
     }
+    for (const name of ["API_AI_KNOWLEDGE_URL", "API_AI_REDIS_URL"] as const) {
+      if (environment[name] === undefined) {
+        throw new TypeError(`${name} is required in production`);
+      }
+    }
   }
 
   const issuerRaw = environment["API_OIDC_ISSUER"] ?? LOCAL_ISSUER;
@@ -227,9 +368,90 @@ export function loadApiRuntimeConfig(environment: Environment = process.env): Ap
   }
   // Validate the secret during startup; catalog cursors load the same material
   // at encode/decode time without exposing it through the public runtime config.
-  void loadCatalogCursorHmacKey(environment);
+  const cursorHmacKey = loadCatalogCursorHmacKey(environment);
+  const aiRateLimitHmacKey = loadAiRateLimitHmacKey(environment);
+  const aiBffProofHmacKey = loadAiBffProofHmacKey(environment);
+  const aiKnowledgeServiceHmacKey = loadAiKnowledgeServiceHmacKey(environment);
+  if (
+    sameSecret(cursorHmacKey, aiRateLimitHmacKey) ||
+    sameSecret(cursorHmacKey, aiBffProofHmacKey) ||
+    sameSecret(cursorHmacKey, aiKnowledgeServiceHmacKey) ||
+    sameSecret(aiRateLimitHmacKey, aiBffProofHmacKey) ||
+    sameSecret(aiRateLimitHmacKey, aiKnowledgeServiceHmacKey) ||
+    sameSecret(aiBffProofHmacKey, aiKnowledgeServiceHmacKey)
+  ) {
+    throw new TypeError(
+      "Catalog cursor, AI rate-limit, AI BFF proof, and AI knowledge service HMAC keys must be independent",
+    );
+  }
+
+  const aiKnowledgeBaseUrl = parseEndpoint(
+    environment["API_AI_KNOWLEDGE_URL"] ?? LOCAL_AI_KNOWLEDGE_URL,
+    "API_AI_KNOWLEDGE_URL",
+  );
+  if (nodeEnv === "production" && aiKnowledgeBaseUrl.protocol !== "https:") {
+    throw new TypeError("API_AI_KNOWLEDGE_URL must use HTTPS in production");
+  }
+  const clientLimit = parseIntegerSetting(
+    environment["API_AI_RATE_LIMIT_CLIENT"],
+    "API_AI_RATE_LIMIT_CLIENT",
+    12,
+    1,
+    1_000,
+  );
+  const globalLimit = parseIntegerSetting(
+    environment["API_AI_RATE_LIMIT_GLOBAL"],
+    "API_AI_RATE_LIMIT_GLOBAL",
+    600,
+    1,
+    100_000,
+  );
+  const networkLimit = parseIntegerSetting(
+    environment["API_AI_RATE_LIMIT_NETWORK"],
+    "API_AI_RATE_LIMIT_NETWORK",
+    120,
+    1,
+    100_000,
+  );
+  if (networkLimit < clientLimit) {
+    throw new TypeError("API_AI_RATE_LIMIT_NETWORK must be greater than or equal to the client limit");
+  }
+  if (globalLimit < networkLimit) {
+    throw new TypeError("API_AI_RATE_LIMIT_GLOBAL must be greater than or equal to the network limit");
+  }
 
   return {
+    ai: {
+      knowledgeBaseUrl: aiKnowledgeBaseUrl,
+      maxResponseBytes: parseIntegerSetting(
+        environment["API_AI_MAX_RESPONSE_BYTES"],
+        "API_AI_MAX_RESPONSE_BYTES",
+        262_144,
+        16_384,
+        1_048_576,
+      ),
+      serviceHmacKey: aiKnowledgeServiceHmacKey,
+      rateLimit: {
+        clientLimit,
+        globalLimit,
+        networkLimit,
+        redisUrl: parseRedisEndpoint(environment["API_AI_REDIS_URL"] ?? LOCAL_AI_REDIS_URL, nodeEnv),
+        windowSeconds: parseIntegerSetting(
+          environment["API_AI_RATE_LIMIT_WINDOW_SECONDS"],
+          "API_AI_RATE_LIMIT_WINDOW_SECONDS",
+          60,
+          10,
+          3_600,
+        ),
+      },
+      requestTimeoutMs: parseIntegerSetting(
+        environment["API_AI_REQUEST_TIMEOUT_MS"],
+        "API_AI_REQUEST_TIMEOUT_MS",
+        3_000,
+        250,
+        10_000,
+      ),
+    },
     cors: {
       allowedOrigins: parseCorsAllowedOrigins(environment["API_CORS_ALLOWED_ORIGINS"], nodeEnv),
     },

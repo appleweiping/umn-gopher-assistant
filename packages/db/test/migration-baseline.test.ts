@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 const packageRoot = resolve(import.meta.dirname, "..");
 const migrationsRoot = resolve(packageRoot, "migrations");
 const snapshotPath = resolve(migrationsRoot, "meta/0000_snapshot.json");
+const aiSnapshotPath = resolve(migrationsRoot, "meta/0001_snapshot.json");
 const temporaryRoots: string[] = [];
 
 afterEach(() => {
@@ -24,6 +25,11 @@ describe("Drizzle migration baseline", () => {
     };
 
     expect(snapshot.tables?.["public.campuses"]?.columns?.["centroid"]?.type).toBe("geometry(Point,4326)");
+    expect(existsSync(aiSnapshotPath)).toBe(true);
+    const aiSnapshot = JSON.parse(readFileSync(aiSnapshotPath, "utf8")) as {
+      readonly tables?: Record<string, { readonly columns?: Record<string, { readonly type?: string }> }>;
+    };
+    expect(aiSnapshot.tables?.["public.knowledge_chunks"]?.columns?.["embedding"]?.type).toBe("vector(384)");
   });
 
   it("generates no follow-up migration from the committed baseline", () => {
@@ -54,6 +60,7 @@ describe("Drizzle migration baseline", () => {
     expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
     expect(readdirSync(generatedMigrations).filter((file) => file.endsWith(".sql"))).toEqual([
       "0000_foundation.sql",
+      "0001_ai_knowledge.sql",
     ]);
   }, 30_000);
 });

@@ -53,6 +53,7 @@ function extractQuotedValues(text, quotePattern) {
 }
 
 const requiredFiles = [
+  ".npmrc",
   "package.json",
   "pnpm-workspace.yaml",
   "turbo.json",
@@ -61,6 +62,12 @@ const requiredFiles = [
   "apps/api/src/main.ts",
   "apps/api/src/http/entity-tag.ts",
   "apps/api/src/http/pagination.ts",
+  "apps/ai-knowledge/Dockerfile",
+  "apps/ai-knowledge/requirements.txt",
+  "apps/edge-gateway/Dockerfile",
+  "apps/edge-gateway/package.json",
+  "apps/edge-gateway/README.md",
+  "apps/edge-gateway/src/proxy.ts",
   "apps/web/package.json",
   "apps/web/app/page.tsx",
   "packages/contracts/package.json",
@@ -79,8 +86,14 @@ const requiredFiles = [
   "infra/compose/.env.example",
   "infra/compose/postgres/Dockerfile",
   "infra/compose/keycloak/realm-export.json",
+  ".github/workflows/ci.yml",
+  ".github/workflows/security.yml",
+  ".github/workflows/release-containers.yml",
+  ".github/dependabot.yml",
+  ".gitleaksignore",
   "docs/architecture.md",
   "docs/data-source-policy.md",
+  "docs/security-supply-chain.md",
   "docs/threat-model.md",
   "docs/adr/0001-selective-service-architecture.md",
   "CONTRIBUTING.md",
@@ -102,9 +115,56 @@ assert.match(packageJson.packageManager, /^pnpm@10\./, "pnpm 10 must be pinned")
 assert.equal(packageJson.engines.node, ">=24 <25", "the supported Node 24 line must be bounded");
 assert.equal(packageJson.devDependencies.turbo.startsWith("^"), false, "Turborepo must be pinned exactly");
 
+const workflowTexts = await Promise.all(
+  [
+    ".github/workflows/ci.yml",
+    ".github/workflows/security.yml",
+    ".github/workflows/release-containers.yml",
+  ].map(read),
+);
+for (const workflowText of workflowTexts) {
+  const actionReferences = [...workflowText.matchAll(/^\s*uses:\s*[^@\s]+@([^\s#]+)/gmu)].map(
+    (match) => match[1],
+  );
+  assert.ok(actionReferences.length > 0, "each workflow must declare at least one pinned action");
+  for (const reference of actionReferences) {
+    assert.match(reference, /^[a-f0-9]{40}$/u, `GitHub Action must use a full immutable SHA: ${reference}`);
+  }
+}
+
+const securityWorkflow = workflowTexts[1];
+for (const invariant of [
+  "github/codeql-action/init@",
+  "github/codeql-action/analyze@",
+  "gitleaks/gitleaks:v8.29.0@sha256:",
+  "aquasecurity/trivy:0.72.0@sha256:",
+  "anchore/syft:v1.44.0@sha256:",
+  "cyclonedx-json",
+  "edge-gateway.tar",
+  "edge-gateway.cdx.json",
+  "--skip-files /workspace/apps/edge-gateway/Dockerfile.dockerignore",
+  "--exclude './security-artifacts/**'",
+  "0 commits scanned",
+]) {
+  assert.ok(securityWorkflow.includes(invariant), `security workflow invariant missing: ${invariant}`);
+}
+
+const releaseWorkflow = workflowTexts[2];
+for (const invariant of [
+  "id-token: write",
+  "EDGE_IMAGE:",
+  "steps.edge.outputs.digest",
+  "cosign sign --yes",
+  "cosign attest --yes --type cyclonedx",
+  "provenance: mode=max",
+]) {
+  assert.ok(releaseWorkflow.includes(invariant), `release workflow invariant missing: ${invariant}`);
+}
+
 for (const jsonFile of [
   "package.json",
   "apps/api/package.json",
+  "apps/edge-gateway/package.json",
   "apps/web/package.json",
   "packages/contracts/package.json",
   "packages/config/package.json",
@@ -171,10 +231,10 @@ for (const source of sources) {
     allowedVerificationStates.has(source.verificationState),
     `${source.id} has an invalid verification state`,
   );
-  assert.equal(
+  assert.notEqual(
     source.officialStatus,
-    "UNVERIFIED",
-    `${source.id} must not claim official integration status`,
+    "PARTNERSHIP_VERIFIED",
+    `${source.id} must not claim an unverified institutional partnership`,
   );
 }
 
@@ -364,7 +424,11 @@ for (const eventName of [
 
 const compose = await read("infra/compose/docker-compose.yml");
 for (const service of [
+  "ai-knowledge",
+  "ai-knowledge-sync",
+  "postgres-permissions",
   "postgres",
+  "postgres-migrate",
   "keycloak",
   "redis",
   "nats",
@@ -384,20 +448,88 @@ assert.ok(
 );
 for (const invariant of [
   "context: ./postgres",
-  "../../packages/db/migrations/0000_foundation.sql:/docker-entrypoint-initdb.d/10-foundation.sql:ro",
-  "FROM pg_extension",
+  "./postgres/migrate.sh:/migrations/migrate.sh:ro",
+  "../../packages/db/migrations/0000_foundation.sql:/migrations/0000_foundation.sql:ro",
+  'test "$$(cat /proc/1/comm)" = postgres',
+  "condition: service_completed_successfully",
+  "chown -R 70:70 /var/lib/postgresql/data",
+  "network_mode: none",
   "${POSTGRES_PORT:-5432}:5432",
 ]) {
   assert.ok(compose.includes(invariant), `compose database invariant missing: ${invariant}`);
 }
 
+const migrationRunner = await read("infra/compose/postgres/migrate.sh");
+for (const invariant of [
+  "platform_schema_migrations",
+  "platform_schema_migrations_immutable",
+  "sha256sum",
+  "--single-transaction",
+  "Applied migration checksum does not match the repository",
+]) {
+  assert.ok(migrationRunner.includes(invariant), `migration runner invariant missing: ${invariant}`);
+}
+
 const postgresDockerfile = await read("infra/compose/postgres/Dockerfile");
 for (const invariant of [
-  "postgis/postgis:17-3.5@sha256:4e8c30197f7ce4190cf11a1b8c44bea35a58507558cffa48570814beba77b099",
+  "docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
+  "postgis/postgis:17-3.5-alpine@sha256:bcab61c139a9644dcf0bb00b0cff8ab84e36b3b6f74983cf229ddb4ea0c22897",
   "PGVECTOR_VERSION=0.8.2",
   "69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa",
+  "SU_EXEC_VERSION=0.3-r0",
+  "BUILD_BASE_VERSION=0.5-r4",
+  "CLANG_VERSION=21.1.8-r3",
+  "LLVM_VERSION=21.1.8-r1",
+  "cp /sbin/su-exec /usr/local/bin/gosu",
+  "gosu postgres id -u | grep -Fx '70'",
+  "FROM scratch AS final",
+  "COPY --from=runtime / /",
+  'ENTRYPOINT ["docker-entrypoint.sh"]',
+  'VOLUME ["/var/lib/postgresql/data"]',
+  "USER 70:70",
 ]) {
   assert.ok(postgresDockerfile.includes(invariant), `Postgres image invariant missing: ${invariant}`);
+}
+
+const aiKnowledgeDockerfile = await read("apps/ai-knowledge/Dockerfile");
+for (const invariant of [
+  "python:3.13.11-slim-bookworm@sha256:20080e807bfc404f8450b185cf0fc95d553462673598549613735f70a5b4d5d0",
+  "LIBCAP2_VERSION=1:2.66-4+deb12u3+b1",
+  "LIBGNUTLS30_VERSION=3.7.9-2+deb12u7",
+  "LIBSSL3_VERSION=3.0.20-1~deb12u2",
+  "OPENSSL_VERSION=3.0.20-1~deb12u2",
+  "--no-install-recommends",
+  "--no-deps --require-hashes --requirement requirements.txt",
+]) {
+  assert.ok(aiKnowledgeDockerfile.includes(invariant), `AI image invariant missing: ${invariant}`);
+}
+
+const edgeGatewayDockerfile = await read("apps/edge-gateway/Dockerfile");
+for (const invariant of [
+  "node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57",
+  "COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./",
+  "pnpm install --frozen-lockfile --ignore-scripts",
+  "GPGV_VERSION=2.2.40-1.1+deb12u2",
+  "LIBCAP2_VERSION=1:2.66-4+deb12u3+b1",
+  "LIBGNUTLS30_VERSION=3.7.9-2+deb12u7",
+  "LIBPAM_VERSION=1.5.2-6+deb12u2",
+  "rm -rf /opt/yarn-v1.22.22 /usr/local/lib/node_modules",
+  "! command -v npm",
+  "USER 10001:10001",
+  'CMD ["node", "dist/main.js"]',
+]) {
+  assert.ok(edgeGatewayDockerfile.includes(invariant), `edge gateway image invariant missing: ${invariant}`);
+}
+const edgeGatewayProxy = await read("apps/edge-gateway/src/proxy.ts");
+for (const invariant of [
+  "request.socket.remoteAddress",
+  "applyAllowedResponseHeaders",
+  "x-gopher-ingress-ai-",
+  "x-gopher-internal-ai-",
+  "x-forwarded-",
+  'target.target === "/readyz"',
+]) {
+  assert.ok(edgeGatewayProxy.includes(invariant), `edge gateway trust invariant missing: ${invariant}`);
 }
 
 const databaseUrlContract = await read("packages/db/src/database-url.ts");

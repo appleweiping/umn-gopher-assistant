@@ -12,6 +12,7 @@ export interface OperationDefinition {
   readonly public: boolean;
   readonly queryParameterNames: readonly string[];
   readonly requiredScopes: readonly string[];
+  readonly responseRequestBindings: readonly string[];
   readonly runtimeStatus: "contract-only" | "implemented";
   readonly successMediaTypes: readonly string[];
   readonly successStatuses: readonly number[];
@@ -26,6 +27,7 @@ export const operationDefinitions = {
     "public": true,
     "queryParameterNames": [],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -44,6 +46,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "community:write"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -62,6 +65,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "messages:write"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -78,6 +82,7 @@ export const operationDefinitions = {
     "public": true,
     "queryParameterNames": [],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -94,6 +99,7 @@ export const operationDefinitions = {
     "public": true,
     "queryParameterNames": [],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -112,6 +118,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "world:write"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -135,6 +142,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "campus:read"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -157,6 +165,7 @@ export const operationDefinitions = {
       "to"
     ],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -173,6 +182,7 @@ export const operationDefinitions = {
     "public": true,
     "queryParameterNames": [],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -193,6 +203,7 @@ export const operationDefinitions = {
       "limit"
     ],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -215,6 +226,7 @@ export const operationDefinitions = {
       "to"
     ],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -236,6 +248,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "messages:read"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -257,6 +270,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "admin:read"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -278,6 +292,7 @@ export const operationDefinitions = {
       "query"
     ],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"
@@ -298,6 +313,7 @@ export const operationDefinitions = {
       "limit"
     ],
     "requiredScopes": [],
+    "responseRequestBindings": [],
     "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
@@ -307,16 +323,18 @@ export const operationDefinitions = {
     ],
     "supportsNotModified": true
   },
-  "queryAssistant": {
-    "idempotencyKeyRequired": true,
+  "queryCampusAssistant": {
+    "idempotencyKeyRequired": false,
     "method": "POST",
     "path": "/v1/ai/query",
-    "public": false,
+    "public": true,
     "queryParameterNames": [],
-    "requiredScopes": [
-      "campus:read"
+    "requiredScopes": [],
+    "responseRequestBindings": [
+      "campusId",
+      "locale"
     ],
-    "runtimeStatus": "contract-only",
+    "runtimeStatus": "implemented",
     "successMediaTypes": [
       "application/json"
     ],
@@ -334,6 +352,7 @@ export const operationDefinitions = {
     "requiredScopes": [
       "admin:write"
     ],
+    "responseRequestBindings": [],
     "runtimeStatus": "contract-only",
     "successMediaTypes": [
       "application/json"

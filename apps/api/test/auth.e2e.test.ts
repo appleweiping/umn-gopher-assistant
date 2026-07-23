@@ -18,6 +18,19 @@ import type { ApiRuntimeConfig } from "../src/runtime-config.js";
 const ISSUER = "https://identity.example.edu/realms/gopher";
 const AUDIENCE = "gopher-api";
 const config: ApiRuntimeConfig = {
+  ai: {
+    knowledgeBaseUrl: new URL("http://127.0.0.1:8100"),
+    maxResponseBytes: 262_144,
+    serviceHmacKey: new TextEncoder().encode("development-only-ai-service-hmac-key-v1"),
+    rateLimit: {
+      clientLimit: 12,
+      globalLimit: 600,
+      networkLimit: 120,
+      redisUrl: new URL("redis://:local-only@127.0.0.1:6379"),
+      windowSeconds: 60,
+    },
+    requestTimeoutMs: 3_000,
+  },
   cors: { allowedOrigins: ["http://localhost:3000"] },
   nodeEnv: "test",
   oidc: {

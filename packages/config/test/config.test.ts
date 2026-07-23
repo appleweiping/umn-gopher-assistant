@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { resolveAcademicInstitution } from "@umn-gopher-assistant/contracts";
@@ -26,8 +29,8 @@ describe("foundation configuration", () => {
   });
 
   it("does not claim official integration status for seed sources", () => {
-    expect(sources).toHaveLength(15);
-    expect(sources.every((source) => source.officialStatus === "UNVERIFIED")).toBe(true);
+    expect(sources).toHaveLength(41);
+    expect(sources.every((source) => source.officialStatus !== "PARTNERSHIP_VERIFIED")).toBe(true);
   });
 
   it("registers one LIVE_ONLY, non-caching Sessions source per campus", () => {
@@ -143,10 +146,75 @@ describe("foundation configuration", () => {
     }
   });
 
-  it("contains no unsupported OPEN_REUSE or synthetic FRESH claims", () => {
-    expect(sources.some((source) => source.licenseStatus === "OPEN_REUSE")).toBe(false);
+  it("limits OPEN_REUSE to the project-authored summary artifact", () => {
+    const reusable = sources.filter((source) => source.licenseStatus === "OPEN_REUSE");
+    expect(reusable).toHaveLength(1);
+    const reusableSource = reusable[0];
+    if (reusableSource === undefined) throw new Error("project-authored summary source is missing");
+    expect(reusableSource).toMatchObject({
+      id: "uga-ai-summary-corpus-v1",
+      resourceKinds: ["AI_KNOWLEDGE_SUMMARY"],
+      publisher: "UMN Gopher Assistant contributors",
+      licenseEvidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+      killSwitch: { defaultState: "ENABLED" },
+    });
+    expect(new URL(reusableSource.sourceUrl).hostname).toBe("github.com");
     expect(sources.some((source) => source.freshnessState === "FRESH")).toBe(false);
     expect(sources.every((source) => source.lastCheckedAt === null)).toBe(true);
+  });
+
+  it("registers every AI verification identity as a separately switchable deep link", () => {
+    const verificationLinks = sources.filter((source) =>
+      source.resourceKinds.includes("AI_VERIFICATION_LINK"),
+    );
+    expect(verificationLinks).toHaveLength(25);
+    expect(
+      verificationLinks.every(
+        (source) =>
+          source.licenseStatus === "DEEPLINK_ONLY" &&
+          source.licenseEvidenceUrl === null &&
+          source.cachePolicy === "NO_CONTENT_CACHE" &&
+          source.killSwitch.defaultState === "ENABLED" &&
+          source.campusIds.length === 1 &&
+          (new URL(source.sourceUrl).hostname === "umn.edu" ||
+            new URL(source.sourceUrl).hostname.endsWith(".umn.edu")),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the packaged AI source registry exactly aligned with governed descriptors", () => {
+    const corpusPath = resolve(
+      import.meta.dirname,
+      "../../../apps/ai-knowledge/ai_knowledge/data/corpus.json",
+    );
+    const corpus = JSON.parse(readFileSync(corpusPath, "utf8")) as {
+      sourceRegistry: {
+        id: string;
+        campusIds: string[];
+        resourceKinds: string[];
+        sourceUrl: string;
+        licenseStatus: string;
+        licenseEvidenceUrl: string | null;
+        killSwitch: { key: string; defaultState: string };
+      }[];
+    };
+    const governedAiSources = sources
+      .filter((source) =>
+        source.resourceKinds.some((kind) => ["AI_KNOWLEDGE_SUMMARY", "AI_VERIFICATION_LINK"].includes(kind)),
+      )
+      .map((source) => ({
+        id: source.id,
+        campusIds: [...source.campusIds],
+        resourceKinds: [...source.resourceKinds],
+        sourceUrl: source.sourceUrl,
+        licenseStatus: source.licenseStatus,
+        licenseEvidenceUrl: source.licenseEvidenceUrl,
+        killSwitch: {
+          key: source.killSwitch.key,
+          defaultState: source.killSwitch.defaultState,
+        },
+      }));
+    expect(corpus.sourceRegistry).toEqual(governedAiSources);
   });
 
   it("has unique source IDs, kill switches, owners, and explicit public-data classification", () => {

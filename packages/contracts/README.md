@@ -26,3 +26,9 @@ contract rejects those timestamps entirely for `APPROVAL_REQUIRED` and
 `PROHIBITED`; historical denial evidence belongs in a separate audit record.
 Review evidence does not imply an official partnership. Tests use only
 synthetic records.
+
+AI knowledge governance uses two non-interchangeable resource kinds.
+`AI_KNOWLEDGE_SUMMARY` is an isolated `OPEN_REUSE`/`CACHE_ALLOWED` project
+artifact; `AI_VERIFICATION_LINK` is a single-campus `DEEPLINK_ONLY` source with
+no reuse-license evidence. The contract rejects descriptors that combine or
+swap those roles.

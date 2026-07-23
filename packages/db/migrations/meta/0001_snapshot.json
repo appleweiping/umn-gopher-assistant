@@ -1,0 +1,1627 @@
+{
+  "id": "f0b014c7-a1ea-4d42-8f91-6e6796b79639",
+  "prevId": "2d5b95be-d4db-42ef-a4e7-8a666e8e8473",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_events": {
+      "name": "audit_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor": {
+          "name": "actor",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target": {
+          "name": "target",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_events_target_occurred_idx": {
+          "name": "audit_events_target_occurred_idx",
+          "columns": [
+            {
+              "expression": "action",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_events_nonempty_check": {
+          "name": "audit_events_nonempty_check",
+          "value": "char_length(btrim(\"audit_events\".\"action\")) > 0 AND char_length(btrim(\"audit_events\".\"trace_id\")) > 0"
+        },
+        "audit_events_outcome_check": {
+          "name": "audit_events_outcome_check",
+          "value": "\"audit_events\".\"outcome\" IN ('SUCCESS', 'DENIED', 'FAILURE')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.campuses": {
+      "name": "campuses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "campus_id",
+          "typeSchema": "public",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_zh_cn": {
+          "name": "name_zh_cn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city_en": {
+          "name": "city_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "city_zh_cn": {
+          "name": "city_zh_cn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "academic_institution_code": {
+          "name": "academic_institution_code",
+          "type": "academic_institution_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "academic_calendar_campus_id": {
+          "name": "academic_calendar_campus_id",
+          "type": "campus_id",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "official_status": {
+          "name": "official_status",
+          "type": "official_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNVERIFIED'"
+        },
+        "centroid": {
+          "name": "centroid",
+          "type": "geometry(Point,4326)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campuses_nonempty_check": {
+          "name": "campuses_nonempty_check",
+          "value": "char_length(btrim(\"campuses\".\"name_en\")) > 0 AND char_length(btrim(\"campuses\".\"name_zh_cn\")) > 0 AND char_length(btrim(\"campuses\".\"city_en\")) > 0 AND char_length(btrim(\"campuses\".\"city_zh_cn\")) > 0 AND char_length(btrim(\"campuses\".\"time_zone\")) > 0"
+        },
+        "campuses_source_url_https_check": {
+          "name": "campuses_source_url_https_check",
+          "value": "\"campuses\".\"source_url\" LIKE 'https://%'"
+        },
+        "campuses_academic_mapping_check": {
+          "name": "campuses_academic_mapping_check",
+          "value": "(\"campuses\".\"id\" = 'tc' AND \"campuses\".\"academic_institution_code\" = 'UMNTC' AND \"campuses\".\"academic_calendar_campus_id\" = 'tc') OR (\"campuses\".\"id\" = 'duluth' AND \"campuses\".\"academic_institution_code\" = 'UMNDL' AND \"campuses\".\"academic_calendar_campus_id\" = 'duluth') OR (\"campuses\".\"id\" = 'crookston' AND \"campuses\".\"academic_institution_code\" = 'UMNCR' AND \"campuses\".\"academic_calendar_campus_id\" = 'crookston') OR (\"campuses\".\"id\" = 'morris' AND \"campuses\".\"academic_institution_code\" = 'UMNMO' AND \"campuses\".\"academic_calendar_campus_id\" = 'morris') OR (\"campuses\".\"id\" = 'rochester' AND \"campuses\".\"academic_institution_code\" = 'UMNTC' AND \"campuses\".\"academic_calendar_campus_id\" = 'tc')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_chunks": {
+      "name": "knowledge_chunks",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locale": {
+          "name": "locale",
+          "type": "ai_locale",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_count": {
+          "name": "token_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "search_vector": {
+          "name": "search_vector",
+          "type": "tsvector",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "to_tsvector('simple', \"content\")",
+            "type": "stored"
+          }
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(384)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "knowledge_chunks_document_locale_ordinal_uidx": {
+          "name": "knowledge_chunks_document_locale_ordinal_uidx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "locale",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ordinal",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_chunks_id_document_uidx": {
+          "name": "knowledge_chunks_id_document_uidx",
+          "columns": [
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_chunks_search_gin_idx": {
+          "name": "knowledge_chunks_search_gin_idx",
+          "columns": [
+            {
+              "expression": "search_vector",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "knowledge_chunks_embedding_hnsw_idx": {
+          "name": "knowledge_chunks_embedding_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"knowledge_chunks\".\"embedding\" IS NOT NULL",
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_chunks_document_id_knowledge_documents_id_fk": {
+          "name": "knowledge_chunks_document_id_knowledge_documents_id_fk",
+          "tableFrom": "knowledge_chunks",
+          "tableTo": "knowledge_documents",
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "knowledge_chunks_ordinal_check": {
+          "name": "knowledge_chunks_ordinal_check",
+          "value": "\"knowledge_chunks\".\"ordinal\" >= 0"
+        },
+        "knowledge_chunks_content_check": {
+          "name": "knowledge_chunks_content_check",
+          "value": "char_length(btrim(\"knowledge_chunks\".\"content\")) > 0 AND \"knowledge_chunks\".\"token_count\" > 0 AND \"knowledge_chunks\".\"token_count\" <= 4096"
+        },
+        "knowledge_chunks_hash_check": {
+          "name": "knowledge_chunks_hash_check",
+          "value": "\"knowledge_chunks\".\"content_hash\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_citations": {
+      "name": "knowledge_citations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "citation_key": {
+          "name": "citation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "document_id": {
+          "name": "document_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chunk_id": {
+          "name": "chunk_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "excerpt": {
+          "name": "excerpt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "knowledge_citations_key_uidx": {
+          "name": "knowledge_citations_key_uidx",
+          "columns": [
+            {
+              "expression": "citation_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_citations_document_chunk_uidx": {
+          "name": "knowledge_citations_document_chunk_uidx",
+          "columns": [
+            {
+              "expression": "document_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "chunk_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_citations_document_id_knowledge_documents_id_fk": {
+          "name": "knowledge_citations_document_id_knowledge_documents_id_fk",
+          "tableFrom": "knowledge_citations",
+          "tableTo": "knowledge_documents",
+          "columnsFrom": ["document_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "knowledge_citations_chunk_document_fk": {
+          "name": "knowledge_citations_chunk_document_fk",
+          "tableFrom": "knowledge_citations",
+          "tableTo": "knowledge_chunks",
+          "columnsFrom": ["chunk_id", "document_id"],
+          "columnsTo": ["id", "document_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "knowledge_citations_nonempty_check": {
+          "name": "knowledge_citations_nonempty_check",
+          "value": "char_length(btrim(\"knowledge_citations\".\"citation_key\")) > 0 AND char_length(btrim(\"knowledge_citations\".\"excerpt\")) > 0"
+        },
+        "knowledge_citations_hash_check": {
+          "name": "knowledge_citations_hash_check",
+          "value": "\"knowledge_citations\".\"content_hash\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_documents": {
+      "name": "knowledge_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary_source_id": {
+          "name": "summary_source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verification_source_id": {
+          "name": "verification_source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campus_id": {
+          "name": "campus_id",
+          "type": "campus_id",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "knowledge_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title_en": {
+          "name": "title_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title_zh_cn": {
+          "name": "title_zh_cn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_en": {
+          "name": "body_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_zh_cn": {
+          "name": "body_zh_cn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keywords_en": {
+          "name": "keywords_en",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "keywords_zh_cn": {
+          "name": "keywords_zh_cn",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fresh_for_days": {
+          "name": "fresh_for_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "freshness_state": {
+          "name": "freshness_state",
+          "type": "freshness_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verification_state": {
+          "name": "verification_state",
+          "type": "verification_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'schematic'"
+        },
+        "conflict_group": {
+          "name": "conflict_group",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "conflict_variant": {
+          "name": "conflict_variant",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "knowledge_documents_external_id_uidx": {
+          "name": "knowledge_documents_external_id_uidx",
+          "columns": [
+            {
+              "expression": "external_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_documents_campus_category_idx": {
+          "name": "knowledge_documents_campus_category_idx",
+          "columns": [
+            {
+              "expression": "campus_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_documents_summary_source_idx": {
+          "name": "knowledge_documents_summary_source_idx",
+          "columns": [
+            {
+              "expression": "summary_source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "knowledge_documents_verification_source_idx": {
+          "name": "knowledge_documents_verification_source_idx",
+          "columns": [
+            {
+              "expression": "verification_source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "knowledge_documents_campus_id_campuses_id_fk": {
+          "name": "knowledge_documents_campus_id_campuses_id_fk",
+          "tableFrom": "knowledge_documents",
+          "tableTo": "campuses",
+          "columnsFrom": ["campus_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "knowledge_documents_summary_source_fk": {
+          "name": "knowledge_documents_summary_source_fk",
+          "tableFrom": "knowledge_documents",
+          "tableTo": "knowledge_sources",
+          "columnsFrom": ["summary_source_id"],
+          "columnsTo": ["external_id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "knowledge_documents_verification_source_fk": {
+          "name": "knowledge_documents_verification_source_fk",
+          "tableFrom": "knowledge_documents",
+          "tableTo": "knowledge_sources",
+          "columnsFrom": ["verification_source_id"],
+          "columnsTo": ["external_id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "knowledge_documents_nonempty_check": {
+          "name": "knowledge_documents_nonempty_check",
+          "value": "char_length(btrim(\"knowledge_documents\".\"external_id\")) > 0 AND \"knowledge_documents\".\"summary_source_id\" ~ '^[a-z0-9][a-z0-9-]{2,127}$' AND \"knowledge_documents\".\"verification_source_id\" ~ '^[a-z0-9][a-z0-9-]{2,127}$' AND \"knowledge_documents\".\"summary_source_id\" <> \"knowledge_documents\".\"verification_source_id\" AND char_length(btrim(\"knowledge_documents\".\"title_en\")) > 0 AND char_length(btrim(\"knowledge_documents\".\"title_zh_cn\")) > 0 AND char_length(btrim(\"knowledge_documents\".\"body_en\")) > 0 AND char_length(btrim(\"knowledge_documents\".\"body_zh_cn\")) > 0"
+        },
+        "knowledge_documents_hash_check": {
+          "name": "knowledge_documents_hash_check",
+          "value": "\"knowledge_documents\".\"content_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "knowledge_documents_retrieval_metadata_check": {
+          "name": "knowledge_documents_retrieval_metadata_check",
+          "value": "cardinality(\"knowledge_documents\".\"keywords_en\") BETWEEN 1 AND 24 AND cardinality(\"knowledge_documents\".\"keywords_zh_cn\") BETWEEN 1 AND 24 AND \"knowledge_documents\".\"fresh_for_days\" BETWEEN 1 AND 3650"
+        },
+        "knowledge_documents_conflict_metadata_check": {
+          "name": "knowledge_documents_conflict_metadata_check",
+          "value": "(\"knowledge_documents\".\"conflict_group\" IS NULL AND \"knowledge_documents\".\"conflict_variant\" IS NULL) OR (\"knowledge_documents\".\"conflict_group\" ~ '^[a-z0-9][a-z0-9-]{2,127}$' AND \"knowledge_documents\".\"conflict_variant\" ~ '^[a-z0-9][a-z0-9-]{2,127}$')"
+        },
+        "knowledge_documents_retirement_check": {
+          "name": "knowledge_documents_retirement_check",
+          "value": "(\"knowledge_documents\".\"enabled\" AND \"knowledge_documents\".\"retired_at\" IS NULL AND \"knowledge_documents\".\"verification_state\" <> 'retired') OR (NOT \"knowledge_documents\".\"enabled\" AND \"knowledge_documents\".\"retired_at\" IS NOT NULL AND \"knowledge_documents\".\"verification_state\" = 'retired')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_ingestion_runs": {
+      "name": "knowledge_ingestion_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "corpus_version": {
+          "name": "corpus_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "knowledge_ingestion_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "documents_seen": {
+          "name": "documents_seen",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "documents_indexed": {
+          "name": "documents_indexed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "documents_retired": {
+          "name": "documents_retired",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_summary": {
+          "name": "error_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_sha256": {
+          "name": "projection_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_sources": {
+          "name": "projection_sources",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_documents": {
+          "name": "projection_documents",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_chunks": {
+          "name": "projection_chunks",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "projection_citations": {
+          "name": "projection_citations",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "knowledge_ingestion_runs_started_idx": {
+          "name": "knowledge_ingestion_runs_started_idx",
+          "columns": [
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "knowledge_ingestion_runs_counts_check": {
+          "name": "knowledge_ingestion_runs_counts_check",
+          "value": "\"knowledge_ingestion_runs\".\"documents_seen\" >= 0 AND \"knowledge_ingestion_runs\".\"documents_indexed\" >= 0 AND \"knowledge_ingestion_runs\".\"documents_retired\" >= 0 AND \"knowledge_ingestion_runs\".\"documents_indexed\" + \"knowledge_ingestion_runs\".\"documents_retired\" <= \"knowledge_ingestion_runs\".\"documents_seen\""
+        },
+        "knowledge_ingestion_runs_lifecycle_check": {
+          "name": "knowledge_ingestion_runs_lifecycle_check",
+          "value": "(\"knowledge_ingestion_runs\".\"status\" = 'running' AND \"knowledge_ingestion_runs\".\"completed_at\" IS NULL AND \"knowledge_ingestion_runs\".\"error_summary\" IS NULL) OR (\"knowledge_ingestion_runs\".\"status\" = 'succeeded' AND \"knowledge_ingestion_runs\".\"completed_at\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"error_summary\" IS NULL) OR (\"knowledge_ingestion_runs\".\"status\" = 'failed' AND \"knowledge_ingestion_runs\".\"completed_at\" IS NOT NULL AND char_length(btrim(\"knowledge_ingestion_runs\".\"error_summary\")) > 0)"
+        },
+        "knowledge_ingestion_runs_projection_check": {
+          "name": "knowledge_ingestion_runs_projection_check",
+          "value": "(\"knowledge_ingestion_runs\".\"status\" = 'succeeded' AND \"knowledge_ingestion_runs\".\"projection_sha256\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"projection_sha256\" ~ '^[a-f0-9]{64}$' AND \"knowledge_ingestion_runs\".\"projection_sources\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"projection_sources\" >= 0 AND \"knowledge_ingestion_runs\".\"projection_documents\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"projection_documents\" >= 0 AND \"knowledge_ingestion_runs\".\"projection_chunks\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"projection_chunks\" >= 0 AND \"knowledge_ingestion_runs\".\"projection_citations\" IS NOT NULL AND \"knowledge_ingestion_runs\".\"projection_citations\" >= 0) OR (\"knowledge_ingestion_runs\".\"status\" IN ('running', 'failed') AND \"knowledge_ingestion_runs\".\"projection_sha256\" IS NULL AND \"knowledge_ingestion_runs\".\"projection_sources\" IS NULL AND \"knowledge_ingestion_runs\".\"projection_documents\" IS NULL AND \"knowledge_ingestion_runs\".\"projection_chunks\" IS NULL AND \"knowledge_ingestion_runs\".\"projection_citations\" IS NULL)"
+        },
+        "knowledge_ingestion_runs_version_check": {
+          "name": "knowledge_ingestion_runs_version_check",
+          "value": "char_length(btrim(\"knowledge_ingestion_runs\".\"corpus_version\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.knowledge_sources": {
+      "name": "knowledge_sources",
+      "schema": "",
+      "columns": {
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "campus_ids": {
+          "name": "campus_ids",
+          "type": "campus_id[]",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "knowledge_source_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "license_status": {
+          "name": "license_status",
+          "type": "license_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "license_evidence_url": {
+          "name": "license_evidence_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "knowledge_sources_identity_check": {
+          "name": "knowledge_sources_identity_check",
+          "value": "\"knowledge_sources\".\"external_id\" ~ '^[a-z0-9][a-z0-9-]{2,127}$' AND cardinality(\"knowledge_sources\".\"campus_ids\") BETWEEN 1 AND 5"
+        },
+        "knowledge_sources_url_check": {
+          "name": "knowledge_sources_url_check",
+          "value": "\"knowledge_sources\".\"source_url\" LIKE 'https://%'"
+        },
+        "knowledge_sources_governance_check": {
+          "name": "knowledge_sources_governance_check",
+          "value": "(\"knowledge_sources\".\"role\" = 'PROJECT_SUMMARY' AND cardinality(\"knowledge_sources\".\"campus_ids\") = 5 AND \"knowledge_sources\".\"source_url\" = 'https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json' AND \"knowledge_sources\".\"license_status\" = 'OPEN_REUSE' AND \"knowledge_sources\".\"license_evidence_url\" = 'https://www.apache.org/licenses/LICENSE-2.0') OR (\"knowledge_sources\".\"role\" = 'OFFICIAL_VERIFICATION' AND cardinality(\"knowledge_sources\".\"campus_ids\") = 1 AND \"knowledge_sources\".\"source_url\" = lower(btrim(\"knowledge_sources\".\"source_url\")) AND \"knowledge_sources\".\"source_url\" !~ '[[:space:]@?#]' AND \"knowledge_sources\".\"source_url\" LIKE 'https://%/%' AND char_length(split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1)) BETWEEN 1 AND 253 AND translate(split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1), 'abcdefghijklmnopqrstuvwxyz0123456789-.', '') = '' AND split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) NOT LIKE '.%' AND split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) NOT LIKE '-%' AND split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) NOT LIKE '%..%' AND split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) NOT LIKE '%.-%' AND split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) NOT LIKE '%-.%' AND (split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) = 'umn.edu' OR right(split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1), 8) = '.umn.edu') AND (split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1) = split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) OR split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1) = split_part(split_part(substring(\"knowledge_sources\".\"source_url\" from 9), '/', 1), ':', 1) || ':443') AND \"knowledge_sources\".\"license_status\" = 'DEEPLINK_ONLY' AND \"knowledge_sources\".\"license_evidence_url\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.outbox_events": {
+      "name": "outbox_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "aggregate_type": {
+          "name": "aggregate_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aggregate_id": {
+          "name": "aggregate_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "available_at": {
+          "name": "available_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "outbox_events_unpublished_idx": {
+          "name": "outbox_events_unpublished_idx",
+          "columns": [
+            {
+              "expression": "available_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"outbox_events\".\"published_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "outbox_events_attempts_check": {
+          "name": "outbox_events_attempts_check",
+          "value": "\"outbox_events\".\"attempts\" >= 0"
+        },
+        "outbox_events_nonempty_check": {
+          "name": "outbox_events_nonempty_check",
+          "value": "char_length(btrim(\"outbox_events\".\"aggregate_type\")) > 0 AND char_length(btrim(\"outbox_events\".\"aggregate_id\")) > 0 AND char_length(btrim(\"outbox_events\".\"event_type\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.source_snapshots": {
+      "name": "source_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normalized_payload": {
+          "name": "normalized_payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_object_key": {
+          "name": "raw_object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parse_version": {
+          "name": "parse_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector(1536)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "source_snapshots_source_hash_uidx": {
+          "name": "source_snapshots_source_hash_uidx",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "content_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "source_snapshots_source_captured_idx": {
+          "name": "source_snapshots_source_captured_idx",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "captured_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "source_snapshots_embedding_hnsw_idx": {
+          "name": "source_snapshots_embedding_hnsw_idx",
+          "columns": [
+            {
+              "expression": "embedding",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "vector_cosine_ops"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"source_snapshots\".\"embedding\" IS NOT NULL",
+          "concurrently": false,
+          "method": "hnsw",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "source_snapshots_source_id_sources_id_fk": {
+          "name": "source_snapshots_source_id_sources_id_fk",
+          "tableFrom": "source_snapshots",
+          "tableTo": "sources",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "source_snapshots_content_hash_check": {
+          "name": "source_snapshots_content_hash_check",
+          "value": "\"source_snapshots\".\"content_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "source_snapshots_parse_version_nonempty_check": {
+          "name": "source_snapshots_parse_version_nonempty_check",
+          "value": "char_length(btrim(\"source_snapshots\".\"parse_version\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sources": {
+      "name": "sources",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "external_id": {
+          "name": "external_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campus_ids": {
+          "name": "campus_ids",
+          "type": "campus_id[]",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_zh_cn": {
+          "name": "name_zh_cn",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "publisher": {
+          "name": "publisher",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "license_status": {
+          "name": "license_status",
+          "type": "license_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "freshness_state": {
+          "name": "freshness_state",
+          "type": "freshness_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNKNOWN'"
+        },
+        "verification_state": {
+          "name": "verification_state",
+          "type": "verification_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'surveyed'"
+        },
+        "official_status": {
+          "name": "official_status",
+          "type": "official_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNVERIFIED'"
+        },
+        "attribution": {
+          "name": "attribution",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cache_policy": {
+          "name": "cache_policy",
+          "type": "cache_policy",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_checked_at": {
+          "name": "last_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "sources_external_id_uidx": {
+          "name": "sources_external_id_uidx",
+          "columns": [
+            {
+              "expression": "external_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sources_nonempty_check": {
+          "name": "sources_nonempty_check",
+          "value": "char_length(btrim(\"sources\".\"external_id\")) > 0 AND char_length(btrim(\"sources\".\"name_en\")) > 0 AND char_length(btrim(\"sources\".\"name_zh_cn\")) > 0 AND char_length(btrim(\"sources\".\"publisher\")) > 0 AND char_length(btrim(\"sources\".\"attribution\")) > 0"
+        },
+        "sources_campus_ids_nonempty_check": {
+          "name": "sources_campus_ids_nonempty_check",
+          "value": "cardinality(\"sources\".\"campus_ids\") > 0"
+        },
+        "sources_source_url_https_check": {
+          "name": "sources_source_url_https_check",
+          "value": "\"sources\".\"source_url\" LIKE 'https://%'"
+        },
+        "prohibited_source_access_check": {
+          "name": "prohibited_source_access_check",
+          "value": "\"sources\".\"license_status\" <> 'PROHIBITED' OR \"sources\".\"cache_policy\" = 'NO_ACCESS'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.world_manifests": {
+      "name": "world_manifests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campus_id": {
+          "name": "campus_id",
+          "type": "campus_id",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "world_version": {
+          "name": "world_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verification_state": {
+          "name": "verification_state",
+          "type": "verification_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "etag": {
+          "name": "etag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_ids": {
+          "name": "source_ids",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "manifest": {
+          "name": "manifest",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generated_at": {
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "world_manifests_campus_version_revision_uidx": {
+          "name": "world_manifests_campus_version_revision_uidx",
+          "columns": [
+            {
+              "expression": "campus_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "world_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "revision",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "world_manifests_campus_id_campuses_id_fk": {
+          "name": "world_manifests_campus_id_campuses_id_fk",
+          "tableFrom": "world_manifests",
+          "tableTo": "campuses",
+          "columnsFrom": ["campus_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "world_manifests_revision_check": {
+          "name": "world_manifests_revision_check",
+          "value": "\"world_manifests\".\"revision\" > 0"
+        },
+        "world_manifests_nonempty_check": {
+          "name": "world_manifests_nonempty_check",
+          "value": "char_length(btrim(\"world_manifests\".\"world_version\")) > 0 AND char_length(btrim(\"world_manifests\".\"etag\")) > 0"
+        },
+        "world_manifests_source_ids_nonempty_check": {
+          "name": "world_manifests_source_ids_nonempty_check",
+          "value": "jsonb_typeof(\"world_manifests\".\"source_ids\") = 'array' AND jsonb_array_length(\"world_manifests\".\"source_ids\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.academic_institution_code": {
+      "name": "academic_institution_code",
+      "schema": "public",
+      "values": ["UMNTC", "UMNDL", "UMNCR", "UMNMO"]
+    },
+    "public.ai_locale": {
+      "name": "ai_locale",
+      "schema": "public",
+      "values": ["en", "zh-CN"]
+    },
+    "public.cache_policy": {
+      "name": "cache_policy",
+      "schema": "public",
+      "values": ["CACHE_ALLOWED", "METADATA_ONLY", "NO_CONTENT_CACHE", "NO_ACCESS"]
+    },
+    "public.campus_id": {
+      "name": "campus_id",
+      "schema": "public",
+      "values": ["tc", "duluth", "crookston", "morris", "rochester"]
+    },
+    "public.freshness_state": {
+      "name": "freshness_state",
+      "schema": "public",
+      "values": ["FRESH", "STALE", "EXPIRED", "UNKNOWN"]
+    },
+    "public.knowledge_category": {
+      "name": "knowledge_category",
+      "schema": "public",
+      "values": ["library", "student-services", "safety", "transportation", "dining"]
+    },
+    "public.knowledge_ingestion_status": {
+      "name": "knowledge_ingestion_status",
+      "schema": "public",
+      "values": ["running", "succeeded", "failed"]
+    },
+    "public.knowledge_source_role": {
+      "name": "knowledge_source_role",
+      "schema": "public",
+      "values": ["PROJECT_SUMMARY", "OFFICIAL_VERIFICATION"]
+    },
+    "public.license_status": {
+      "name": "license_status",
+      "schema": "public",
+      "values": ["OPEN_REUSE", "LIVE_ONLY", "DEEPLINK_ONLY", "APPROVAL_REQUIRED", "PROHIBITED"]
+    },
+    "public.official_status": {
+      "name": "official_status",
+      "schema": "public",
+      "values": ["UNVERIFIED", "PUBLISHER_ASSERTED", "PARTNERSHIP_VERIFIED"]
+    },
+    "public.verification_state": {
+      "name": "verification_state",
+      "schema": "public",
+      "values": ["schematic", "surveyed", "campus-reviewed", "verified", "retired"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

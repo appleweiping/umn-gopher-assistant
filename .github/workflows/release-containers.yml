@@ -1,0 +1,324 @@
+name: Release signed containers
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing SemVer tag to package (for example v1.0.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-containers-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release-gate:
+    name: Re-verify tagged source before privileged publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      CI: true
+      NEXT_TELEMETRY_DISABLED: 1
+      RELEASE_TRIGGER: ${{ github.event_name }}
+      RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      RELEASE_WORKFLOW_REF: ${{ github.ref }}
+    outputs:
+      release_sha: ${{ steps.source.outputs.release_sha }}
+    steps:
+      - name: Check out the complete tagged history without persisted credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.RELEASE_VERSION }}
+
+      - name: Require a canonical tag reachable from the protected main line
+        id: source
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release version must be a canonical vMAJOR.MINOR.PATCH tag" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_TRIGGER" == "workflow_dispatch" ]]; then
+            if [[ "$RELEASE_WORKFLOW_REF" != "refs/heads/main" ]]; then
+              echo "Manual releases must invoke the reviewed workflow from refs/heads/main" >&2
+              exit 1
+            fi
+          elif [[ "$RELEASE_TRIGGER" == "push" ]]; then
+            if [[ "$RELEASE_WORKFLOW_REF" != "refs/tags/$RELEASE_VERSION" ]]; then
+              echo "Tag releases must run from the exact requested tag ref" >&2
+              exit 1
+            fi
+          else
+            echo "Unsupported release trigger" >&2
+            exit 1
+          fi
+          release_sha="$(git rev-parse --verify "refs/tags/$RELEASE_VERSION^{commit}")"
+          test "$release_sha" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$release_sha" refs/remotes/origin/main
+          git tag --points-at "$release_sha" | grep -Fx "$RELEASE_VERSION"
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        with:
+          run_install: false
+          version: 10.34.5
+
+      - name: Install Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          cache: pnpm
+          node-version: 24.11.1
+
+      - name: Install Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          cache: pip
+          cache-dependency-path: apps/ai-knowledge/requirements-dev.txt
+          python-version: 3.13.11
+
+      - name: Install immutable dependency graphs
+        run: |
+          pnpm install --frozen-lockfile
+          python -m pip install --require-hashes --requirement apps/ai-knowledge/requirements-dev.txt
+
+      - name: Re-run source, contract, test, build, and dependency gates
+        run: |
+          pnpm verify:node
+          pnpm build
+          python -m ruff check apps/ai-knowledge
+          python -m ruff format --check apps/ai-knowledge
+          (cd apps/ai-knowledge && python -m pytest -m "not integration")
+          pnpm audit --prod --audit-level moderate --registry=https://registry.npmjs.org
+          python -m pip_audit --requirement apps/ai-knowledge/requirements-dev.txt --disable-pip --no-deps --progress-spinner off
+
+      - name: Scan complete history for secrets
+        shell: bash
+        run: |
+          set -o pipefail
+          docker run --rm --volume "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.29.0@sha256:71d3ee5990f2176f763b438298453fc37e87b119122045e176ca9d44ff00b08b \
+            git /repo --gitleaks-ignore-path=/repo/.gitleaksignore \
+            --redact --no-banner --log-opts=--all 2>&1 | tee gitleaks.log
+          grep -Eq '[1-9][0-9]* commits scanned' gitleaks.log
+          ! grep -Eq '(^|[^0-9])0 commits scanned|ERR' gitleaks.log
+
+      - name: Build, upgrade-smoke, and scan container inputs before granting publication
+        run: |
+          docker build --tag gopher-assistant/ai-knowledge:release-gate apps/ai-knowledge
+          docker build --file apps/edge-gateway/Dockerfile \
+            --tag gopher-assistant/edge-gateway:release-gate .
+          docker build \
+            --tag gopher-assistant/postgres:release-gate \
+            --tag gopher-assistant/postgres:17-postgis3.5-pgvector0.8.2 \
+            infra/compose/postgres
+          SMOKE_DB_REUSE_IMAGE=true pnpm smoke:db
+          trivy='ghcr.io/aquasecurity/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f'
+          docker run --rm --volume /var/run/docker.sock:/var/run/docker.sock "$trivy" image \
+            --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            gopher-assistant/ai-knowledge:release-gate
+          docker run --rm --volume /var/run/docker.sock:/var/run/docker.sock "$trivy" image \
+            --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            gopher-assistant/edge-gateway:release-gate
+          docker run --rm --volume /var/run/docker.sock:/var/run/docker.sock "$trivy" image \
+            --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            gopher-assistant/postgres:release-gate
+
+  publish:
+    name: Build, publish, attest, and sign
+    needs: release-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    env:
+      AI_IMAGE: ghcr.io/${{ github.repository_owner }}/umn-gopher-assistant-ai-knowledge
+      EDGE_IMAGE: ghcr.io/${{ github.repository_owner }}/umn-gopher-assistant-edge-gateway
+      POSTGRES_IMAGE: ghcr.io/${{ github.repository_owner }}/umn-gopher-assistant-postgres
+      RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+      STAGING_SUFFIX: staging-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the tagged source without persisted credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.release-gate.outputs.release_sha }}
+
+      - name: Require a canonical SemVer tag
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release version must be a canonical vMAJOR.MINOR.PATCH tag" >&2
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "${{ needs.release-gate.outputs.release_sha }}"
+          test "$(git rev-parse --verify "refs/tags/$RELEASE_VERSION^{commit}")" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor HEAD refs/remotes/origin/main
+          git tag --points-at HEAD | grep -Fx "$RELEASE_VERSION"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+
+      - name: Build and publish the knowledge service by staging digest
+        id: ai
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: apps/ai-knowledge
+          file: apps/ai-knowledge/Dockerfile
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-gate.outputs.release_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.RELEASE_VERSION }}
+          provenance: mode=max
+          push: true
+          tags: ${{ env.AI_IMAGE }}:${{ env.STAGING_SUFFIX }}
+
+      - name: Build and publish the PostgreSQL platform image by staging digest
+        id: postgres
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: infra/compose/postgres
+          file: infra/compose/postgres/Dockerfile
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-gate.outputs.release_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.RELEASE_VERSION }}
+          provenance: mode=max
+          push: true
+          tags: ${{ env.POSTGRES_IMAGE }}:${{ env.STAGING_SUFFIX }}
+
+      - name: Build and publish the trusted edge gateway by staging digest
+        id: edge
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: .
+          file: apps/edge-gateway/Dockerfile
+          labels: |
+            org.opencontainers.image.revision=${{ needs.release-gate.outputs.release_sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.RELEASE_VERSION }}
+          provenance: mode=max
+          push: true
+          tags: ${{ env.EDGE_IMAGE }}:${{ env.STAGING_SUFFIX }}
+
+      - name: Pull and scan the exact pushed digests
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          docker pull "$AI_IMAGE@${{ steps.ai.outputs.digest }}"
+          docker pull "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}"
+          docker pull "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+          docker save --output release-artifacts/ai-knowledge.tar "$AI_IMAGE@${{ steps.ai.outputs.digest }}"
+          docker save --output release-artifacts/edge-gateway.tar "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}"
+          docker save --output release-artifacts/postgres.tar "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+          trivy='ghcr.io/aquasecurity/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f'
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/ai-knowledge.tar \
+            --severity HIGH,CRITICAL
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/edge-gateway.tar \
+            --severity HIGH,CRITICAL
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/postgres.tar \
+            --severity HIGH,CRITICAL
+
+      - name: Install verified Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+
+      - name: Sign immutable image digests with GitHub OIDC
+        shell: bash
+        run: |
+          cosign sign --yes "$AI_IMAGE@${{ steps.ai.outputs.digest }}"
+          cosign sign --yes "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}"
+          cosign sign --yes "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+
+      - name: Generate CycloneDX attestations for published digests
+        shell: bash
+        run: |
+          syft='ghcr.io/anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6'
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$syft" \
+            docker-archive:/scan/ai-knowledge.tar \
+            --output cyclonedx-json=/scan/ai-knowledge.cdx.json
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$syft" \
+            docker-archive:/scan/edge-gateway.tar \
+            --output cyclonedx-json=/scan/edge-gateway.cdx.json
+          docker run --rm --volume "$PWD/release-artifacts:/scan" "$syft" \
+            docker-archive:/scan/postgres.tar \
+            --output cyclonedx-json=/scan/postgres.cdx.json
+          cosign attest --yes --type cyclonedx \
+            --predicate release-artifacts/ai-knowledge.cdx.json \
+            "$AI_IMAGE@${{ steps.ai.outputs.digest }}"
+          cosign attest --yes --type cyclonedx \
+            --predicate release-artifacts/edge-gateway.cdx.json \
+            "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}"
+          cosign attest --yes --type cyclonedx \
+            --predicate release-artifacts/postgres.cdx.json \
+            "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+          rm release-artifacts/*.tar
+
+      - name: Verify signatures and CycloneDX attestations before promotion
+        shell: bash
+        run: |
+          identity='^https://github.com/${{ github.repository }}/\.github/workflows/release-containers\.yml@refs/(heads/main|tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$'
+          issuer='https://token.actions.githubusercontent.com'
+          for image in \
+            "$AI_IMAGE@${{ steps.ai.outputs.digest }}" \
+            "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}" \
+            "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+          do
+            cosign verify \
+              --certificate-identity-regexp "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$image"
+            cosign verify-attestation --type cyclonedx \
+              --certificate-identity-regexp "$identity" \
+              --certificate-oidc-issuer "$issuer" \
+              "$image"
+          done
+
+      - name: Promote only verified digests to the formal SemVer tags
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            --tag "$AI_IMAGE:$RELEASE_VERSION" \
+            "$AI_IMAGE@${{ steps.ai.outputs.digest }}"
+          docker buildx imagetools create \
+            --tag "$EDGE_IMAGE:$RELEASE_VERSION" \
+            "$EDGE_IMAGE@${{ steps.edge.outputs.digest }}"
+          docker buildx imagetools create \
+            --tag "$POSTGRES_IMAGE:$RELEASE_VERSION" \
+            "$POSTGRES_IMAGE@${{ steps.postgres.outputs.digest }}"
+          ai_promoted="$(docker buildx imagetools inspect "$AI_IMAGE:$RELEASE_VERSION" | awk '$1 == "Digest:" { print $2; exit }')"
+          edge_promoted="$(docker buildx imagetools inspect "$EDGE_IMAGE:$RELEASE_VERSION" | awk '$1 == "Digest:" { print $2; exit }')"
+          postgres_promoted="$(docker buildx imagetools inspect "$POSTGRES_IMAGE:$RELEASE_VERSION" | awk '$1 == "Digest:" { print $2; exit }')"
+          test "$ai_promoted" = "${{ steps.ai.outputs.digest }}"
+          test "$edge_promoted" = "${{ steps.edge.outputs.digest }}"
+          test "$postgres_promoted" = "${{ steps.postgres.outputs.digest }}"
+
+      - name: Upload signed-release SBOM evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          if-no-files-found: error
+          name: release-sboms-${{ env.RELEASE_VERSION }}
+          path: release-artifacts/*.cdx.json
+          retention-days: 90

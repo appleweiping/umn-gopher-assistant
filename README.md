@@ -15,12 +15,14 @@ Cities, Duluth, Crookston, Morris, and Rochester.
 
 This repository is an engineering foundation, not a production campus service.
 The current API implementation includes health, campus/source metadata,
-schematic world manifests, and an evidence-gated public catalog. Academic
+schematic world manifests, an evidence-gated public catalog, and a public
+evidence-first campus knowledge query. Academic
 sessions for all five campuses and public events for Twin Cities and Duluth are
 retrieved live with no content cache; unsupported event campuses fall back to
-official links. OpenAPI and AsyncAPI also describe intended contract surfaces,
-so a documented operation or event is not proof that its backing connector or
-workflow is enabled.
+official links. The no-key AI mode retrieves project-authored bilingual summaries,
+cites every paragraph, and never reads the personal vault or calls a model provider.
+OpenAPI and AsyncAPI also describe intended contract surfaces, so a documented
+operation or event is not proof that its backing connector or workflow is enabled.
 
 The platform is designed around:
 
@@ -77,15 +79,18 @@ loads configuration or credentials.
 Local infrastructure binds published ports to `127.0.0.1` by default. Copy
 `infra/compose/.env.example` only for local development, then run Compose from
 the repository root. The database image is built from a digest-pinned PostGIS
-base with checksum-pinned pgvector source, and the foundation migration runs
-only when its data volume is first initialized.
+base with checksum-pinned pgvector source. A dedicated one-shot migration
+service applies every ordered SQL migration transactionally, records a
+checksum ledger, and upgrades existing foundation-only volumes before dependent
+services start.
 
     docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up --build --wait
 
-`pnpm smoke:db` creates an isolated temporary Compose project, verifies PostGIS,
-pgvector, the migrated tables, and the HNSW index, then removes its volumes. It
-requires an available Docker engine and is intended for CI or a local runtime
-with Docker enabled.
+`pnpm smoke:db` creates an isolated temporary Compose project, reproduces a
+foundation-only legacy volume, runs the migration service, verifies preserved
+data, PostGIS, pgvector, the migration ledger, the knowledge tables, and both
+HNSW indexes, then removes its volumes. It requires an available Docker engine
+and is intended for CI or a local runtime with Docker enabled.
 
 The default smoke rebuilds the checksum-pinned database recipe. If a registry is
 temporarily unavailable and the locally tagged development image was already
@@ -151,6 +156,23 @@ See the [public catalog operations runbook](docs/public-catalog-operations.md)
 for copyable startup and low-frequency smoke commands, cursor-key deployment,
 source switches, review expiry, pagination semantics, and incident fallback.
 
+### Evidence-first campus AI
+
+The Ask page now uses the implemented `POST /v1/ai/query` surface through a
+same-origin, credential-free BFF. The initial mode is deterministic retrieval,
+not a general chatbot: it returns `answered`, `stale`, `conflict`, or
+`no-results`, retains campus and evidence metadata, and links only to governed
+official UMN verification entrances. BYOK and local-model inputs remain visibly
+disabled until their provider, secret, privacy, and output-validation boundaries
+are implemented and tested.
+
+Development can run the reviewed file corpus explicitly. Production requires
+PostgreSQL 17, a successful transactional corpus synchronization, Redis-backed
+distributed abuse control, and no file fallback. pgvector storage is present,
+but the current implementation truthfully reports that vector search is off.
+See the [campus knowledge operations runbook](docs/ai-knowledge-operations.md)
+and [ADR 0005](docs/adr/0005-evidence-first-campus-ai.md).
+
 ## Identity and developer tools
 
 The imported Keycloak realm is synthetic and local-only. It provides PKCE
@@ -167,8 +189,8 @@ committed artifacts with:
 
 Every OpenAPI operation has an `x-runtime-status`. Health, campus metadata,
 source metadata, schematic world manifests, academic sessions, and public
-events are currently implemented; the other public contract surfaces remain
-`contract-only`.
+events, and the no-key campus assistant are currently implemented; the other
+public contract surfaces remain `contract-only`.
 
 The `uga` CLI uses the same implemented operation catalog, RFC 8628 device
 authorization, exact exit codes, JSON envelopes, and operating-system keychain
@@ -295,10 +317,11 @@ runs leave this destructive-origin test skipped.
 
 ### Current web limitations
 
-- Weather, routes, personal class schedules, community posts, moderation items,
-  and assistant answers are authored demonstrations unless a provenance link
-  says otherwise. Public Sessions and TC/Duluth events are live-only views with
-  per-request provenance and are unavailable offline.
+- Weather, routes, personal class schedules, community posts, and moderation
+  items are authored demonstrations unless a provenance link says otherwise.
+  Public Sessions and TC/Duluth events are live-only views; assistant answers
+  come from the reviewed project-authored corpus. Both retain provenance and
+  are unavailable offline.
 - Official links leave the app and require a network connection. Their content,
   availability, accessibility, and licensing remain the source owner's
   responsibility.
@@ -312,22 +335,23 @@ runs leave this destructive-origin test skipped.
 
 ## Repository map
 
-| Path               | Purpose                                                  |
-| ------------------ | -------------------------------------------------------- |
-| apps/web           | Next.js web client                                       |
-| apps/api           | NestJS/Fastify API                                       |
-| apps/cli           | RFC 8628 command-line client and guarded read commands   |
-| apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server        |
-| packages/contracts | Shared schemas and public contract types                 |
-| packages/crypto    | Browser-friendly E2EE primitives and local key envelopes |
-| packages/config    | Campus and source registries with provenance             |
-| packages/db        | Database schema, migrations, and persistence adapters    |
-| packages/testing   | Shared test configuration and utilities                  |
-| packages/sdk       | OpenAPI-generated TypeScript SDK and native fetch client |
-| openapi            | HTTP API contract                                        |
-| asyncapi           | Event contract                                           |
-| infra/compose      | Local-only supporting infrastructure                     |
-| docs               | Architecture, source policy, threat model, and decisions |
+| Path               | Purpose                                                   |
+| ------------------ | --------------------------------------------------------- |
+| apps/web           | Next.js web client                                        |
+| apps/api           | NestJS/Fastify API                                        |
+| apps/cli           | RFC 8628 command-line client and guarded read commands    |
+| apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server         |
+| apps/ai-knowledge  | Isolated deterministic campus knowledge retrieval service |
+| packages/contracts | Shared schemas and public contract types                  |
+| packages/crypto    | Browser-friendly E2EE primitives and local key envelopes  |
+| packages/config    | Campus and source registries with provenance              |
+| packages/db        | Database schema, migrations, and persistence adapters     |
+| packages/testing   | Shared test configuration and utilities                   |
+| packages/sdk       | OpenAPI-generated TypeScript SDK and native fetch client  |
+| openapi            | HTTP API contract                                         |
+| asyncapi           | Event contract                                            |
+| infra/compose      | Local-only supporting infrastructure                      |
+| docs               | Architecture, source policy, threat model, and decisions  |
 
 ## Data and connector policy
 
@@ -347,9 +371,12 @@ permission to republish the target.
 - [Architecture](docs/architecture.md)
 - [Data source policy](docs/data-source-policy.md)
 - [Public catalog operations](docs/public-catalog-operations.md)
+- [Campus knowledge operations](docs/ai-knowledge-operations.md)
 - [Threat model](docs/threat-model.md)
+- [Security and supply-chain evidence](docs/security-supply-chain.md)
 - [Identity and authorization boundary](docs/identity.md)
 - [Selective service architecture decision](docs/adr/0001-selective-service-architecture.md)
+- [Evidence-first campus AI decision](docs/adr/0005-evidence-first-campus-ai.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
