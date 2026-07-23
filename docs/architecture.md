@@ -75,6 +75,7 @@ attribution.
 | ---------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | apps/web               | Next.js 16.2 presentation layer and bilingual user experience    | Scaffolded; must display trust labels and source links                     |
 | apps/api               | NestJS 11 API using Fastify; composition root for domain modules | Health, campuses, sources, and world manifests use in-memory repositories  |
+| apps/ai-knowledge      | Isolated deterministic campus knowledge retrieval boundary       | File-backed development and PostgreSQL-backed production modes             |
 | packages/contracts     | Zod schemas, identifiers, shared DTOs, and error shapes          | Contract authority shared by clients and servers                           |
 | packages/config        | Five-campus registry and source registry                         | Seed records are surveyed, provenance-bearing, and officially UNVERIFIED   |
 | packages/db            | PostgreSQL schema, migrations, and repository adapters           | Foundation schema; adapters are not the default source of initial API data |
@@ -129,9 +130,10 @@ contract:
 - a campus world manifest;
 - reviewed UMN Sessions metadata for all five campus selections; and
 - reviewed public event feeds for Twin Cities and Duluth, with explicit
-  official-link fallback elsewhere.
+  official-link fallback elsewhere; and
+- evidence-first bilingual campus knowledge queries with paragraph citations.
 
-Community, messaging, live media, AI, and broader write operations in the
+Community, messaging, live media, model generation/BYOK, and broader write operations in the
 contracts remain compatibility targets. A consumer must not depend on them
 until runtime availability is explicitly documented and tested.
 
@@ -274,9 +276,11 @@ is claimed by this foundation.
 All Compose-published ports bind to `127.0.0.1` by default. Changing
 `COMPOSE_BIND_ADDRESS` is an explicit exposure decision, not a deployment
 default. The local PostgreSQL image uses a digest-pinned PostGIS base and a
-checksum-pinned pgvector source; an empty data volume applies the foundation
-migration before PostgreSQL becomes healthy. `pnpm smoke:db` exercises that
-empty-database path when a Docker engine is available.
+checksum-pinned pgvector source. A one-shot migration service verifies the
+repository checksum of every applied migration and transactionally upgrades
+both empty and existing volumes before data-dependent services start.
+`pnpm smoke:db` reproduces and verifies the foundation-only to knowledge-schema
+upgrade when a Docker engine is available.
 
 ## Known foundation limitations
 

@@ -232,6 +232,52 @@ describe("source contracts", () => {
     ).toBe(false);
     expect(SourceRegistrySchema.safeParse([source, source]).success).toBe(false);
   });
+
+  it("keeps authored AI summaries separate from official verification deep links", () => {
+    const summary = {
+      ...source,
+      id: "uga-ai-summary-corpus-v1",
+      campusIds: ["tc", "duluth", "crookston", "morris", "rochester"],
+      resourceKinds: ["AI_KNOWLEDGE_SUMMARY"],
+      publisher: "UMN Gopher Assistant contributors",
+      sourceUrl:
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+      licenseStatus: "OPEN_REUSE",
+      licenseEvidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+      cachePolicy: "CACHE_ALLOWED",
+      cacheDisposition: {
+        rawResponse: "PERSIST_WITH_TTL",
+        normalizedRecords: "PERSIST_WITH_TTL",
+        derivedArtifacts: "SAME_RETENTION",
+        retentionSeconds: 31_536_000,
+      },
+      killSwitch: { ...source.killSwitch, key: "source.uga-ai-summary-corpus-v1.enabled" },
+    } as const;
+    const verification = {
+      ...source,
+      id: "official-tc-library",
+      resourceKinds: ["AI_VERIFICATION_LINK"],
+      sourceUrl: "https://www.lib.umn.edu/",
+      killSwitch: { ...source.killSwitch, key: "source.official-tc-library.enabled" },
+    } as const;
+
+    expect(SourceDescriptorSchema.safeParse(summary).success).toBe(true);
+    expect(SourceDescriptorSchema.safeParse(verification).success).toBe(true);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...verification,
+        licenseStatus: "OPEN_REUSE",
+        licenseEvidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+        cachePolicy: "CACHE_ALLOWED",
+      }).success,
+    ).toBe(false);
+    expect(
+      SourceDescriptorSchema.safeParse({
+        ...summary,
+        resourceKinds: ["AI_KNOWLEDGE_SUMMARY", "AI_VERIFICATION_LINK"],
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe("world and route contracts", () => {

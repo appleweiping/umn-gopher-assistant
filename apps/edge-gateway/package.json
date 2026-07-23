@@ -1,0 +1,26 @@
+{
+  "name": "@umn-gopher-assistant/edge-gateway",
+  "version": "0.1.0",
+  "description": "Source-IP-preserving trusted ingress for the UMN Gopher Assistant web application",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "dev": "tsx watch src/main.ts",
+    "lint": "eslint .",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.4",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

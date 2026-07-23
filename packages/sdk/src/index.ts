@@ -13,12 +13,16 @@ export {
   type OperationResult,
   type ProblemDetails,
   type ProtocolErrorCode,
+  type RateLimitMetadata,
+  type ResponseMetadata,
   type SuccessResult,
 } from "./client.js";
 export { operationDefinitions, type OperationDefinition, type OperationId } from "./generated/operations.js";
 export {
   successValidatorContractSha256,
+  validateImplementedRequestBody,
   validateImplementedSuccessBody,
+  type RequestBodyValidationResult,
   type SuccessBodyValidationFailureReason,
   type SuccessBodyValidationResult,
 } from "./generated/validators.js";

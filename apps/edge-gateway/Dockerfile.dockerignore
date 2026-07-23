@@ -1,0 +1,11 @@
+**
+!.npmrc
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!apps/
+!apps/edge-gateway/
+!apps/edge-gateway/**
+apps/edge-gateway/dist
+apps/edge-gateway/node_modules

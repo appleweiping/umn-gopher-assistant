@@ -1,6 +1,11 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 
+import { AiController } from "./ai/ai.controller.js";
+import { ConfiguredAiKnowledgeClient } from "./ai/ai-knowledge.client.js";
+import { ConfiguredRedisAiRateLimiter } from "./ai/ai-rate-limiter.js";
+import { AiService } from "./ai/ai.service.js";
+import { AI_KNOWLEDGE_CLIENT, AI_RATE_LIMITER } from "./ai/ai.tokens.js";
 import { AuthModule } from "./auth/auth.module.js";
 import { CampusesController } from "./campuses/campuses.controller.js";
 import { EventsController } from "./catalog/events.controller.js";
@@ -23,6 +28,7 @@ import { WorldsController } from "./worlds/worlds.controller.js";
 @Module({
   imports: [AuthModule],
   controllers: [
+    AiController,
     CampusesController,
     EventsController,
     HealthController,
@@ -31,11 +37,14 @@ import { WorldsController } from "./worlds/worlds.controller.js";
     WorldsController,
   ],
   providers: [
+    AiService,
     HealthService,
     PublicCatalogService,
     { provide: CATALOG_CLOCK, useValue: () => new Date() },
     { provide: SOURCE_OBSERVATION_SINK, useClass: BoundedSourceObservationSink },
     { provide: PUBLIC_CATALOG_GATEWAY, useFactory: () => new ConfiguredPublicCatalogGateway() },
+    { provide: AI_KNOWLEDGE_CLIENT, useClass: ConfiguredAiKnowledgeClient },
+    { provide: AI_RATE_LIMITER, useClass: ConfiguredRedisAiRateLimiter },
     { provide: CAMPUS_REPOSITORY, useClass: InMemoryCampusRepository },
     { provide: SOURCE_REPOSITORY, useClass: InMemorySourceRepository },
     { provide: WORLD_MANIFEST_REPOSITORY, useClass: InMemoryWorldManifestRepository },

@@ -16,7 +16,13 @@ export type SourceId = z.infer<typeof SourceIdSchema>;
 
 const MAX_TERMS_REVIEW_INTERVAL_MS = 366 * 24 * 60 * 60 * 1_000;
 
-export const SourceResourceKindSchema = z.enum(["CAMPUS_DEEPLINK", "ACADEMIC_SESSION", "PUBLIC_EVENT"]);
+export const SourceResourceKindSchema = z.enum([
+  "CAMPUS_DEEPLINK",
+  "ACADEMIC_SESSION",
+  "PUBLIC_EVENT",
+  "AI_KNOWLEDGE_SUMMARY",
+  "AI_VERIFICATION_LINK",
+]);
 export type SourceResourceKind = z.infer<typeof SourceResourceKindSchema>;
 
 export const SourceDataClassificationSchema = z.enum(["PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED"]);
@@ -271,6 +277,37 @@ export const SourceDescriptorSchema = z
         message: "LIVE_ONLY sources cannot allow durable content caching",
         path: ["cachePolicy"],
       });
+    }
+
+    const isKnowledgeSummary = source.resourceKinds.includes("AI_KNOWLEDGE_SUMMARY");
+    const isVerificationLink = source.resourceKinds.includes("AI_VERIFICATION_LINK");
+    if (isKnowledgeSummary) {
+      if (
+        source.resourceKinds.length !== 1 ||
+        source.licenseStatus !== "OPEN_REUSE" ||
+        source.cachePolicy !== "CACHE_ALLOWED"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "AI knowledge summaries must be isolated OPEN_REUSE, cache-allowed sources",
+          path: ["resourceKinds"],
+        });
+      }
+    }
+    if (isVerificationLink) {
+      if (
+        source.resourceKinds.length !== 1 ||
+        source.campusIds.length !== 1 ||
+        source.licenseStatus !== "DEEPLINK_ONLY" ||
+        source.licenseEvidenceUrl !== null ||
+        source.cachePolicy !== "NO_CONTENT_CACHE"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "AI verification links must be single-campus, license-free DEEPLINK_ONLY sources",
+          path: ["resourceKinds"],
+        });
+      }
     }
   });
 export type SourceDescriptor = z.infer<typeof SourceDescriptorSchema>;

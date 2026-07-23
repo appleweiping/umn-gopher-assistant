@@ -2,6 +2,7 @@ import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFil
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { getBearerChallenge } from "../auth/bearer-auth.errors.js";
+import { AiRateLimitExceededException, AiUnavailableException } from "./ai-unavailable.exception.js";
 import { CatalogUnavailableException } from "./catalog-unavailable.exception.js";
 import { ensureRequestId } from "./request-id.interceptor.js";
 
@@ -19,6 +20,12 @@ export interface ProblemDetails {
 
 const problemByStatus: Readonly<Record<number, { readonly slug: string; readonly title: string }>> = {
   [HttpStatus.BAD_REQUEST]: { slug: "bad-request", title: "Bad Request" },
+  [HttpStatus.PAYLOAD_TOO_LARGE]: { slug: "payload-too-large", title: "Payload Too Large" },
+  [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: {
+    slug: "unsupported-media-type",
+    title: "Unsupported Media Type",
+  },
+  [HttpStatus.UNPROCESSABLE_ENTITY]: { slug: "unprocessable-entity", title: "Unprocessable Entity" },
   [HttpStatus.UNAUTHORIZED]: { slug: "unauthorized", title: "Unauthorized" },
   [HttpStatus.FORBIDDEN]: { slug: "forbidden", title: "Forbidden" },
   [HttpStatus.NOT_FOUND]: { slug: "not-found", title: "Not Found" },
@@ -28,6 +35,22 @@ const problemByStatus: Readonly<Record<number, { readonly slug: string; readonly
   [HttpStatus.SERVICE_UNAVAILABLE]: { slug: "service-unavailable", title: "Service Unavailable" },
   [HttpStatus.INTERNAL_SERVER_ERROR]: { slug: "internal-server-error", title: "Internal Server Error" },
 };
+
+function statusFromException(exception: unknown): number {
+  if (exception instanceof HttpException) return exception.getStatus();
+  if (typeof exception === "object" && exception !== null && "statusCode" in exception) {
+    const statusCode = (exception as { readonly statusCode?: unknown }).statusCode;
+    if (
+      typeof statusCode === "number" &&
+      Number.isSafeInteger(statusCode) &&
+      statusCode >= 400 &&
+      statusCode <= 599
+    ) {
+      return statusCode;
+    }
+  }
+  return HttpStatus.INTERNAL_SERVER_ERROR;
+}
 
 function detailFromResponse(response: string | object): string {
   if (typeof response === "string") {
@@ -42,7 +65,7 @@ function detailFromResponse(response: string | object): string {
 
 export function toProblemDetails(exception: unknown, instance: string, traceId: string): ProblemDetails {
   const isHttpException = exception instanceof HttpException;
-  const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+  const status = statusFromException(exception);
   const definition = problemByStatus[status] ?? {
     slug: `http-${String(status)}`,
     title: isHttpException ? exception.name : "Internal Server Error",
@@ -59,6 +82,10 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
           sourceId: exception.sourceId,
         }
       : {};
+  const aiExtensions =
+    exception instanceof AiUnavailableException || exception instanceof AiRateLimitExceededException
+      ? { failureCode: exception.failureCode }
+      : {};
 
   return {
     type: `https://api.gopher-assistant.example/problems/${definition.slug}`,
@@ -68,6 +95,7 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
     instance,
     traceId,
     ...catalogExtensions,
+    ...aiExtensions,
   };
 }
 
@@ -88,6 +116,15 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     if (exception instanceof CatalogUnavailableException) {
       reply.header("Cache-Control", "no-store");
       reply.header("Retry-After", String(exception.retryAfterSeconds));
+    }
+    if (exception instanceof AiUnavailableException || exception instanceof AiRateLimitExceededException) {
+      reply.header("Cache-Control", "no-store");
+      reply.header("Retry-After", String(exception.retryAfterSeconds));
+    }
+    if (exception instanceof AiRateLimitExceededException) {
+      reply.header("RateLimit-Limit", String(exception.limit));
+      reply.header("RateLimit-Remaining", String(exception.remaining));
+      reply.header("RateLimit-Reset", String(exception.resetAfterSeconds));
     }
     void reply.status(problem.status).type("application/problem+json").send(problem);
   }

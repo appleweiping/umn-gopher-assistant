@@ -1,0 +1,23 @@
+# Reviewed deterministic test vectors and synthetic contract examples from
+# pre-security-workflow history. Each exception is pinned to one finding
+# fingerprint so future content in the same files remains fully scanned.
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:apps/api/test/runtime-config.test.ts:generic-api-key:5
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:docs/adr/0002-client-side-e2ee-vault.md:generic-api-key:19
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:packages/contracts/test/security.test.ts:generic-api-key:18
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:packages/contracts/test/security.test.ts:generic-api-key:20
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:packages/contracts/test/security.test.ts:generic-api-key:22
+f69424d21e7c7b5d8c6ea6a18d87799d448810eb:packages/crypto/test/fixed-vectors.test.ts:generic-api-key:169
+ef20abce5c177e676c2f32f93d6205c6a5c20089:apps/api/test/runtime-config.test.ts:generic-api-key:5
+ef20abce5c177e676c2f32f93d6205c6a5c20089:packages/crypto/test/fixed-vectors.test.ts:generic-api-key:169
+13f5d7f3b619fb9726b18e673e8cd1afa6e3ad48:docs/adr/0002-client-side-e2ee-vault.md:generic-api-key:19
+13f5d7f3b619fb9726b18e673e8cd1afa6e3ad48:packages/contracts/test/security.test.ts:generic-api-key:18
+13f5d7f3b619fb9726b18e673e8cd1afa6e3ad48:packages/contracts/test/security.test.ts:generic-api-key:20
+13f5d7f3b619fb9726b18e673e8cd1afa6e3ad48:packages/contracts/test/security.test.ts:generic-api-key:22
+2fb632def78fd11bfed33b67d0b33da20a1b6f98:packages/sdk/test/client.test.ts:generic-api-key:91
+677b5503f31ec4b7aac8c02ed00a6bdc50d13829:packages/contracts/test/contracts.test.ts:generic-api-key:279
+677b5503f31ec4b7aac8c02ed00a6bdc50d13829:packages/contracts/test/contracts.test.ts:generic-api-key:304
+21725d98cc4f2c0baa20ddfc172ae20db1dba3a3:packages/contracts/test/contracts.test.ts:generic-api-key:202
+c9c281883b3fa5762bf4d9fcf76aa02774958be4:packages/sdk/test/client.test.ts:generic-api-key:91
+98bc3154fed922083e25968608d964a6e14650d2:packages/contracts/test/contracts.test.ts:generic-api-key:279
+98bc3154fed922083e25968608d964a6e14650d2:packages/contracts/test/contracts.test.ts:generic-api-key:304
+e6f26adf27510454cfbd9a7408aae518a4de5a99:packages/contracts/test/contracts.test.ts:generic-api-key:202

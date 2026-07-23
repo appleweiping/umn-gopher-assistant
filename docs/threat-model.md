@@ -157,17 +157,34 @@ The full acceptance and incident rules are in the
 
 ### AI and retrieval
 
-| Threat                                                                    | Risk                        | Required controls                                                                                                          |
-| ------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Prompt injection in a webpage, document, post, or metadata                | High                        | Treat retrieved text as quoted data; separate instructions; allowlist tools; require authorization outside the model       |
-| Retrieval crosses user or campus authorization boundary                   | High                        | Filter before retrieval, preserve access labels in indexes and embeddings, re-check before output                          |
-| Model invents an official fact, route, deadline, or emergency instruction | Critical in safety contexts | Grounding and citation, uncertainty, high-risk refusal, official-source handoff, no automated verification promotion       |
-| Sensitive content sent to a model provider                                | High                        | Data classification, minimization, approved provider and purpose, retention controls, secrets and protected data exclusion |
-| Tool call causes an unauthorized write                                    | High                        | Explicit action scope, server-side authorization, idempotency, preview/confirmation for consequential actions, audit trail |
-| Poisoned embeddings persist after source deletion                         | Medium to high              | Source-to-derivative index, deletion propagation, rebuildable indexes, retention testing                                   |
+| Threat                                                                     | Risk                        | Required controls                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt injection in a webpage, document, post, or metadata                 | High                        | Treat retrieved text as quoted data; separate instructions; allowlist tools; require authorization outside the model                                                                                                          |
+| Retrieval crosses user or campus authorization boundary                    | High                        | Filter before retrieval, preserve access labels in indexes and embeddings, re-check before output                                                                                                                             |
+| Model invents an official fact, route, deadline, or emergency instruction  | Critical in safety contexts | Grounding and citation, uncertainty, high-risk refusal, official-source handoff, no automated verification promotion                                                                                                          |
+| Sensitive content sent to a model provider                                 | High                        | Data classification, minimization, approved provider and purpose, retention controls, secrets and protected data exclusion                                                                                                    |
+| Tool call causes an unauthorized write                                     | High                        | Explicit action scope, server-side authorization, idempotency, preview/confirmation for consequential actions, audit trail                                                                                                    |
+| Poisoned embeddings persist after source deletion                          | Medium to high              | Source-to-derivative index, deletion propagation, rebuildable indexes, retention testing                                                                                                                                      |
+| Anonymous query bypasses or exhausts shared abuse controls                 | High                        | Signed HttpOnly BFF session, trusted-edge privacy-network assertion, session/network-bound internal proof, domain-separated socket-IP fallback, atomic client/network/global Redis limits, fail closed on Redis error         |
+| Cookie reset creates unlimited anonymous identities                        | High                        | Clearing the cookie changes the client identity only; a trusted opaque network identity continues charging the network bucket, and the global bucket remains; explicitly document residual multi-network/botnet risk          |
+| Browser forges an ingress or internal AI identity header                   | High                        | Edge strips/overwrites ingress headers, BFF replaces internal headers, independent per-purpose production keys, constant-time MAC checks, trace/session/network/expiry binding, production fails closed without ingress proof |
+| A valid BFF proof is captured and replayed                                 | Medium                      | Thirty-second expiry and trace/session/network binding; the current proof is not one-time, so exact same-trace replay remains valid but is charged to the same three quota identities                                         |
+| API and retrieval service disagree on accepted query or evidence semantics | High                        | Shared negative fixtures, NFC/plain-text rules, neutral handling of private 4xx drift, generated SDK semantic validation                                                                                                      |
+| Citation points across a document or campus boundary                       | High                        | Composite database FK, loader consistency checks, filter-before-rank, cross-campus contract tests                                                                                                                             |
 
 Model output is never a verification artifact and must not be treated as a
 trusted instruction by another subsystem without validation.
+
+The implemented initial AI mode does not call a model. It retrieves only
+project-authored Apache-2.0 summaries, requires evidence for every paragraph,
+and keeps the browser vault outside the service boundary. Production refuses a
+file-corpus fallback and refuses to serve when the latest ingestion failed.
+
+The privacy-network token is an opaque abuse-control grouping, not a raw IP,
+account, device fingerprint, affiliation claim, or household assertion. It can
+group unrelated users behind a shared network and cannot stop distributed
+attackers using many networks. Development's session-derived network identity
+is deliberately degraded and does not satisfy the production launch gate.
 
 ### Maps, routes, and physical safety
 

@@ -1,0 +1,1115 @@
+{
+  "schemaVersion": 1,
+  "provenance": "project-authored-summaries",
+  "sourcePolicy": "official-links-are-verification-only",
+  "enforceCoverage": true,
+  "enabled": true,
+  "deletedAt": null,
+  "summaryContentLicense": "Apache-2.0",
+  "sourceRegistry": [
+    {
+      "id": "uga-ai-summary-corpus-v1",
+      "campusIds": ["tc", "duluth", "crookston", "morris", "rochester"],
+      "resourceKinds": ["AI_KNOWLEDGE_SUMMARY"],
+      "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+      "licenseStatus": "OPEN_REUSE",
+      "licenseEvidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0",
+      "killSwitch": {
+        "key": "source.uga-ai-summary-corpus-v1.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-tc-library",
+      "campusIds": ["tc"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://www.lib.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-tc-library.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-tc-one-stop",
+      "campusIds": ["tc"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://onestop.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-tc-one-stop.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-tc-safe-campus",
+      "campusIds": ["tc"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://safe-campus.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-tc-safe-campus.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-tc-transportation",
+      "campusIds": ["tc"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://pts.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-tc-transportation.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-tc-dining",
+      "campusIds": ["tc"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://dining.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-tc-dining.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-duluth-library",
+      "campusIds": ["duluth"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://lib.d.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-duluth-library.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-duluth-students",
+      "campusIds": ["duluth"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://student-life.d.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-duluth-students.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-duluth-police",
+      "campusIds": ["duluth"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://police.d.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-duluth-police.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-duluth-transportation",
+      "campusIds": ["duluth"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://tps.d.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-duluth-transportation.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-duluth-dining",
+      "campusIds": ["duluth"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://dining-services.d.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-duluth-dining.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-crookston-library",
+      "campusIds": ["crookston"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://crk.umn.edu/academics/library",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-crookston-library.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-crookston-student-life",
+      "campusIds": ["crookston"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://crk.umn.edu/student-life",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-crookston-student-life.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-crookston-public-safety",
+      "campusIds": ["crookston"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://crk.umn.edu/public-safety",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-crookston-public-safety.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-crookston-parking",
+      "campusIds": ["crookston"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://crk.umn.edu/parking",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-crookston-parking.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-crookston-dining",
+      "campusIds": ["crookston"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://crk.umn.edu/student-life/dining-services",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-crookston-dining.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-morris-library",
+      "campusIds": ["morris"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://morris.umn.edu/academics/library",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-morris-library.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-morris-one-stop",
+      "campusIds": ["morris"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://onestop.morris.umn.edu/",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-morris-one-stop.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-morris-public-safety",
+      "campusIds": ["morris"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://morris.umn.edu/morris-public-safety",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-morris-public-safety.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-morris-parking",
+      "campusIds": ["morris"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://morris.umn.edu/morris-public-safety/parking",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-morris-parking.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-morris-dining",
+      "campusIds": ["morris"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://morris.umn.edu/campus-community/student-affairs/student-affairs-offices",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-morris-dining.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-rochester-library",
+      "campusIds": ["rochester"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://r.umn.edu/student-life/library-and-information-commons",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-rochester-library.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-rochester-student-services",
+      "campusIds": ["rochester"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://r.umn.edu/student-services",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-rochester-student-services.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-rochester-safety",
+      "campusIds": ["rochester"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://r.umn.edu/student-life/campus-safety/campus-safety-and-community-standards-overview",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-rochester-safety.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-rochester-transportation",
+      "campusIds": ["rochester"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://r.umn.edu/student-life/student-parking-and-transportation",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-rochester-transportation.enabled",
+        "defaultState": "ENABLED"
+      }
+    },
+    {
+      "id": "official-rochester-dining",
+      "campusIds": ["rochester"],
+      "resourceKinds": ["AI_VERIFICATION_LINK"],
+      "sourceUrl": "https://r.umn.edu/student-life/raptor-eats/raptor-eats-dining-services-overview",
+      "licenseStatus": "DEEPLINK_ONLY",
+      "licenseEvidenceUrl": null,
+      "killSwitch": {
+        "key": "source.official-rochester-dining.enabled",
+        "defaultState": "ENABLED"
+      }
+    }
+  ],
+  "documents": [
+    {
+      "id": "tc-library-overview",
+      "campusId": "tc",
+      "category": "library",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Twin Cities library starting point",
+        "zh-CN": "双城校区图书馆入口"
+      },
+      "content": {
+        "en": "Use the University Libraries site as the official starting point for catalog search, research support, library locations, and current access guidance. Check the linked page before relying on hours or availability because operational details can change.",
+        "zh-CN": "如需检索馆藏、获得研究支持、查找图书馆地点或确认当前访问方式，请从大学图书馆官网开始。开放时间与资源可用性可能变化，请在出发前查看链接页面。"
+      },
+      "keywords": {
+        "en": ["library", "libraries", "books", "catalog", "research", "study", "articles"],
+        "zh-CN": ["图书馆", "馆藏", "图书", "目录", "研究", "学习", "论文"]
+      },
+      "contentSha256": "f503e8ee644230201da2f37ebb23bf88e043adb59e85e2b1137004b047720c2a",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-tc-library",
+      "verificationUrl": "https://www.lib.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "tc-student-services-overview",
+      "campusId": "tc",
+      "category": "student-services",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Twin Cities One Stop student services",
+        "zh-CN": "双城校区一站式学生服务"
+      },
+      "content": {
+        "en": "One Stop is the official place to verify guidance about registration, academic records, tuition, billing, and financial aid for Twin Cities students. Use the linked service for current deadlines, forms, and authenticated actions.",
+        "zh-CN": "双城校区学生可通过 One Stop 官网核对选课、学籍记录、学费账单与助学金等事项。最新截止日期、表格以及需要登录办理的操作，应以链接中的官方服务为准。"
+      },
+      "keywords": {
+        "en": [
+          "one stop",
+          "student support",
+          "registration",
+          "records",
+          "tuition",
+          "billing",
+          "financial aid"
+        ],
+        "zh-CN": ["一站式服务", "学生支持", "选课", "学籍", "学费", "账单", "助学金"]
+      },
+      "contentSha256": "56f1f9a94a3eecd43fdb11ea3fdfe0f90959fa7bfcf0c51ca6af8f819b827fa5",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-tc-one-stop",
+      "verificationUrl": "https://onestop.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "tc-safety-overview",
+      "campusId": "tc",
+      "category": "safety",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Twin Cities campus safety resources",
+        "zh-CN": "双城校区安全资源"
+      },
+      "content": {
+        "en": "The Safe Campus site is the official starting point for emergency preparedness, alerts, reporting, and campus safety contacts. For an immediate emergency call 911; use the linked page to verify non-emergency options and current instructions.",
+        "zh-CN": "Safe Campus 官网汇集应急准备、警报、事件报告及校园安全联系方式。遇到紧急危险请拨打 911；非紧急情况与最新指引请通过链接页面核实。"
+      },
+      "keywords": {
+        "en": ["safety", "emergency", "safe campus", "police", "alerts", "report", "911"],
+        "zh-CN": ["安全", "紧急情况", "校园安全", "警察", "警报", "报告", "911"]
+      },
+      "contentSha256": "b09be8be3a00d5be2495224c7d53a2e235dc3aba0f003bcd014227c22dae7fa7",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-tc-safe-campus",
+      "verificationUrl": "https://safe-campus.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "tc-transportation-overview",
+      "campusId": "tc",
+      "category": "transportation",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Twin Cities transportation and parking",
+        "zh-CN": "双城校区交通与停车"
+      },
+      "content": {
+        "en": "Parking and Transportation Services is the official starting point for campus transit, parking, biking, walking, and accessible transportation information. Verify live schedules, service notices, routes, and permit rules on the linked site before travel.",
+        "zh-CN": "停车与交通服务官网提供校内交通、停车、骑行、步行及无障碍出行信息。出行前请在链接页面确认实时班次、服务通知、路线与停车许可规则。"
+      },
+      "keywords": {
+        "en": ["transportation", "transit", "bus", "shuttle", "parking", "bike", "accessible travel"],
+        "zh-CN": ["交通", "公交", "校车", "接驳车", "停车", "自行车", "无障碍出行"]
+      },
+      "contentSha256": "b7837e35400450804b4f1524545fdfdbda4f1ece56046a6f786da90f6bc54e1d",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-tc-transportation",
+      "verificationUrl": "https://pts.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "tc-dining-overview",
+      "campusId": "tc",
+      "category": "dining",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Twin Cities dining information",
+        "zh-CN": "双城校区餐饮信息"
+      },
+      "content": {
+        "en": "Use the official dining site to find current dining locations, menus, meal-plan guidance, and dietary support. Menus, hours, prices, and service availability can change, so confirm details on the linked page.",
+        "zh-CN": "请通过餐饮官网查找当前餐厅地点、菜单、餐饮计划与饮食需求支持。菜单、营业时间、价格和服务状态可能变化，请在链接页面确认。"
+      },
+      "keywords": {
+        "en": ["dining", "food", "eat", "menu", "meal plan", "restaurant", "dietary"],
+        "zh-CN": ["餐饮", "食物", "吃饭", "菜单", "餐饮计划", "餐厅", "饮食需求"]
+      },
+      "contentSha256": "bcf24551f5292fe16c1d9be9912d05692285713db16709397aef9f2b303eb4ff",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-tc-dining",
+      "verificationUrl": "https://dining.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "duluth-library-overview",
+      "campusId": "duluth",
+      "category": "library",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Duluth library starting point",
+        "zh-CN": "德卢斯校区图书馆入口"
+      },
+      "content": {
+        "en": "Use the Kathryn A. Martin Library site as Duluth's official starting point for collections, research help, study resources, and current building information. Confirm hours and access conditions on the linked page before visiting.",
+        "zh-CN": "德卢斯校区可从 Kathryn A. Martin Library 官网查找馆藏、研究帮助、学习资源及当前场馆信息。到访前请在链接页面确认开放时间与访问条件。"
+      },
+      "keywords": {
+        "en": ["library", "kathryn martin", "books", "catalog", "research", "study", "articles"],
+        "zh-CN": ["图书馆", "凯瑟琳马丁", "图书", "目录", "研究", "学习", "论文"]
+      },
+      "contentSha256": "d50ab32a6e33af0fdd9a2fa3c13a8574a8400eb9ecc97ed3c5c6e0da9c80a628",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-duluth-library",
+      "verificationUrl": "https://lib.d.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "duluth-student-services-overview",
+      "campusId": "duluth",
+      "category": "student-services",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Duluth student support directory",
+        "zh-CN": "德卢斯校区学生支持目录"
+      },
+      "content": {
+        "en": "The Duluth student site is an official directory for locating academic, wellbeing, involvement, and practical support. Follow its current links to the responsible office rather than treating this summary as a transaction or eligibility decision.",
+        "zh-CN": "德卢斯学生官网可用于查找学业、健康、校园参与及日常事务支持。请沿官网的最新链接联系责任部门，本摘要不代替办理操作或资格判断。"
+      },
+      "keywords": {
+        "en": [
+          "student support",
+          "student affairs",
+          "advising",
+          "wellbeing",
+          "activities",
+          "resources",
+          "help"
+        ],
+        "zh-CN": ["学生支持", "学生事务", "学业咨询", "身心健康", "校园活动", "资源", "帮助"]
+      },
+      "contentSha256": "cee4bcbef4fb5c69a1bd2a2ed93128221237fb4ef555cf57db4e7bcf9dfb7de5",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-duluth-students",
+      "verificationUrl": "https://student-life.d.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "duluth-safety-overview",
+      "campusId": "duluth",
+      "category": "safety",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Duluth campus safety resources",
+        "zh-CN": "德卢斯校区安全资源"
+      },
+      "content": {
+        "en": "The UMD Police site is the official starting point for campus safety contacts, prevention resources, reporting, and alerts. For an immediate emergency call 911; verify non-emergency procedures and current contact methods on the linked page.",
+        "zh-CN": "UMD Police 官网提供校园安全联系方式、预防资源、事件报告与警报入口。遇到紧急危险请拨打 911；非紧急流程和当前联系方式请在链接页面核实。"
+      },
+      "keywords": {
+        "en": ["safety", "emergency", "police", "alerts", "report", "prevention", "911"],
+        "zh-CN": ["安全", "紧急情况", "警察", "警报", "报告", "预防", "911"]
+      },
+      "contentSha256": "dc3c939d4fba6fd6fcd366c310abccb1ff65e1ecc9be494c2cec1d759c215103",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-duluth-police",
+      "verificationUrl": "https://police.d.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "duluth-transportation-overview",
+      "campusId": "duluth",
+      "category": "transportation",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Duluth transportation and parking",
+        "zh-CN": "德卢斯校区交通与停车"
+      },
+      "content": {
+        "en": "Duluth Transportation and Parking Services is the official source for parking, permits, transit, and campus travel guidance. Check the linked site for current restrictions, routes, accessibility information, and weather-related notices.",
+        "zh-CN": "德卢斯交通与停车服务官网提供停车、许可、公共交通及校内出行指引。请在链接页面核对当前限制、路线、无障碍信息和天气相关通知。"
+      },
+      "keywords": {
+        "en": ["transportation", "transit", "bus", "parking", "permit", "route", "accessible travel"],
+        "zh-CN": ["交通", "公交", "巴士", "停车", "许可", "路线", "无障碍出行"]
+      },
+      "contentSha256": "7a3eeb7033d12b360a1962d76ef27b930ebfa1a76c4e2c22a39c2802b4abfb45",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-duluth-transportation",
+      "verificationUrl": "https://tps.d.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "duluth-dining-overview",
+      "campusId": "duluth",
+      "category": "dining",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Duluth dining information",
+        "zh-CN": "德卢斯校区餐饮信息"
+      },
+      "content": {
+        "en": "Use the UMD Dining Services site to verify dining locations, menus, meal plans, and dietary support. Because hours and offerings change, consult the linked official page for the current service status.",
+        "zh-CN": "请通过 UMD 餐饮服务官网核对餐饮地点、菜单、餐饮计划和饮食需求支持。营业时间与供应内容会变化，请以链接中的当前服务状态为准。"
+      },
+      "keywords": {
+        "en": ["dining", "food", "eat", "menu", "meal plan", "restaurant", "dietary"],
+        "zh-CN": ["餐饮", "食物", "吃饭", "菜单", "餐饮计划", "餐厅", "饮食需求"]
+      },
+      "contentSha256": "a8fe18946e122b5249705ff6f71ca816754869c83720d38b6fb23e125e224e71",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-duluth-dining",
+      "verificationUrl": "https://dining-services.d.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "crookston-library-overview",
+      "campusId": "crookston",
+      "category": "library",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Crookston library starting point",
+        "zh-CN": "克鲁克斯顿校区图书馆入口"
+      },
+      "content": {
+        "en": "Use the Crookston library page as the official starting point for research support, collections, study resources, and current access information. Verify hours and available services on the linked page before relying on them.",
+        "zh-CN": "克鲁克斯顿校区可从图书馆官网查找研究支持、馆藏、学习资源和当前访问说明。开放时间与可用服务请在链接页面确认后再使用。"
+      },
+      "keywords": {
+        "en": ["library", "books", "catalog", "research", "study", "articles", "collections"],
+        "zh-CN": ["图书馆", "图书", "目录", "研究", "学习", "论文", "馆藏"]
+      },
+      "contentSha256": "21fb289e58fb9ce47b0b1aaa277150f2dfb75bf2ea35341b81d8cd5ec6993d43",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-crookston-library",
+      "verificationUrl": "https://crk.umn.edu/academics/library",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "crookston-student-services-overview",
+      "campusId": "crookston",
+      "category": "student-services",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Crookston student support directory",
+        "zh-CN": "克鲁克斯顿校区学生支持目录"
+      },
+      "content": {
+        "en": "The Crookston student-life site is an official starting point for finding support, involvement, housing, wellbeing, and other student resources. Use its current links to reach the responsible office for decisions or transactions.",
+        "zh-CN": "克鲁克斯顿学生生活官网可用于查找支持服务、校园参与、住宿、健康及其他学生资源。涉及决定或办理操作时，请沿官网最新链接联系责任部门。"
+      },
+      "keywords": {
+        "en": ["student support", "student life", "advising", "wellbeing", "activities", "housing", "help"],
+        "zh-CN": ["学生支持", "学生生活", "学业咨询", "身心健康", "校园活动", "住宿", "帮助"]
+      },
+      "contentSha256": "c14290ad3d97aed2844a879910015cabd57813f8efcba33a3695d80919f9f7eb",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-crookston-student-life",
+      "verificationUrl": "https://crk.umn.edu/student-life",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "crookston-safety-overview",
+      "campusId": "crookston",
+      "category": "safety",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Crookston campus safety resources",
+        "zh-CN": "克鲁克斯顿校区安全资源"
+      },
+      "content": {
+        "en": "Crookston Public Safety provides the official entry for safety contacts, prevention information, and campus procedures. For an immediate emergency call 911; verify non-emergency contact details and current guidance on the linked page.",
+        "zh-CN": "克鲁克斯顿公共安全官网提供安全联系方式、预防信息和校园流程入口。遇到紧急危险请拨打 911；非紧急联系方式与当前指引请在链接页面核实。"
+      },
+      "keywords": {
+        "en": ["safety", "emergency", "public safety", "police", "report", "prevention", "911"],
+        "zh-CN": ["安全", "紧急情况", "公共安全", "警察", "报告", "预防", "911"]
+      },
+      "contentSha256": "39d12205bf7fdcdead8177296a525da0a13695fc73b30fb26f4b8d5ca980c62e",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-crookston-public-safety",
+      "verificationUrl": "https://crk.umn.edu/public-safety",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "crookston-transportation-overview",
+      "campusId": "crookston",
+      "category": "transportation",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Crookston transportation and parking",
+        "zh-CN": "克鲁克斯顿校区交通与停车"
+      },
+      "content": {
+        "en": "Use the official Crookston parking page to verify permits, visitor parking, campus rules, and current notices that affect vehicle travel. Conditions and fees can change, so the linked page remains the authority for a planned trip.",
+        "zh-CN": "请通过克鲁克斯顿停车官网核对许可、访客停车、校园规则及影响驾车出行的当前通知。条件与费用可能变化，规划行程时应以链接页面为准。"
+      },
+      "keywords": {
+        "en": ["transportation", "travel", "parking", "permit", "vehicle", "visitor parking", "route"],
+        "zh-CN": ["交通", "出行", "停车", "许可", "车辆", "访客停车", "路线"]
+      },
+      "contentSha256": "2c7f8b7fb5abc3814f40d9f8d4a6c2d4465f18e35060a846f97122df3e6bcc1a",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-crookston-parking",
+      "verificationUrl": "https://crk.umn.edu/parking",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "crookston-dining-overview",
+      "campusId": "crookston",
+      "category": "dining",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Crookston dining information",
+        "zh-CN": "克鲁克斯顿校区餐饮信息"
+      },
+      "content": {
+        "en": "Use the Crookston dining-services page to find the official entry for meal options, dining locations, and plan guidance. Verify current hours, menus, prices, and dietary accommodations on the linked page.",
+        "zh-CN": "请从克鲁克斯顿餐饮服务官网查找用餐选择、餐饮地点和餐饮计划指引。当前营业时间、菜单、价格与饮食需求安排请在链接页面确认。"
+      },
+      "keywords": {
+        "en": ["dining", "food", "eat", "menu", "meal plan", "cafeteria", "dietary"],
+        "zh-CN": ["餐饮", "食物", "吃饭", "菜单", "餐饮计划", "食堂", "饮食需求"]
+      },
+      "contentSha256": "d6291de26228b0ea7c7ce3fa838c550024974c3d5b696b1c10749e0134bb1cf6",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-crookston-dining",
+      "verificationUrl": "https://crk.umn.edu/student-life/dining-services",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "morris-library-overview",
+      "campusId": "morris",
+      "category": "library",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Morris library starting point",
+        "zh-CN": "莫里斯校区图书馆入口"
+      },
+      "content": {
+        "en": "Use the Morris library page as the official starting point for collections, research help, study support, and current access information. Check the linked page for current hours and service availability before visiting.",
+        "zh-CN": "莫里斯校区可从图书馆官网查找馆藏、研究帮助、学习支持和当前访问说明。到访前请在链接页面确认开放时间与服务可用性。"
+      },
+      "keywords": {
+        "en": ["library", "briggs", "books", "catalog", "research", "study", "articles"],
+        "zh-CN": ["图书馆", "布里格斯", "图书", "目录", "研究", "学习", "论文"]
+      },
+      "contentSha256": "69f2b5fde88e2ddb079c14719a3fa3198d337eb051107cd492863ffc654c5f1f",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-morris-library",
+      "verificationUrl": "https://morris.umn.edu/academics/library",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "morris-student-services-overview",
+      "campusId": "morris",
+      "category": "student-services",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Morris One Stop student services",
+        "zh-CN": "莫里斯校区一站式学生服务"
+      },
+      "content": {
+        "en": "Morris One Stop is the official place to verify guidance about registration, records, financial aid, tuition, and billing. Use the linked service for current deadlines, forms, eligibility details, and authenticated actions.",
+        "zh-CN": "莫里斯 One Stop 官网用于核对选课、学籍记录、助学金、学费和账单等事项。最新截止日期、表格、资格细节及需要登录的操作请以链接服务为准。"
+      },
+      "keywords": {
+        "en": [
+          "one stop",
+          "student support",
+          "registration",
+          "records",
+          "tuition",
+          "billing",
+          "financial aid"
+        ],
+        "zh-CN": ["一站式服务", "学生支持", "选课", "学籍", "学费", "账单", "助学金"]
+      },
+      "contentSha256": "b98c751957e7a4575b48058b8f63b944a793403bc8f780713e3660457fbde5a8",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-morris-one-stop",
+      "verificationUrl": "https://onestop.morris.umn.edu/",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "morris-safety-overview",
+      "campusId": "morris",
+      "category": "safety",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Morris campus safety resources",
+        "zh-CN": "莫里斯校区安全资源"
+      },
+      "content": {
+        "en": "Morris Public Safety is the official starting point for campus safety contacts, preparedness, prevention, and reporting information. For an immediate emergency call 911; verify current non-emergency instructions on the linked page.",
+        "zh-CN": "莫里斯公共安全官网提供校园安全联系方式、应急准备、风险预防和事件报告入口。遇到紧急危险请拨打 911；当前非紧急指引请在链接页面核实。"
+      },
+      "keywords": {
+        "en": ["safety", "emergency", "public safety", "police", "report", "prevention", "911"],
+        "zh-CN": ["安全", "紧急情况", "公共安全", "警察", "报告", "预防", "911"]
+      },
+      "contentSha256": "f19f3b98d2f514048586fc7ea3575e8fb8466b4649d917359eba41239fba2849",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-morris-public-safety",
+      "verificationUrl": "https://morris.umn.edu/morris-public-safety",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "morris-transportation-overview",
+      "campusId": "morris",
+      "category": "transportation",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Morris transportation and parking",
+        "zh-CN": "莫里斯校区交通与停车"
+      },
+      "content": {
+        "en": "Use the official Morris parking page to verify permits, visitor arrangements, accessible parking, and current vehicle rules. Fees, restrictions, and weather operations may change, so consult the linked page before travel.",
+        "zh-CN": "请通过莫里斯停车官网核对许可、访客安排、无障碍停车和当前车辆规则。费用、限制与天气运行安排可能变化，出行前请查看链接页面。"
+      },
+      "keywords": {
+        "en": [
+          "transportation",
+          "travel",
+          "parking",
+          "permit",
+          "vehicle",
+          "visitor parking",
+          "accessible parking"
+        ],
+        "zh-CN": ["交通", "出行", "停车", "许可", "车辆", "访客停车", "无障碍停车"]
+      },
+      "contentSha256": "b1e715366a39d02562f49a65b135be902a01d650920730301777ebf51509d144",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-morris-parking",
+      "verificationUrl": "https://morris.umn.edu/morris-public-safety/parking",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "morris-dining-overview",
+      "campusId": "morris",
+      "category": "dining",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Morris dining information",
+        "zh-CN": "莫里斯校区餐饮信息"
+      },
+      "content": {
+        "en": "Use the Morris Student Affairs directory to locate the official Dining Services contact and current dining guidance. Hours, offerings, and prices can change, so follow the directory's current link before making plans.",
+        "zh-CN": "请通过莫里斯学生事务目录查找餐饮服务的官方联系方式和当前餐饮指引。营业时间、供应内容与价格可能变化，规划前请沿目录中的最新链接核实。"
+      },
+      "keywords": {
+        "en": ["dining", "food", "eat", "menu", "meal plan", "cafeteria", "dietary"],
+        "zh-CN": ["餐饮", "食物", "吃饭", "菜单", "餐饮计划", "食堂", "饮食需求"]
+      },
+      "contentSha256": "3d7919c4a038e959426601d2fe316e65a26c46f3e43cc47824a991076929e47e",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-morris-dining",
+      "verificationUrl": "https://morris.umn.edu/campus-community/student-affairs/student-affairs-offices",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "rochester-library-overview",
+      "campusId": "rochester",
+      "category": "library",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Rochester library starting point",
+        "zh-CN": "罗切斯特校区图书馆入口"
+      },
+      "content": {
+        "en": "Use Rochester's Library and Information Commons page as the official starting point for research materials, library help, study resources, and current access information. Confirm hours and availability on the linked page.",
+        "zh-CN": "罗切斯特校区可从 Library and Information Commons 官网查找研究资料、图书馆帮助、学习资源及当前访问说明。开放时间与资源可用性请在链接页面确认。"
+      },
+      "keywords": {
+        "en": ["library", "information commons", "books", "catalog", "research", "study", "articles"],
+        "zh-CN": ["图书馆", "信息共享空间", "图书", "目录", "研究", "学习", "论文"]
+      },
+      "contentSha256": "c01283567a081a0b2ba9d0f7f6911d5a05dcd61cf512bf327a30c4db4f2bb7e9",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-rochester-library",
+      "verificationUrl": "https://r.umn.edu/student-life/library-and-information-commons",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "rochester-student-services-overview",
+      "campusId": "rochester",
+      "category": "student-services",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Rochester student services directory",
+        "zh-CN": "罗切斯特校区学生服务目录"
+      },
+      "content": {
+        "en": "The Rochester student-services page is an official directory for academic, financial, wellbeing, accessibility, technology, and student-life support. Follow the current links to the responsible office for decisions, appointments, or transactions.",
+        "zh-CN": "罗切斯特学生服务官网汇集学业、财务、健康、无障碍、技术及学生生活支持。涉及决定、预约或办理操作时，请沿官网最新链接联系责任部门。"
+      },
+      "keywords": {
+        "en": [
+          "student support",
+          "student services",
+          "advising",
+          "wellbeing",
+          "accessibility",
+          "technology",
+          "help"
+        ],
+        "zh-CN": ["学生支持", "学生服务", "学业咨询", "身心健康", "无障碍", "技术", "帮助"]
+      },
+      "contentSha256": "546f37edf98db2391cdddd4ef670d605103219814fc6e4ae17e85f9fc1da8c00",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 365,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-rochester-student-services",
+      "verificationUrl": "https://r.umn.edu/student-services",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "rochester-safety-overview",
+      "campusId": "rochester",
+      "category": "safety",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Rochester campus safety resources",
+        "zh-CN": "罗切斯特校区安全资源"
+      },
+      "content": {
+        "en": "Rochester's campus-safety page is the official starting point for alerts, concern reporting, preparedness, and safety contacts. For an immediate emergency call 911; verify current non-emergency instructions and local contacts on the linked page.",
+        "zh-CN": "罗切斯特校园安全官网提供警报、问题报告、应急准备及安全联系方式。遇到紧急危险请拨打 911；非紧急指引与本地联系方式请在链接页面核实。"
+      },
+      "keywords": {
+        "en": ["safety", "emergency", "alerts", "concern report", "police", "preparedness", "911"],
+        "zh-CN": ["安全", "紧急情况", "警报", "问题报告", "警察", "应急准备", "911"]
+      },
+      "contentSha256": "b8a7929ef914bff58ccfc5cbc49fdc799cbd8414199b8f1ca999695558f6e67f",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-rochester-safety",
+      "verificationUrl": "https://r.umn.edu/student-life/campus-safety/campus-safety-and-community-standards-overview",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "rochester-transportation-overview",
+      "campusId": "rochester",
+      "category": "transportation",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Rochester transportation and parking",
+        "zh-CN": "罗切斯特校区交通与停车"
+      },
+      "content": {
+        "en": "Use Rochester's official student transportation page to verify parking, public transit, passes, and other travel options. Routes, prices, availability, and eligibility can change, so consult the linked page before making plans.",
+        "zh-CN": "请通过罗切斯特学生交通官网核对停车、公共交通、通行证及其他出行选择。路线、价格、可用性与资格可能变化，规划前请查看链接页面。"
+      },
+      "keywords": {
+        "en": ["transportation", "transit", "bus", "parking", "pass", "travel", "route"],
+        "zh-CN": ["交通", "公共交通", "巴士", "停车", "通行证", "出行", "路线"]
+      },
+      "contentSha256": "06361d01e5b304069aa091ceb6e451b62eacbb787d197c6af0df0c45101e120c",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-rochester-transportation",
+      "verificationUrl": "https://r.umn.edu/student-life/student-parking-and-transportation",
+      "summaryLicense": "Apache-2.0"
+    },
+    {
+      "id": "rochester-dining-overview",
+      "campusId": "rochester",
+      "category": "dining",
+      "sourceUse": "verification-link-only",
+      "title": {
+        "en": "Rochester dining information",
+        "zh-CN": "罗切斯特校区餐饮信息"
+      },
+      "content": {
+        "en": "Use the Raptor Eats dining-services page to verify Rochester dining locations, meal plans, food resources, and dietary support. Menus, hours, requirements, and prices can change, so confirm them on the linked official page.",
+        "zh-CN": "请通过 Raptor Eats 餐饮服务官网核对罗切斯特的餐饮地点、餐饮计划、食物资源和饮食需求支持。菜单、时间、要求与价格可能变化，请在链接页面确认。"
+      },
+      "keywords": {
+        "en": ["dining", "raptor eats", "food", "menu", "meal plan", "restaurant", "dietary"],
+        "zh-CN": ["餐饮", "Raptor Eats", "食物", "菜单", "餐饮计划", "餐厅", "饮食需求"]
+      },
+      "contentSha256": "c8aa1f27b6b36d279fcc99774def8f55cbdf022be7150e59eeb846a616cc08d0",
+      "updatedAt": "2026-07-20T00:00:00Z",
+      "freshForDays": 180,
+      "verificationState": "schematic",
+      "enabled": true,
+      "deletedAt": null,
+      "conflictGroup": null,
+      "conflictVariant": null,
+      "summarySourceId": "uga-ai-summary-corpus-v1",
+      "verificationSourceId": "official-rochester-dining",
+      "verificationUrl": "https://r.umn.edu/student-life/raptor-eats/raptor-eats-dining-services-overview",
+      "summaryLicense": "Apache-2.0"
+    }
+  ]
+}

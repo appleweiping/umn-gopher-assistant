@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+import { aiCitation, aiResponse } from "../test/ai-fixtures";
+
 const routes = [
   "/today",
   "/explore",
@@ -94,5 +96,68 @@ test("legacy deletion confirmation dialog has no detectable WCAG A or AA violati
   await page.getByRole("button", { name: "Delete legacy data" }).click();
   await expect(page.getByRole("dialog", { name: "Delete legacy task data?" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await expectNoViolations(page);
+});
+
+test("AI evidence reflows at 320 CSS pixels and preserves keyboard focus", async ({ page }) => {
+  const longToken = "campus".repeat(80);
+  const response = aiResponse({
+    citations: [
+      aiCitation({
+        excerpt: `Reviewed evidence ${longToken}`,
+        title: { en: `University Libraries ${longToken}`, "zh-CN": `大学图书馆${longToken}` },
+      }),
+    ],
+    paragraphs: [
+      {
+        citationIds: ["tc-library-hours"],
+        id: "paragraph-long-evidence",
+        text: `The reviewed record contains a deliberately long token: ${longToken}`,
+      },
+    ],
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ height: 900, width: 320 });
+  await page.route("**/api/ai/query", async (route) => {
+    await route.fulfill({ body: JSON.stringify(response), contentType: "application/json", status: 200 });
+  });
+  await page.goto("/ai");
+  await page.getByRole("textbox", { name: "Ask the campus knowledge index" }).fill("library research help");
+  await page.getByRole("button", { name: "Search reviewed sources" }).click();
+
+  await expect(page.getByRole("heading", { name: "Answer supported by reviewed evidence" })).toBeFocused();
+  await expectNoViolations(page);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+  ).toBe(true);
+
+  await page.getByRole("link", { name: /Citation 1:/u }).click();
+  await expect(page.locator("#ai-citation-tc-library-hours")).toBeFocused();
+  await page.getByRole("tab", { name: "Bring your own key (BYOK)" }).click();
+  await expectNoViolations(page);
+});
+
+test("AI no-result and input-error states expose names, guidance, and focus", async ({ page }) => {
+  await page.route("**/api/ai/query", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(aiResponse({ citations: [], paragraphs: [], state: "no-results" })),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.goto("/ai");
+  const query = page.getByRole("textbox", { name: "Ask the campus knowledge index" });
+  await query.fill("quantum dragon parking");
+  await page.getByRole("button", { name: "Search reviewed sources" }).click();
+  await expect(page.getByRole("heading", { name: "No reviewed answer found" })).toBeFocused();
+  await expectNoViolations(page);
+
+  await query.fill("<library>");
+  await page.getByRole("button", { name: "Search reviewed sources" }).click();
+  await expect(query).toBeFocused();
+  await expect(query).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert", { name: "Revise the question" })).toContainText(
+    "Use plain text between 2 and 500 characters",
+  );
   await expectNoViolations(page);
 });

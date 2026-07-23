@@ -1,4 +1,5 @@
 export * from "./audit.js";
+export * from "./ai.js";
 export * from "./campus.js";
 export * from "./catalog.js";
 export * from "./common.js";

@@ -1,0 +1,146 @@
+name: Security and supply chain
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 8 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - name: Check out complete source history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          build-mode: none
+          languages: ${{ matrix.language }}
+          queries: security-extended
+
+      - name: Analyze source
+        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 # v4.35.2
+        with:
+          category: /language:${{ matrix.language }}
+
+  secrets:
+    name: Full-history secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out complete source history
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Scan every reachable commit with a digest-pinned Gitleaks image
+        shell: bash
+        run: |
+          test "$(git rev-list --count --all)" -gt 0
+          set -o pipefail
+          docker run --rm --volume "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.29.0@sha256:71d3ee5990f2176f763b438298453fc37e87b119122045e176ca9d44ff00b08b \
+            git /repo --gitleaks-ignore-path=/repo/.gitleaksignore \
+            --redact --no-banner --log-opts=--all 2>&1 \
+            | tee gitleaks.log
+          if grep -Eq '(^|[^0-9])0 commits scanned|ERR' gitleaks.log; then
+            echo "Gitleaks did not complete a valid history scan" >&2
+            exit 1
+          fi
+          grep -Eq '[1-9][0-9]* commits scanned' gitleaks.log
+
+  artifacts:
+    name: Container vulnerability scan and CycloneDX evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build immutable service images
+        run: |
+          docker build --tag gopher-assistant/ai-knowledge:security apps/ai-knowledge
+          docker build --file apps/edge-gateway/Dockerfile \
+            --tag gopher-assistant/edge-gateway:security .
+          docker build --tag gopher-assistant/postgres:security infra/compose/postgres
+          mkdir -p security-artifacts
+          docker save --output security-artifacts/ai-knowledge.tar gopher-assistant/ai-knowledge:security
+          docker save --output security-artifacts/edge-gateway.tar gopher-assistant/edge-gateway:security
+          docker save --output security-artifacts/postgres.tar gopher-assistant/postgres:security
+
+      - name: Scan repository and images for fixable high or critical findings
+        run: |
+          trivy='ghcr.io/aquasecurity/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f'
+          docker run --rm --volume "$PWD:/workspace" "$trivy" fs \
+            --exit-code 1 --ignore-unfixed --scanners vuln,misconfig,secret \
+            --skip-files /workspace/apps/edge-gateway/Dockerfile.dockerignore \
+            --severity HIGH,CRITICAL /workspace
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/ai-knowledge.tar \
+            --severity HIGH,CRITICAL
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/edge-gateway.tar \
+            --severity HIGH,CRITICAL
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$trivy" image \
+            --exit-code 1 --ignore-unfixed --input /scan/postgres.tar \
+            --severity HIGH,CRITICAL
+
+      - name: Generate CycloneDX repository and image SBOMs
+        run: |
+          syft='ghcr.io/anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6'
+          docker run --rm --volume "$PWD:/repo" "$syft" dir:/repo \
+            --exclude './security-artifacts/**' \
+            --output cyclonedx-json=/repo/security-artifacts/repository.cdx.json
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$syft" \
+            docker-archive:/scan/ai-knowledge.tar \
+            --output cyclonedx-json=/scan/ai-knowledge.cdx.json
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$syft" \
+            docker-archive:/scan/edge-gateway.tar \
+            --output cyclonedx-json=/scan/edge-gateway.cdx.json
+          docker run --rm --volume "$PWD/security-artifacts:/scan" "$syft" \
+            docker-archive:/scan/postgres.tar \
+            --output cyclonedx-json=/scan/postgres.cdx.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path("security-artifacts").glob("*.cdx.json"):
+              document = json.loads(path.read_text(encoding="utf-8"))
+              assert document["bomFormat"] == "CycloneDX"
+              assert document["specVersion"]
+              assert document.get("components")
+          PY
+          rm security-artifacts/*.tar
+
+      - name: Upload non-secret supply-chain evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          if-no-files-found: error
+          name: cyclonedx-sboms-${{ github.sha }}
+          path: security-artifacts/*.cdx.json
+          retention-days: 30

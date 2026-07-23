@@ -5,14 +5,16 @@ reachable endpoint is not treated as reusable content.
 
 Current registrations:
 
-| Catalog                 | Campus scope         | License state       | Cache policy       | Default   |
-| ----------------------- | -------------------- | ------------------- | ------------------ | --------- |
-| UMN Sessions JSON       | All five campuses    | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
-| Twin Cities events      | Twin Cities          | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
-| Duluth events           | Duluth               | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
-| Morris events candidate | Morris               | `APPROVAL_REQUIRED` | `NO_ACCESS`        | Disabled  |
-| Other event pages       | Crookston, Rochester | `DEEPLINK_ONLY`     | `NO_CONTENT_CACHE` | Link only |
-| Campus home pages       | All five campuses    | `DEEPLINK_ONLY`     | `NO_CONTENT_CACHE` | Link only |
+| Catalog                            | Campus scope                       | License state       | Cache policy       | Default   |
+| ---------------------------------- | ---------------------------------- | ------------------- | ------------------ | --------- |
+| UMN Sessions JSON                  | All five campuses                  | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
+| Twin Cities events                 | Twin Cities                        | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
+| Duluth events                      | Duluth                             | `LIVE_ONLY`         | `NO_CONTENT_CACHE` | Enabled   |
+| Morris events candidate            | Morris                             | `APPROVAL_REQUIRED` | `NO_ACCESS`        | Disabled  |
+| Other event pages                  | Crookston, Rochester               | `DEEPLINK_ONLY`     | `NO_CONTENT_CACHE` | Link only |
+| Campus home pages                  | All five campuses                  | `DEEPLINK_ONLY`     | `NO_CONTENT_CACHE` | Link only |
+| Project-authored AI summary corpus | All five campuses                  | `OPEN_REUSE`        | `CACHE_ALLOWED`    | Enabled   |
+| Official AI verification links     | Five-by-five campus/category links | `DEEPLINK_ONLY`     | `NO_CONTENT_CACHE` | Link only |
 
 The seven enabled `LIVE_ONLY` entries have an explicit, time-bounded review:
 
@@ -30,8 +32,12 @@ The review does not expand the purpose encoded by `resourceKinds`,
 
 Rochester intentionally queries the Sessions service with institution
 `UMNTC`; no `UMNRO` source is invented. All initial entries have freshness
-`UNKNOWN`, `lastCheckedAt: null`, and official status `UNVERIFIED`. There are no
-`OPEN_REUSE` claims because no reviewed reuse evidence is bundled.
+`UNKNOWN` and `lastCheckedAt: null`. The only `OPEN_REUSE` source is the
+project-authored bilingual summary artifact distributed by this repository
+under Apache-2.0. Its 25 UMN verification destinations are separate
+`DEEPLINK_ONLY` descriptors: their pages are not fetched, cached, translated,
+embedded, or claimed to be Apache-2.0 content. Each summary/verification source
+has its own fail-closed kill switch.
 
 `NO_CONTENT_CACHE` adapters may hold the response and normalized records only
 long enough to serve the live request. They must discard both afterward and

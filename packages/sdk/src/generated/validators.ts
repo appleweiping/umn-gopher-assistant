@@ -9,7 +9,7 @@ import { operationDefinitions } from "./operations.js";
 import type { OperationId } from "./operations.js";
 
 export const successValidatorContractSha256 =
-  "1cbefacdd1bbdc254fb300ed7d05d39f539c8ffc877e5bbc352a63a3ac2268e1";
+  "5d6aa2c7327d9ea68c82e0d118e48f6157dabe681ede516e3b626caf51740a63";
 
 type ImplementedOperationId = {
   [Id in OperationId]: (typeof operationDefinitions)[Id]["runtimeStatus"] extends "implemented" ? Id : never;
@@ -439,7 +439,15 @@ const implementedSuccessSchemas = {
                 .strict(),
               publisher: z.string().min(1).max(256),
               resourceKinds: z
-                .array(z.enum(["CAMPUS_DEEPLINK", "ACADEMIC_SESSION", "PUBLIC_EVENT"]))
+                .array(
+                  z.enum([
+                    "CAMPUS_DEEPLINK",
+                    "ACADEMIC_SESSION",
+                    "PUBLIC_EVENT",
+                    "AI_KNOWLEDGE_SUMMARY",
+                    "AI_VERIFICATION_LINK",
+                  ]),
+                )
                 .min(1)
                 .max(3),
               sourceUrl: z.url().regex(new RegExp("^https://")),
@@ -524,10 +532,333 @@ const implementedSuccessSchemas = {
       })
       .strict(),
   },
+  queryCampusAssistant: {
+    "200": z
+      .object({
+        campusId: z.enum(["tc", "duluth", "crookston", "morris", "rochester"]),
+        citations: z
+          .array(
+            z
+              .object({
+                campusId: z.enum(["tc", "duluth", "crookston", "morris", "rochester"]),
+                category: z.enum(["library", "student-services", "safety", "transportation", "dining"]),
+                contentSha256: z.string().regex(new RegExp("^[a-f0-9]{64}$")),
+                excerpt: z
+                  .string()
+                  .min(1)
+                  .max(4000)
+                  .refine((value) => value === value.trim(), {
+                    message: "Evidence text cannot have boundary whitespace",
+                  })
+                  .refine((value) => value.normalize("NFC") === value, {
+                    message: "Evidence text must use NFC Unicode normalization",
+                  })
+                  .refine((value) => !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value), {
+                    message: "Evidence text cannot contain control or format characters",
+                  })
+                  .refine(
+                    (value) =>
+                      !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value),
+                    { message: "Evidence text cannot contain HTML or encoded HTML" },
+                  ),
+                freshnessState: z.enum(["FRESH", "STALE", "EXPIRED", "UNKNOWN"]),
+                id: z.string().regex(new RegExp("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")),
+                sourceId: z.string().regex(new RegExp("^[a-z0-9][a-z0-9-]{2,127}$")),
+                sourceUrl: z
+                  .url()
+                  .regex(
+                    new RegExp(
+                      "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^?#]*)?$",
+                    ),
+                  ),
+                title: z
+                  .object({
+                    en: z
+                      .string()
+                      .min(1)
+                      .max(2000)
+                      .refine((value) => value === value.trim(), {
+                        message: "Evidence text cannot have boundary whitespace",
+                      })
+                      .refine((value) => value.normalize("NFC") === value, {
+                        message: "Evidence text must use NFC Unicode normalization",
+                      })
+                      .refine((value) => !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value), {
+                        message: "Evidence text cannot contain control or format characters",
+                      })
+                      .refine(
+                        (value) =>
+                          !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value),
+                        { message: "Evidence text cannot contain HTML or encoded HTML" },
+                      ),
+                    "zh-CN": z
+                      .string()
+                      .min(1)
+                      .max(2000)
+                      .refine((value) => value === value.trim(), {
+                        message: "Evidence text cannot have boundary whitespace",
+                      })
+                      .refine((value) => value.normalize("NFC") === value, {
+                        message: "Evidence text must use NFC Unicode normalization",
+                      })
+                      .refine((value) => !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value), {
+                        message: "Evidence text cannot contain control or format characters",
+                      })
+                      .refine(
+                        (value) =>
+                          !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value),
+                        { message: "Evidence text cannot contain HTML or encoded HTML" },
+                      ),
+                  })
+                  .strict(),
+                updatedAt: z.iso.datetime({ offset: true }),
+                verificationState: z.enum([
+                  "schematic",
+                  "surveyed",
+                  "campus-reviewed",
+                  "verified",
+                  "retired",
+                ]),
+              })
+              .strict(),
+          )
+          .max(128),
+        locale: z.enum(["en", "zh-CN"]),
+        paragraphs: z
+          .array(
+            z
+              .object({
+                citationIds: z
+                  .array(z.string().regex(new RegExp("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")))
+                  .min(1)
+                  .max(64),
+                id: z.string().regex(new RegExp("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")),
+                text: z
+                  .string()
+                  .min(1)
+                  .max(4000)
+                  .refine((value) => value === value.trim(), {
+                    message: "Evidence text cannot have boundary whitespace",
+                  })
+                  .refine((value) => value.normalize("NFC") === value, {
+                    message: "Evidence text must use NFC Unicode normalization",
+                  })
+                  .refine((value) => !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value), {
+                    message: "Evidence text cannot contain control or format characters",
+                  })
+                  .refine(
+                    (value) =>
+                      !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value),
+                    { message: "Evidence text cannot contain HTML or encoded HTML" },
+                  ),
+              })
+              .strict(),
+          )
+          .max(64),
+        queryId: z
+          .string()
+          .regex(
+            new RegExp(
+              "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+            ),
+          ),
+        retrieval: z
+          .object({
+            documentsConsidered: z.number().int().min(0).max(1000000),
+            mode: z.literal("no-key-hybrid"),
+          })
+          .strict(),
+        state: z.enum(["answered", "stale", "conflict", "no-results"]),
+      })
+      .strict()
+      .superRefine((value, refinement) => {
+        const paragraphIds = value.paragraphs.map((paragraph) => paragraph.id);
+        if (new Set(paragraphIds).size !== paragraphIds.length) {
+          refinement.addIssue({
+            code: "custom",
+            message: "paragraph ids must be unique",
+            path: ["paragraphs"],
+          });
+        }
+        const citationIds = value.citations.map((citation) => citation.id);
+        if (new Set(citationIds).size !== citationIds.length) {
+          refinement.addIssue({
+            code: "custom",
+            message: "citation ids must be unique",
+            path: ["citations"],
+          });
+        }
+        const knownCitationIds = new Set(citationIds);
+        const referencedCitationIds = new Set();
+        value.paragraphs.forEach((paragraph, paragraphIndex) => {
+          const paragraphCitationIds = new Set();
+          paragraph.citationIds.forEach((citationId, citationIndex) => {
+            if (paragraphCitationIds.has(citationId)) {
+              refinement.addIssue({
+                code: "custom",
+                message: "citationIds must be unique within a paragraph",
+                path: ["paragraphs", paragraphIndex, "citationIds", citationIndex],
+              });
+            }
+            paragraphCitationIds.add(citationId);
+            referencedCitationIds.add(citationId);
+            if (!knownCitationIds.has(citationId)) {
+              refinement.addIssue({
+                code: "custom",
+                message: "paragraph citationIds must reference citations in this response",
+                path: ["paragraphs", paragraphIndex, "citationIds", citationIndex],
+              });
+            }
+          });
+        });
+        value.citations.forEach((citation, citationIndex) => {
+          if (citation.campusId !== value.campusId) {
+            refinement.addIssue({
+              code: "custom",
+              message: "cross-campus citations are not allowed",
+              path: ["citations", citationIndex, "campusId"],
+            });
+          }
+          if (!referencedCitationIds.has(citation.id)) {
+            refinement.addIssue({
+              code: "custom",
+              message: "every citation must support at least one answer paragraph",
+              path: ["citations", citationIndex, "id"],
+            });
+          }
+          if (citation.verificationState === "retired") {
+            refinement.addIssue({
+              code: "custom",
+              message: "retired evidence cannot be cited",
+              path: ["citations", citationIndex, "verificationState"],
+            });
+          }
+          if (citation.freshnessState === "UNKNOWN") {
+            refinement.addIssue({
+              code: "custom",
+              message: "evidence with unknown freshness cannot be cited",
+              path: ["citations", citationIndex, "freshnessState"],
+            });
+          }
+        });
+        if (value.state === "no-results") {
+          if (value.paragraphs.length !== 0)
+            refinement.addIssue({
+              code: "custom",
+              message: "no-results responses cannot contain answer paragraphs",
+              path: ["paragraphs"],
+            });
+          if (value.citations.length !== 0)
+            refinement.addIssue({
+              code: "custom",
+              message: "no-results responses cannot contain citations",
+              path: ["citations"],
+            });
+          return;
+        }
+        if (value.paragraphs.length === 0)
+          refinement.addIssue({
+            code: "custom",
+            message: "non-empty responses require at least one evidence-backed paragraph",
+            path: ["paragraphs"],
+          });
+        if (value.citations.length === 0)
+          refinement.addIssue({
+            code: "custom",
+            message: "non-empty responses require at least one citation",
+            path: ["citations"],
+          });
+        if (value.state === "answered") {
+          value.citations.forEach((citation, citationIndex) => {
+            if (citation.freshnessState !== "FRESH")
+              refinement.addIssue({
+                code: "custom",
+                message: "answered responses may cite only FRESH evidence",
+                path: ["citations", citationIndex, "freshnessState"],
+              });
+          });
+        }
+        if (value.state === "stale") {
+          value.citations.forEach((citation, citationIndex) => {
+            if (citation.freshnessState !== "STALE" && citation.freshnessState !== "EXPIRED")
+              refinement.addIssue({
+                code: "custom",
+                message: "stale responses may cite only STALE or EXPIRED evidence",
+                path: ["citations", citationIndex, "freshnessState"],
+              });
+          });
+        }
+        if (value.state === "conflict") {
+          if (value.citations.length < 2)
+            refinement.addIssue({
+              code: "custom",
+              message: "conflict responses require at least two citations",
+              path: ["citations"],
+            });
+          if (new Set(value.citations.map((citation) => citation.sourceId)).size < 2)
+            refinement.addIssue({
+              code: "custom",
+              message: "conflict responses require at least two distinct sources",
+              path: ["citations"],
+            });
+          if (new Set(value.citations.map((citation) => citation.contentSha256)).size < 2)
+            refinement.addIssue({
+              code: "custom",
+              message: "conflict responses require genuinely different evidence",
+              path: ["citations"],
+            });
+        }
+      }),
+  },
 } satisfies Record<ImplementedOperationId, Readonly<Record<number, z.ZodType>>>;
+
+const implementedRequestBodySchemas = {
+  queryCampusAssistant: z
+    .object({
+      campusId: z.enum(["tc", "duluth", "crookston", "morris", "rochester"]),
+      locale: z.enum(["en", "zh-CN"]),
+      query: z
+        .string()
+        .trim()
+        .min(2)
+        .max(500)
+        .regex(new RegExp("^\\S(?:[\\s\\S]{0,498}\\S)?$"))
+        .refine((value) => value.normalize("NFC") === value, {
+          message: "Query must use NFC Unicode normalization",
+        })
+        .refine((value) => !/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value), {
+          message: "Query cannot contain control or format characters",
+        })
+        .refine((value) => !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value), {
+          message: "Query cannot contain HTML or encoded HTML",
+        }),
+    })
+    .strict(),
+} satisfies Partial<Record<ImplementedOperationId, z.ZodType>>;
 
 const schemasByOperation: Readonly<Partial<Record<OperationId, Readonly<Record<number, z.ZodType>>>>> =
   implementedSuccessSchemas;
+
+const requestBodySchemasByOperation: Readonly<Partial<Record<OperationId, z.ZodType>>> =
+  implementedRequestBodySchemas;
+
+export type RequestBodyValidationResult =
+  | { readonly success: true; readonly data: unknown }
+  | { readonly success: false; readonly reason: "invalid-request-body" | "request-body-not-declared" };
+
+export function validateImplementedRequestBody(
+  operationId: OperationId,
+  value: unknown,
+): RequestBodyValidationResult {
+  const schema = requestBodySchemasByOperation[operationId];
+  if (schema === undefined) {
+    return { success: false, reason: "request-body-not-declared" };
+  }
+  const result = schema.safeParse(value);
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, reason: "invalid-request-body" };
+}
 
 export type SuccessBodyValidationFailureReason =
   | "invalid-success-body"

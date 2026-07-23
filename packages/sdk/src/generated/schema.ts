@@ -78,10 +78,16 @@ export interface paths {
         readonly get?: never;
         readonly put?: never;
         /**
-         * Query the bilingual retrieval assistant
-         * @description Answers must expose citations and must not elevate unverified data to official fact.
+         * Query the public bilingual campus retrieval assistant
+         * @description Performs deterministic no-key hybrid retrieval over reviewed campus knowledge. Every non-empty
+         *     answer is evidence-backed, citations are confined to the requested campus, and stale or conflicting
+         *     evidence is disclosed as a response state instead of being elevated to official fact. The response
+         *     contract requires unique paragraph and citation IDs, resolvable paragraph citation references,
+         *     no unused or retired evidence, empty evidence for `no-results`, only FRESH evidence for `answered`,
+         *     only STALE or EXPIRED citations for `stale`, and at least two genuinely different sources for
+         *     `conflict`. Queries are NFC-normalized plain text without control characters or HTML encodings.
          */
-        readonly post: operations["queryAssistant"];
+        readonly post: operations["queryCampusAssistant"];
         readonly delete?: never;
         readonly options?: never;
         readonly head?: never;
@@ -346,18 +352,78 @@ export interface components {
             readonly licenseStatus?: components["schemas"]["LicenseStatus"];
             readonly verificationState?: components["schemas"]["VerificationState"];
         } & (unknown & unknown);
-        readonly AiAnswer: {
-            readonly answer: string;
-            readonly citations: readonly components["schemas"]["Citation"][];
-            /** @enum {string} */
-            readonly locale: "en" | "zh-CN";
-            readonly safetyNotice: string | null;
+        readonly AiAnswerParagraph: {
+            /** @description Unique IDs that must resolve to citations in the same response. */
+            readonly citationIds: readonly string[];
+            readonly id: string;
+            readonly text: string;
         };
-        readonly AiQuery: {
+        readonly AiBilingualText: {
+            readonly en: string;
+            readonly "zh-CN": string;
+        };
+        readonly AiCitation: {
             readonly campusId: components["schemas"]["CampusId"];
-            /** @enum {string} */
-            readonly locale: "en" | "zh-CN";
+            readonly category: components["schemas"]["AiCitationCategory"];
+            readonly contentSha256: string;
+            readonly excerpt: string;
+            readonly freshnessState: components["schemas"]["FreshnessState"];
+            readonly id: string;
+            readonly sourceId: string;
+            /** Format: uri */
+            readonly sourceUrl: string;
+            readonly title: components["schemas"]["AiBilingualText"];
+            /** Format: date-time */
+            readonly updatedAt: string;
+            readonly verificationState: components["schemas"]["VerificationState"];
+        };
+        /** @enum {string} */
+        readonly AiCitationCategory: "library" | "student-services" | "safety" | "transportation" | "dining";
+        /** @enum {string} */
+        readonly AiLocale: "en" | "zh-CN";
+        readonly AiQueryRequest: {
+            readonly campusId: components["schemas"]["CampusId"];
+            readonly locale: components["schemas"]["AiLocale"];
+            /** @description NFC plain text after leading and trailing whitespace have been removed; HTML and Unicode control/format/surrogate characters are rejected. */
             readonly query: string;
+        };
+        /**
+         * @description `answered`, `stale`, and `conflict` require evidence-backed paragraphs. Paragraph IDs, citation IDs,
+         *     and each paragraph's citation IDs are unique; every reference resolves within the response; and every
+         *     citation campus matches `campusId`. Every citation is referenced and is neither retired nor UNKNOWN.
+         *     `no-results` has no paragraphs or citations, `answered` cites only FRESH evidence, `stale` cites only
+         *     STALE or EXPIRED evidence, and `conflict` has at least two distinct source IDs and content hashes.
+         */
+        readonly AiQueryResponse: {
+            readonly campusId: components["schemas"]["CampusId"];
+            readonly citations: readonly components["schemas"]["AiCitation"][];
+            readonly locale: components["schemas"]["AiLocale"];
+            readonly paragraphs: readonly components["schemas"]["AiAnswerParagraph"][];
+            readonly queryId: string;
+            readonly retrieval: components["schemas"]["AiRetrieval"];
+            readonly state: components["schemas"]["AiQueryState"];
+        };
+        /** @enum {string} */
+        readonly AiQueryState: "answered" | "stale" | "conflict" | "no-results";
+        readonly AiRateLimitProblem: components["schemas"]["Problem"] & {
+            /** @constant */
+            readonly failureCode: "AI_RATE_LIMITED";
+            /** @constant */
+            readonly status?: 429;
+            /** @constant */
+            readonly title?: "Too Many Requests";
+        };
+        readonly AiRetrieval: {
+            readonly documentsConsidered: number;
+            /** @constant */
+            readonly mode: "no-key-hybrid";
+        };
+        readonly AiUnavailableProblem: components["schemas"]["Problem"] & {
+            readonly failureCode: string;
+            /** @constant */
+            readonly status?: 503;
+            /** @constant */
+            readonly title?: "Service Unavailable";
         };
         readonly BilingualText: {
             readonly en: string;
@@ -393,14 +459,6 @@ export interface components {
             readonly defaulted: boolean;
             readonly from: string;
             readonly to: string;
-        };
-        readonly Citation: {
-            readonly freshnessState: components["schemas"]["FreshnessState"];
-            readonly sourceId: string;
-            /** Format: uri */
-            readonly sourceUrl: string;
-            readonly title: string;
-            readonly verificationState: components["schemas"]["VerificationState"];
         };
         readonly CommunityPost: {
             readonly authorAlias: string;
@@ -659,7 +717,7 @@ export interface components {
                 readonly teamId: string;
             };
             readonly publisher: string;
-            readonly resourceKinds: readonly ("CAMPUS_DEEPLINK" | "ACADEMIC_SESSION" | "PUBLIC_EVENT")[];
+            readonly resourceKinds: readonly ("CAMPUS_DEEPLINK" | "ACADEMIC_SESSION" | "PUBLIC_EVENT" | "AI_KNOWLEDGE_SUMMARY" | "AI_VERIFICATION_LINK")[];
             /** Format: uri */
             readonly sourceUrl: string;
             /** Format: date-time */
@@ -736,6 +794,33 @@ export interface components {
         };
     };
     responses: {
+        /** @description Anonymous campus knowledge query budget is exhausted */
+        readonly AiTooManyRequests: {
+            headers: {
+                readonly "Cache-Control": components["headers"]["NoStore"];
+                readonly "RateLimit-Limit": components["headers"]["RateLimitLimit"];
+                readonly "RateLimit-Remaining": components["headers"]["RateLimitRemaining"];
+                readonly "RateLimit-Reset": components["headers"]["RateLimitReset"];
+                readonly "Retry-After"?: number;
+                readonly "X-Request-Id": components["headers"]["RequestId"];
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["AiRateLimitProblem"];
+            };
+        };
+        /** @description Campus knowledge retrieval or its distributed abuse control is temporarily unavailable */
+        readonly AiUnavailable: {
+            headers: {
+                readonly "Cache-Control": components["headers"]["NoStore"];
+                readonly "Retry-After"?: number;
+                readonly "X-Request-Id": components["headers"]["RequestId"];
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["AiUnavailableProblem"];
+            };
+        };
         /** @description Malformed request */
         readonly BadRequest: {
             headers: {
@@ -824,6 +909,15 @@ export interface components {
             };
             content?: never;
         };
+        /** @description Request body exceeds the route-specific byte limit */
+        readonly PayloadTooLarge: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description Rate limit exceeded */
         readonly TooManyRequests: {
             headers: {
@@ -845,6 +939,15 @@ export interface components {
         };
         /** @description Semantically invalid or policy-disallowed request */
         readonly UnprocessableEntity: {
+            headers: {
+                readonly [name: string]: unknown;
+            };
+            content: {
+                readonly "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Request body does not use a supported media type */
+        readonly UnsupportedMediaType: {
             headers: {
                 readonly [name: string]: unknown;
             };
@@ -878,8 +981,14 @@ export interface components {
         readonly ETag: string;
         /** @description True when the response is a replay of a prior request with the same key and body. */
         readonly IdempotencyReplayed: boolean;
-        /** @description LIVE_ONLY catalog content must not be stored by clients or intermediaries. */
+        /** @description This representation must not be stored by clients or intermediaries. */
         readonly NoStore: "no-store";
+        /** @description Maximum anonymous-client requests allowed in the current fixed window. */
+        readonly RateLimitLimit: number;
+        /** @description Remaining requests for the anonymous client in the current fixed window. */
+        readonly RateLimitRemaining: number;
+        /** @description Whole seconds until the anonymous client's fixed window resets; this is not an epoch timestamp. */
+        readonly RateLimitReset: number;
         /** @description Correlation ID suitable for support, not an authentication credential. */
         readonly RequestId: string;
     };
@@ -998,38 +1107,39 @@ export interface operations {
             readonly 422: components["responses"]["UnprocessableEntity"];
         };
     };
-    readonly queryAssistant: {
+    readonly queryCampusAssistant: {
         readonly parameters: {
             readonly query?: never;
-            readonly header: {
-                /** @description Unique opaque key retained for 24 hours; reuse with a different body returns 409. */
-                readonly "Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
+            readonly header?: never;
             readonly path?: never;
             readonly cookie?: never;
         };
         readonly requestBody: {
             readonly content: {
-                readonly "application/json": components["schemas"]["AiQuery"];
+                readonly "application/json": components["schemas"]["AiQueryRequest"];
             };
         };
         readonly responses: {
             /** @description Grounded assistant response */
             readonly 200: {
                 headers: {
-                    readonly "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    readonly "Cache-Control": components["headers"]["NoStore"];
+                    readonly "RateLimit-Limit": components["headers"]["RateLimitLimit"];
+                    readonly "RateLimit-Remaining": components["headers"]["RateLimitRemaining"];
+                    readonly "RateLimit-Reset": components["headers"]["RateLimitReset"];
+                    readonly "X-Request-Id": components["headers"]["RequestId"];
                     readonly [name: string]: unknown;
                 };
                 content: {
-                    readonly "application/json": components["schemas"]["AiAnswer"];
+                    readonly "application/json": components["schemas"]["AiQueryResponse"];
                 };
             };
             readonly 400: components["responses"]["BadRequest"];
-            readonly 401: components["responses"]["Unauthorized"];
-            readonly 409: components["responses"]["Conflict"];
-            readonly 422: components["responses"]["UnprocessableEntity"];
-            readonly 429: components["responses"]["TooManyRequests"];
-            readonly 503: components["responses"]["ConnectorUnavailable"];
+            readonly 413: components["responses"]["PayloadTooLarge"];
+            readonly 415: components["responses"]["UnsupportedMediaType"];
+            readonly 429: components["responses"]["AiTooManyRequests"];
+            readonly 500: components["responses"]["InternalServerError"];
+            readonly 503: components["responses"]["AiUnavailable"];
         };
     };
     readonly listCampuses: {

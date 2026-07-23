@@ -314,42 +314,55 @@ paths:
   /v1/ai/query:
     post:
       tags: [AI]
-      operationId: queryAssistant
-      x-runtime-status: contract-only
-      summary: Query the bilingual retrieval assistant
-      description: Answers must expose citations and must not elevate unverified data to official fact.
-      security:
-        - oauth2: [campus:read]
-      parameters:
-        - $ref: "#/components/parameters/IdempotencyKey"
+      operationId: queryCampusAssistant
+      x-runtime-status: implemented
+      x-uga-response-request-bindings: [campusId, locale]
+      summary: Query the public bilingual campus retrieval assistant
+      description: |
+        Performs deterministic no-key hybrid retrieval over reviewed campus knowledge. Every non-empty
+        answer is evidence-backed, citations are confined to the requested campus, and stale or conflicting
+        evidence is disclosed as a response state instead of being elevated to official fact. The response
+        contract requires unique paragraph and citation IDs, resolvable paragraph citation references,
+        no unused or retired evidence, empty evidence for `no-results`, only FRESH evidence for `answered`,
+        only STALE or EXPIRED citations for `stale`, and at least two genuinely different sources for
+        `conflict`. Queries are NFC-normalized plain text without control characters or HTML encodings.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AiQuery"
+              $ref: "#/components/schemas/AiQueryRequest"
       responses:
         "200":
           description: Grounded assistant response
           headers:
-            Idempotency-Replayed:
-              $ref: "#/components/headers/IdempotencyReplayed"
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+            RateLimit-Remaining:
+              $ref: "#/components/headers/RateLimitRemaining"
+            RateLimit-Limit:
+              $ref: "#/components/headers/RateLimitLimit"
+            RateLimit-Reset:
+              $ref: "#/components/headers/RateLimitReset"
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AiAnswer"
+                $ref: "#/components/schemas/AiQueryResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          $ref: "#/components/responses/UnprocessableEntity"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
         "429":
-          $ref: "#/components/responses/TooManyRequests"
+          $ref: "#/components/responses/AiTooManyRequests"
         "503":
-          $ref: "#/components/responses/ConnectorUnavailable"
+          $ref: "#/components/responses/AiUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
   /v1/academics/sessions:
     get:
       tags: [Academics]
@@ -712,10 +725,23 @@ components:
       schema: { type: string }
     RequestId:
       description: Correlation ID suitable for support, not an authentication credential.
-      schema: { type: string, minLength: 8, maxLength: 128 }
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+        pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
     NoStore:
-      description: LIVE_ONLY catalog content must not be stored by clients or intermediaries.
+      description: This representation must not be stored by clients or intermediaries.
       schema: { type: string, const: no-store }
+    RateLimitRemaining:
+      description: Remaining requests for the anonymous client in the current fixed window.
+      schema: { type: integer, minimum: 0 }
+    RateLimitLimit:
+      description: Maximum anonymous-client requests allowed in the current fixed window.
+      schema: { type: integer, minimum: 1 }
+    RateLimitReset:
+      description: Whole seconds until the anonymous client's fixed window resets; this is not an epoch timestamp.
+      schema: { type: integer, minimum: 1 }
     IdempotencyReplayed:
       description: True when the response is a replay of a prior request with the same key and body.
       schema: { type: boolean }
@@ -782,6 +808,46 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
+    PayloadTooLarge:
+      description: Request body exceeds the route-specific byte limit
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnsupportedMediaType:
+      description: Request body does not use a supported media type
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    AiTooManyRequests:
+      description: Anonymous campus knowledge query budget is exhausted
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        RateLimit-Limit:
+          $ref: "#/components/headers/RateLimitLimit"
+        RateLimit-Remaining:
+          $ref: "#/components/headers/RateLimitRemaining"
+        RateLimit-Reset:
+          $ref: "#/components/headers/RateLimitReset"
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/AiRateLimitProblem" }
+    AiUnavailable:
+      description: Campus knowledge retrieval or its distributed abuse control is temporarily unavailable
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/AiUnavailableProblem" }
     ConnectorUnavailable:
       description: Required connector is disabled, unapproved, or temporarily unavailable
       headers:
@@ -903,7 +969,8 @@ components:
           maxItems: 3
           items:
             type: string
-            enum: [CAMPUS_DEEPLINK, ACADEMIC_SESSION, PUBLIC_EVENT]
+            enum:
+              [CAMPUS_DEEPLINK, ACADEMIC_SESSION, PUBLIC_EVENT, AI_KNOWLEDGE_SUMMARY, AI_VERIFICATION_LINK]
         name: { $ref: "#/components/schemas/BilingualText" }
         publisher: { type: string, minLength: 1, maxLength: 256 }
         sourceUrl: { type: string, format: uri, pattern: "^https://" }
@@ -1371,35 +1438,132 @@ components:
             items:
               type: array
               items: { $ref: "#/components/schemas/CommunityPost" }
-    AiQuery:
+    AiLocale:
+      type: string
+      enum: [en, zh-CN]
+    AiQueryState:
+      type: string
+      enum: [answered, stale, conflict, no-results]
+    AiCitationCategory:
+      type: string
+      enum: [library, student-services, safety, transportation, dining]
+    AiBilingualText:
+      type: object
+      additionalProperties: false
+      required: [en, zh-CN]
+      properties:
+        en:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          x-uga-semantic-validator: ai-evidence-text-v1
+        zh-CN:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          x-uga-semantic-validator: ai-evidence-text-v1
+    AiQueryRequest:
       type: object
       additionalProperties: false
       required: [campusId, locale, query]
       properties:
         campusId: { $ref: "#/components/schemas/CampusId" }
-        locale: { type: string, enum: [en, zh-CN] }
-        query: { type: string, minLength: 1, maxLength: 4000 }
-    Citation:
+        locale: { $ref: "#/components/schemas/AiLocale" }
+        query:
+          type: string
+          x-uga-trim: true
+          x-uga-semantic-validator: ai-query-text-v1
+          minLength: 2
+          maxLength: 500
+          pattern: "^\\S(?:[\\s\\S]{0,498}\\S)?$"
+          description: NFC plain text after leading and trailing whitespace have been removed; HTML and Unicode control/format/surrogate characters are rejected.
+    AiAnswerParagraph:
       type: object
       additionalProperties: false
-      required: [sourceId, sourceUrl, title, verificationState, freshnessState]
+      required: [id, text, citationIds]
       properties:
-        sourceId: { type: string }
-        sourceUrl: { type: string, format: uri }
-        title: { type: string }
-        verificationState: { $ref: "#/components/schemas/VerificationState" }
+        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          x-uga-semantic-validator: ai-evidence-text-v1
+        citationIds:
+          type: array
+          minItems: 1
+          maxItems: 64
+          description: Unique IDs that must resolve to citations in the same response.
+          items: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
+    AiCitation:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          campusId,
+          sourceId,
+          category,
+          title,
+          sourceUrl,
+          contentSha256,
+          updatedAt,
+          freshnessState,
+          verificationState,
+          excerpt,
+        ]
+      properties:
+        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        category: { $ref: "#/components/schemas/AiCitationCategory" }
+        title: { $ref: "#/components/schemas/AiBilingualText" }
+        sourceUrl:
+          type: string
+          format: uri
+          pattern: "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^?#]*)?$"
+        contentSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        updatedAt: { type: string, format: date-time }
         freshnessState: { $ref: "#/components/schemas/FreshnessState" }
-    AiAnswer:
+        verificationState: { $ref: "#/components/schemas/VerificationState" }
+        excerpt:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          x-uga-semantic-validator: ai-evidence-text-v1
+    AiRetrieval:
       type: object
       additionalProperties: false
-      required: [answer, locale, citations, safetyNotice]
+      required: [mode, documentsConsidered]
       properties:
-        answer: { type: string }
-        locale: { type: string, enum: [en, zh-CN] }
+        mode: { type: string, const: no-key-hybrid }
+        documentsConsidered: { type: integer, minimum: 0, maximum: 1000000 }
+    AiQueryResponse:
+      type: object
+      x-uga-semantic-validator: ai-query-response-v1
+      additionalProperties: false
+      description: |
+        `answered`, `stale`, and `conflict` require evidence-backed paragraphs. Paragraph IDs, citation IDs,
+        and each paragraph's citation IDs are unique; every reference resolves within the response; and every
+        citation campus matches `campusId`. Every citation is referenced and is neither retired nor UNKNOWN.
+        `no-results` has no paragraphs or citations, `answered` cites only FRESH evidence, `stale` cites only
+        STALE or EXPIRED evidence, and `conflict` has at least two distinct source IDs and content hashes.
+      required: [state, queryId, campusId, locale, paragraphs, citations, retrieval]
+      properties:
+        state: { $ref: "#/components/schemas/AiQueryState" }
+        queryId:
+          type: string
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        locale: { $ref: "#/components/schemas/AiLocale" }
+        paragraphs:
+          type: array
+          maxItems: 64
+          items: { $ref: "#/components/schemas/AiAnswerParagraph" }
         citations:
           type: array
-          items: { $ref: "#/components/schemas/Citation" }
-        safetyNotice: { type: [string, "null"] }
+          maxItems: 128
+          items: { $ref: "#/components/schemas/AiCitation" }
+        retrieval: { $ref: "#/components/schemas/AiRetrieval" }
     AcademicSession:
       type: object
       additionalProperties: false
@@ -1698,3 +1862,21 @@ components:
             sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
             failureCode: { type: string, pattern: "^[A-Z][A-Z0-9_]{2,63}$" }
             officialUrl: { type: string, format: uri, pattern: "^https://" }
+    AiRateLimitProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required: [failureCode]
+          properties:
+            title: { type: string, const: Too Many Requests }
+            status: { type: integer, const: 429 }
+            failureCode: { type: string, const: AI_RATE_LIMITED }
+    AiUnavailableProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required: [failureCode]
+          properties:
+            title: { type: string, const: Service Unavailable }
+            status: { type: integer, const: 503 }
+            failureCode: { type: string, pattern: "^AI_[A-Z0-9_]{2,60}$" }

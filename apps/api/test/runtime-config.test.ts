@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { loadApiRuntimeConfig, loadCatalogCursorHmacKey, parsePort } from "../src/runtime-config.js";
+import {
+  loadAiBffProofHmacKey,
+  loadAiRateLimitHmacKey,
+  loadAiKnowledgeServiceHmacKey,
+  loadApiRuntimeConfig,
+  loadCatalogCursorHmacKey,
+  parsePort,
+} from "../src/runtime-config.js";
 
-const cursorHmacKey = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY";
+const cursorHmacKey = Buffer.alloc(32, 1).toString("base64url");
+const rateLimitHmacKey = Buffer.alloc(32, 2).toString("base64url");
+const bffProofHmacKey = Buffer.alloc(32, 3).toString("base64url");
+const knowledgeServiceHmacKey = Buffer.alloc(32, 4).toString("base64url");
 
 describe("runtime configuration", () => {
   it("accepts only complete decimal ports in the TCP range", () => {
@@ -17,6 +27,19 @@ describe("runtime configuration", () => {
 
   it("loads a validated local OIDC configuration", () => {
     expect(loadApiRuntimeConfig({ NODE_ENV: "test" })).toEqual({
+      ai: {
+        knowledgeBaseUrl: new URL("http://127.0.0.1:8100"),
+        maxResponseBytes: 262_144,
+        serviceHmacKey: new TextEncoder().encode("development-only-ai-service-hmac-key-v1"),
+        rateLimit: {
+          clientLimit: 12,
+          globalLimit: 600,
+          networkLimit: 120,
+          redisUrl: new URL("redis://:local-redis-password-only@127.0.0.1:6379"),
+          windowSeconds: 60,
+        },
+        requestTimeoutMs: 3_000,
+      },
       cors: {
         allowedOrigins: ["http://localhost:3000"],
       },
@@ -51,6 +74,8 @@ describe("runtime configuration", () => {
     );
     expect(() =>
       loadApiRuntimeConfig({
+        API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
+        API_AI_REDIS_URL: "rediss://:redis-password@redis.internal.example.edu:6379",
         API_OIDC_AUDIENCE: "gopher-api",
         API_OIDC_ISSUER: "http://127.0.0.1:8080/realms/gopher",
         API_OIDC_JWKS_URL: "http://127.0.0.1:8080/realms/gopher/protocol/openid-connect/certs",
@@ -61,10 +86,15 @@ describe("runtime configuration", () => {
 
   it("requires explicit client and HTTPS CORS allowlists in production", () => {
     const productionOidc = {
+      API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
+      API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
+      API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
+      API_AI_REDIS_URL: "rediss://:redis-password@redis.internal.example.edu:6379",
       API_CATALOG_CURSOR_HMAC_KEY: cursorHmacKey,
       API_OIDC_AUDIENCE: "gopher-api",
       API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
       API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
+      INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
       NODE_ENV: "production",
     } as const;
 
@@ -101,11 +131,16 @@ describe("runtime configuration", () => {
 
   it("requires canonical 32-to-64-byte cursor HMAC material in production", () => {
     const validProduction = {
+      API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
+      API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
+      API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
+      API_AI_REDIS_URL: "rediss://:redis-password@redis.internal.example.edu:6379",
       API_CORS_ALLOWED_ORIGINS: "https://assistant.example.edu",
       API_OIDC_ALLOWED_CLIENT_IDS: "gopher-web",
       API_OIDC_AUDIENCE: "gopher-api",
       API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
       API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
+      INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
       NODE_ENV: "production",
     } as const;
     expect(() => loadApiRuntimeConfig(validProduction)).toThrow(
@@ -120,6 +155,125 @@ describe("runtime configuration", () => {
     expect(
       loadCatalogCursorHmacKey({ NODE_ENV: "test", API_CATALOG_CURSOR_HMAC_KEY: cursorHmacKey }),
     ).toHaveLength(32);
+  });
+
+  it("requires secure explicit AI service settings in production", () => {
+    const production = {
+      API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
+      API_CATALOG_CURSOR_HMAC_KEY: cursorHmacKey,
+      API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
+      API_CORS_ALLOWED_ORIGINS: "https://assistant.example.edu",
+      API_OIDC_ALLOWED_CLIENT_IDS: "gopher-web",
+      API_OIDC_AUDIENCE: "gopher-api",
+      API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
+      API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
+      INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
+      NODE_ENV: "production",
+    } as const;
+    expect(() => loadApiRuntimeConfig(production)).toThrow("API_AI_KNOWLEDGE_URL is required");
+    expect(() =>
+      loadApiRuntimeConfig({ ...production, API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu" }),
+    ).toThrow("API_AI_REDIS_URL is required");
+    expect(() =>
+      loadApiRuntimeConfig({
+        ...production,
+        API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
+        API_AI_REDIS_URL: "redis://:password@127.0.0.1:6379",
+      }),
+    ).toThrow("must use rediss in production");
+  });
+
+  it("validates AI rate-limit HMAC material and bounded runtime values", () => {
+    expect(() => loadAiRateLimitHmacKey({ API_AI_RATE_LIMIT_HMAC_KEY: "c2hvcnQ", NODE_ENV: "test" })).toThrow(
+      "32 through 64 bytes",
+    );
+    expect(
+      loadAiRateLimitHmacKey({ API_AI_RATE_LIMIT_HMAC_KEY: cursorHmacKey, NODE_ENV: "test" }),
+    ).toHaveLength(32);
+    expect(() =>
+      loadAiRateLimitHmacKey({
+        API_AI_RATE_LIMIT_HMAC_KEY: Buffer.from("development-only-ai-rate-limit-hmac-key-v1").toString(
+          "base64url",
+        ),
+        NODE_ENV: "production",
+      }),
+    ).toThrow("fixed development key");
+    expect(() =>
+      loadApiRuntimeConfig({
+        API_AI_RATE_LIMIT_CLIENT: "100",
+        API_AI_RATE_LIMIT_NETWORK: "99",
+        NODE_ENV: "test",
+      }),
+    ).toThrow("API_AI_RATE_LIMIT_NETWORK must be greater than or equal to the client limit");
+    expect(() =>
+      loadApiRuntimeConfig({
+        API_AI_RATE_LIMIT_GLOBAL: "119",
+        API_AI_RATE_LIMIT_NETWORK: "120",
+        NODE_ENV: "test",
+      }),
+    ).toThrow("API_AI_RATE_LIMIT_GLOBAL must be greater than or equal to the network limit");
+    expect(
+      loadApiRuntimeConfig({
+        API_AI_RATE_LIMIT_CLIENT: "100",
+        API_AI_RATE_LIMIT_GLOBAL: "300",
+        API_AI_RATE_LIMIT_NETWORK: "200",
+        NODE_ENV: "test",
+      }).ai.rateLimit,
+    ).toMatchObject({ clientLimit: 100, globalLimit: 300, networkLimit: 200 });
+    expect(() => loadApiRuntimeConfig({ API_AI_REQUEST_TIMEOUT_MS: "249", NODE_ENV: "test" })).toThrow(
+      "API_AI_REQUEST_TIMEOUT_MS",
+    );
+  });
+
+  it("requires canonical service-auth HMAC material without exposing a production default", () => {
+    expect(() => loadAiKnowledgeServiceHmacKey({ NODE_ENV: "production" })).toThrow(
+      "API_AI_KNOWLEDGE_HMAC_KEY is required in production",
+    );
+    expect(() =>
+      loadAiKnowledgeServiceHmacKey({ API_AI_KNOWLEDGE_HMAC_KEY: "c2hvcnQ", NODE_ENV: "test" }),
+    ).toThrow("32 through 64 bytes");
+    expect(() =>
+      loadAiKnowledgeServiceHmacKey({
+        API_AI_KNOWLEDGE_HMAC_KEY: Buffer.from("development-only-ai-service-hmac-key-v1").toString(
+          "base64url",
+        ),
+        NODE_ENV: "production",
+      }),
+    ).toThrow("fixed development key");
+    expect(
+      loadAiKnowledgeServiceHmacKey({
+        API_AI_KNOWLEDGE_HMAC_KEY: cursorHmacKey,
+        NODE_ENV: "test",
+      }),
+    ).toHaveLength(32);
+  });
+
+  it("requires strong independent BFF proof material", () => {
+    expect(() => loadAiBffProofHmacKey({ NODE_ENV: "production" })).toThrow(
+      "INTERNAL_AI_BFF_PROOF_HMAC_KEY is required",
+    );
+    expect(() =>
+      loadAiBffProofHmacKey({ INTERNAL_AI_BFF_PROOF_HMAC_KEY: "c2hvcnQ", NODE_ENV: "test" }),
+    ).toThrow("32 through 64 bytes");
+    expect(() =>
+      loadAiBffProofHmacKey({
+        INTERNAL_AI_BFF_PROOF_HMAC_KEY: Buffer.from(
+          "development-only-ai-bff-core-proof-hmac-key-v1",
+        ).toString("base64url"),
+        NODE_ENV: "production",
+      }),
+    ).toThrow("fixed development key");
+    expect(
+      loadAiBffProofHmacKey({ INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey, NODE_ENV: "test" }),
+    ).toHaveLength(32);
+    expect(() =>
+      loadApiRuntimeConfig({
+        API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
+        API_CATALOG_CURSOR_HMAC_KEY: cursorHmacKey,
+        INTERNAL_AI_BFF_PROOF_HMAC_KEY: rateLimitHmacKey,
+        NODE_ENV: "test",
+      }),
+    ).toThrow("must be independent");
   });
 
   it.each(["29", "601", "1.5", "+300", " 300", ""])(
