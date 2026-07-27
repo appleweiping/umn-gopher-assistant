@@ -21,7 +21,7 @@
     "@modelcontextprotocol/sdk": "1.29.0",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "@umn-gopher-assistant/sdk": "workspace:*",
-    "jose": "6.2.3",
+    "jose": "6.2.4",
     "zod": "4.4.3"
   },
   "devDependencies": {
