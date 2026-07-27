@@ -2,7 +2,7 @@
 
 # PostGIS publishes this image from its official docker-postgis repository. The digest makes the
 # PostgreSQL 17 + PostGIS 3.5 Alpine base immutable; update it only with an explicit dependency review.
-FROM postgis/postgis:17-3.5-alpine@sha256:bcab61c139a9644dcf0bb00b0cff8ab84e36b3b6f74983cf229ddb4ea0c22897 AS pgvector-builder
+FROM postgis/postgis:17-3.5-alpine@sha256:2db2d29dbde9379103076851c39f50f4fd9c7ee4297251ed006ed94d586df958 AS pgvector-builder
 
 ARG PGVECTOR_VERSION=0.8.2
 ARG PGVECTOR_SHA256=69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa
@@ -28,7 +28,7 @@ RUN set -eux; \
     cp /tmp/pgvector/LICENSE /tmp/pgvector/README.md /usr/share/doc/pgvector/; \
     grep -Fq "default_version = '${PGVECTOR_VERSION}'" /usr/local/share/postgresql/extension/vector.control
 
-FROM postgis/postgis:17-3.5-alpine@sha256:bcab61c139a9644dcf0bb00b0cff8ab84e36b3b6f74983cf229ddb4ea0c22897 AS runtime
+FROM postgis/postgis:17-3.5-alpine@sha256:2db2d29dbde9379103076851c39f50f4fd9c7ee4297251ed006ed94d586df958 AS runtime
 
 ARG SU_EXEC_VERSION=0.3-r0
 
