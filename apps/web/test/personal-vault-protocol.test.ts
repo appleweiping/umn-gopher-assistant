@@ -50,6 +50,30 @@ describe("personal vault Worker RPC schema", () => {
         allowOldestDeviceRevocation: false,
       },
       { id: "lock", method: "lock" },
+      { id: "sync", method: "sync-now" },
+      { id: "enable", method: "enable-account-sync", recoveryCode: "UGA1-0000" },
+      {
+        id: "remote-begin",
+        method: "begin-remote-recovery",
+        recoveryCode: "UGA1-0000",
+      },
+      { id: "remote-resume", method: "resume-remote-recovery" },
+      {
+        id: "remote-abandon",
+        method: "abandon-remote-recovery-pairing",
+      },
+      {
+        id: "remote-prepare",
+        method: "prepare-remote-recovery-rotation",
+      },
+      {
+        id: "remote-confirm",
+        method: "confirm-remote-recovery-rotation",
+      },
+      { id: "begin-pair", method: "begin-device-pairing" },
+      { id: "cancel-pair", method: "cancel-device-pairing" },
+      { id: "list-pair", method: "list-device-pairings" },
+      { id: "poll-pair", method: "poll-device-pairing" },
       { id: "add", method: "add-task", title: "Read" },
       { id: "toggle", method: "toggle-task", taskId: "task-1" },
       { id: "import", method: "import-legacy", legacyRaw: "[]" },
@@ -69,6 +93,8 @@ describe("personal vault Worker RPC schema", () => {
       { id: "x", method: "recover", recoveryCode: 1, allowOldestDeviceRevocation: false },
       { id: "x", method: "recover", recoveryCode: "UGA1-0000" },
       { id: "x", method: "recover", recoveryCode: "UGA1-0000", allowOldestDeviceRevocation: "yes" },
+      { id: "x", method: "enable-account-sync", recoveryCode: 1 },
+      { id: "x", method: "cancel-device-pairing", pairingId: "extra" },
       { id: "x", method: "begin-setup", source: "legacy", legacyRaw: null },
       { id: "x", method: "begin-setup", source: "other", legacyRaw: "[]" },
       { id: "x", method: "add-task", title: {} },
@@ -86,6 +112,13 @@ describe("personal vault Worker RPC schema", () => {
         method: "recover",
         recoveryCode: "A".repeat(PERSONAL_VAULT_MAX_RECOVERY_CODE_LENGTH + 1),
         allowOldestDeviceRevocation: false,
+      }),
+    ).toBeNull();
+    expect(
+      parseVaultRpcRequest({
+        id: "enable",
+        method: "enable-account-sync",
+        recoveryCode: "A".repeat(PERSONAL_VAULT_MAX_RECOVERY_CODE_LENGTH + 1),
       }),
     ).toBeNull();
     expect(
@@ -109,9 +142,48 @@ describe("personal vault Worker RPC schema", () => {
       id: "response",
       ok: true,
       method: "add-task",
+      syncState: "synced",
       snapshot: { revision: 2, tasks: [{ id: "task-1", title: "Read", done: false }] },
     } as const;
     expect(parseVaultRpcResponse(success)).toEqual(success);
+    const inspection = {
+      id: "inspect",
+      ok: true,
+      method: "inspect",
+      hasVault: false,
+      hasPendingPairing: true,
+      pairingId: null,
+      pairingExpiresAt: "2026-07-23T01:00:00.000Z",
+      remoteRecoveryStage: null,
+      syncState: "pairing",
+    } as const;
+    expect(parseVaultRpcResponse(inspection)).toEqual(inspection);
+    expect(
+      parseVaultRpcResponse({
+        id: "cancel",
+        ok: true,
+        method: "cancel-device-pairing",
+        cancelled: true,
+        syncState: "pairing",
+      }),
+    ).toEqual({
+      id: "cancel",
+      ok: true,
+      method: "cancel-device-pairing",
+      cancelled: true,
+      syncState: "pairing",
+    });
+    expect(
+      parseVaultRpcResponse({
+        id: "remote-abandon",
+        ok: true,
+        method: "abandon-remote-recovery-pairing",
+      }),
+    ).toEqual({
+      id: "remote-abandon",
+      ok: true,
+      method: "abandon-remote-recovery-pairing",
+    });
     expect(parseVaultRpcResponse({ id: "failure", ok: false, error: { code: "CONFLICT" } })).toEqual({
       id: "failure",
       ok: false,
@@ -130,6 +202,7 @@ describe("personal vault Worker RPC schema", () => {
     });
     for (const response of [
       { ...success, injected: true },
+      { ...inspection, hasPendingPairing: false },
       { ...success, snapshot: { ...success.snapshot, revision: 0 } },
       {
         ...success,

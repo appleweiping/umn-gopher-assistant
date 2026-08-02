@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 interface Schema {
   additionalProperties?: boolean;
-  const?: string;
+  const?: boolean | string;
   enum?: string[];
   items?: Schema;
   maxItems?: number;
@@ -28,6 +28,7 @@ interface OpenApiDocument {
   paths: {
     "/v1/ai/query": {
       post: {
+        description: string;
         operationId: string;
         responses: Record<
           string,
@@ -85,6 +86,8 @@ describe("AI OpenAPI contract", () => {
     expect(operation.responses["415"]?.$ref).toBe("#/components/responses/UnsupportedMediaType");
     expect(operation.responses["429"]?.$ref).toBe("#/components/responses/AiTooManyRequests");
     expect(operation.responses["503"]?.$ref).toBe("#/components/responses/AiUnavailable");
+    expect(operation.description).toContain("project-authored campus summaries");
+    expect(operation.description).not.toContain("reviewed campus knowledge");
   });
 
   it("declares closed request, response, citation, paragraph, and retrieval objects", () => {
@@ -92,6 +95,9 @@ describe("AI OpenAPI contract", () => {
       "AiQueryRequest",
       "AiQueryResponse",
       "AiCitation",
+      "AiSummaryLicense",
+      "AiSummarySource",
+      "AiVerificationLink",
       "AiAnswerParagraph",
       "AiRetrieval",
     ]) {
@@ -117,7 +123,7 @@ describe("AI OpenAPI contract", () => {
       "retrieval",
     ]);
     expect(openapi.components.schemas["AiQueryResponse"]?.["x-uga-semantic-validator"]).toBe(
-      "ai-query-response-v1",
+      "ai-query-response-v2",
     );
     expect(openapi.components.schemas["AiQueryState"]?.enum).toEqual([
       "answered",
@@ -134,17 +140,65 @@ describe("AI OpenAPI contract", () => {
     ]);
     expect(openapi.components.schemas["AiCitation"]?.required).toEqual([
       "id",
+      "documentId",
       "campusId",
-      "sourceId",
       "category",
       "title",
-      "sourceUrl",
+      "excerpt",
       "contentSha256",
       "updatedAt",
-      "freshnessState",
-      "verificationState",
-      "excerpt",
+      "summaryFreshnessState",
+      "summaryVerificationState",
+      "summarySource",
+      "verificationLink",
     ]);
+    expect(openapi.components.schemas["AiSummaryLicense"]?.required).toEqual([
+      "status",
+      "spdxId",
+      "evidenceUrl",
+    ]);
+    expect(openapi.components.schemas["AiSummaryLicense"]?.properties).toMatchObject({
+      evidenceUrl: { const: "https://www.apache.org/licenses/LICENSE-2.0" },
+      spdxId: { const: "Apache-2.0" },
+      status: { const: "OPEN_REUSE" },
+    });
+    expect(openapi.components.schemas["AiSummarySource"]?.required).toEqual([
+      "kind",
+      "sourceId",
+      "sourceUrl",
+      "corpusSha256",
+      "license",
+    ]);
+    expect(openapi.components.schemas["AiSummarySource"]?.properties).toMatchObject({
+      corpusSha256: { pattern: "^[a-f0-9]{64}$", type: "string" },
+      kind: { const: "project-authored-summary" },
+      sourceUrl: {
+        pattern:
+          "^[Hh][Tt][Tt][Pp][Ss]://[Gg][Ii][Tt][Hh][Uu][Bb]\\.[Cc][Oo][Mm](?::443)?/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus\\.json$",
+      },
+    });
+    expect(openapi.components.schemas["AiVerificationLink"]?.required).toEqual([
+      "kind",
+      "sourceId",
+      "sourceUrl",
+      "licenseStatus",
+      "sourceUse",
+      "contentRetrieved",
+    ]);
+    expect(openapi.components.schemas["AiVerificationLink"]?.properties).toMatchObject({
+      contentRetrieved: { const: false, type: "boolean" },
+      kind: { const: "official-verification-link" },
+      licenseStatus: { const: "DEEPLINK_ONLY" },
+      sourceUse: { const: "verification-link-only" },
+    });
+    expect(openapi.components.schemas["AiCitation"]?.properties?.["summaryVerificationState"]).toMatchObject({
+      const: "schematic",
+      type: "string",
+    });
+    expect(openapi.components.schemas["AiCitation"]?.properties?.["summaryFreshnessState"]).toMatchObject({
+      enum: ["FRESH", "STALE", "EXPIRED"],
+      type: "string",
+    });
     expect(openapi.components.schemas["AiAnswerParagraph"]?.properties?.["citationIds"]).toMatchObject({
       maxItems: 64,
       minItems: 1,

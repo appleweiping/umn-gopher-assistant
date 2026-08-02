@@ -36,6 +36,22 @@ type RequestWithoutId =
       readonly allowOldestDeviceRevocation: boolean;
     }
   | { readonly method: "lock" }
+  | { readonly method: "sync-now" }
+  | { readonly method: "enable-account-sync"; readonly recoveryCode: string }
+  | { readonly method: "begin-remote-recovery"; readonly recoveryCode: string }
+  | { readonly method: "resume-remote-recovery" }
+  | { readonly method: "abandon-remote-recovery-pairing" }
+  | { readonly method: "prepare-remote-recovery-rotation" }
+  | { readonly method: "confirm-remote-recovery-rotation" }
+  | { readonly method: "begin-device-pairing" }
+  | { readonly method: "cancel-device-pairing" }
+  | { readonly method: "list-device-pairings" }
+  | {
+      readonly method: "approve-device-pairing";
+      readonly pairingId: string;
+      readonly pairingCode: string;
+    }
+  | { readonly method: "poll-device-pairing" }
   | { readonly method: "add-task"; readonly title: string }
   | { readonly method: "toggle-task"; readonly taskId: string }
   | { readonly method: "import-legacy"; readonly legacyRaw: string };
@@ -168,6 +184,54 @@ export class PersonalVaultClient {
 
   lock() {
     return this.request({ method: "lock" });
+  }
+
+  syncNow() {
+    return this.request({ method: "sync-now" });
+  }
+
+  enableAccountSync(recoveryCode: string) {
+    return this.request({ method: "enable-account-sync", recoveryCode });
+  }
+
+  beginRemoteRecovery(recoveryCode: string) {
+    return this.request({ method: "begin-remote-recovery", recoveryCode });
+  }
+
+  resumeRemoteRecovery() {
+    return this.request({ method: "resume-remote-recovery" });
+  }
+
+  abandonRemoteRecoveryPairing() {
+    return this.request({ method: "abandon-remote-recovery-pairing" });
+  }
+
+  prepareRemoteRecoveryRotation() {
+    return this.request({ method: "prepare-remote-recovery-rotation" });
+  }
+
+  confirmRemoteRecoveryRotation() {
+    return this.request({ method: "confirm-remote-recovery-rotation" });
+  }
+
+  beginDevicePairing() {
+    return this.request({ method: "begin-device-pairing" });
+  }
+
+  cancelDevicePairing() {
+    return this.request({ method: "cancel-device-pairing" });
+  }
+
+  listDevicePairings() {
+    return this.request({ method: "list-device-pairings" });
+  }
+
+  approveDevicePairing(pairingId: string, pairingCode: string) {
+    return this.request({ method: "approve-device-pairing", pairingId, pairingCode });
+  }
+
+  pollDevicePairing() {
+    return this.request({ method: "poll-device-pairing" });
   }
 
   addTask(title: string) {

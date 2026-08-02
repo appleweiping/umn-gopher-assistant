@@ -38,7 +38,18 @@ describeWithStack("public API through Redis and the PostgreSQL-backed knowledge 
     expect(parsed.locale).toBe("en");
     expect(parsed.citations.length).toBeGreaterThan(0);
     expect(parsed.paragraphs.length).toBeGreaterThan(0);
-    expect(parsed.citations.every((citation) => citation.sourceUrl.startsWith("https://"))).toBe(true);
+    for (const citation of parsed.citations) {
+      expect(citation.summarySource).toMatchObject({
+        corpusSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+        kind: "project-authored-summary",
+      });
+      expect(citation.verificationLink).toMatchObject({
+        contentRetrieved: false,
+        kind: "official-verification-link",
+        sourceUse: "verification-link-only",
+      });
+      expect(citation.verificationLink.sourceUrl).toMatch(/^https:\/\//u);
+    }
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(response.headers["ratelimit-limit"]).toMatch(/^\d+$/u);
     expect(response.headers["ratelimit-remaining"]).toMatch(/^\d+$/u);

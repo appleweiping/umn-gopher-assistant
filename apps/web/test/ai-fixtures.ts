@@ -5,14 +5,34 @@ export function aiCitation(overrides: Partial<AiCitation> = {}): AiCitation {
     campusId: "tc",
     category: "library",
     contentSha256: "a".repeat(64),
-    excerpt: "Library hours vary by date. Check the official schedule before traveling.",
-    freshnessState: "FRESH",
+    documentId: "tc-library-overview",
+    excerpt:
+      "Use the University Libraries site as a starting point and verify current details on the linked official page.",
     id: "tc-library-hours",
-    sourceId: "tc-library-knowledge",
-    sourceUrl: "https://www.lib.umn.edu/services/hours",
-    title: { en: "University Libraries hours", "zh-CN": "大学图书馆开放时间" },
+    summaryFreshnessState: "FRESH",
+    summarySource: {
+      corpusSha256: "c".repeat(64),
+      kind: "project-authored-summary",
+      license: {
+        evidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+        spdxId: "Apache-2.0",
+        status: "OPEN_REUSE",
+      },
+      sourceId: "uga-ai-summary-corpus-v1",
+      sourceUrl:
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+    },
+    summaryVerificationState: "schematic",
+    title: { en: "Twin Cities library starting point", "zh-CN": "双城校区图书馆入口" },
     updatedAt: "2026-07-22T12:00:00.000Z",
-    verificationState: "campus-reviewed",
+    verificationLink: {
+      contentRetrieved: false,
+      kind: "official-verification-link",
+      licenseStatus: "DEEPLINK_ONLY",
+      sourceId: "official-tc-library",
+      sourceUrl: "https://www.lib.umn.edu/services/hours",
+      sourceUse: "verification-link-only",
+    },
     ...overrides,
   };
 }

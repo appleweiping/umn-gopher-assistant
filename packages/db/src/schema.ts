@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   customType,
@@ -9,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  type PgTableExtraConfigValue,
   smallint,
   text,
   timestamp,
@@ -32,6 +34,10 @@ const geometryPoint4326 = customType<{
 
 const tsvector = customType<{ data: string; driverData: string }>({
   dataType: () => "tsvector",
+});
+
+const bytea = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => "bytea",
 });
 
 export const campusIdEnum = pgEnum("campus_id", ["tc", "duluth", "crookston", "morris", "rochester"]);
@@ -83,6 +89,25 @@ export const knowledgeIngestionStatusEnum = pgEnum("knowledge_ingestion_status",
 export const knowledgeSourceRoleEnum = pgEnum("knowledge_source_role", [
   "PROJECT_SUMMARY",
   "OFFICIAL_VERIFICATION",
+]);
+export const accountStatusEnum = pgEnum("account_status", ["active", "suspended", "deleted"]);
+export const personalVaultDeviceStatusEnum = pgEnum("personal_vault_device_status", ["active", "revoked"]);
+export const personalVaultPairingStateEnum = pgEnum("personal_vault_pairing_state", [
+  "pending",
+  "approved",
+  "consumed",
+  "expired",
+  "cancelled",
+]);
+export const personalVaultCommandStatusEnum = pgEnum("personal_vault_command_status", [
+  "pending",
+  "succeeded",
+  "failed",
+]);
+export const personalVaultCommandActorKindEnum = pgEnum("personal_vault_command_actor_kind", [
+  "account",
+  "device",
+  "recovery",
 ]);
 
 export const campuses = pgTable(
@@ -453,5 +478,459 @@ export const knowledgeIngestionRuns = pgTable(
       sql`(${table.status} = 'succeeded' AND ${table.projectionSha256} IS NOT NULL AND ${table.projectionSha256} ~ '^[a-f0-9]{64}$' AND ${table.projectionSources} IS NOT NULL AND ${table.projectionSources} >= 0 AND ${table.projectionDocuments} IS NOT NULL AND ${table.projectionDocuments} >= 0 AND ${table.projectionChunks} IS NOT NULL AND ${table.projectionChunks} >= 0 AND ${table.projectionCitations} IS NOT NULL AND ${table.projectionCitations} >= 0) OR (${table.status} IN ('running', 'failed') AND ${table.projectionSha256} IS NULL AND ${table.projectionSources} IS NULL AND ${table.projectionDocuments} IS NULL AND ${table.projectionChunks} IS NULL AND ${table.projectionCitations} IS NULL)`,
     ),
     check("knowledge_ingestion_runs_version_check", sql`char_length(btrim(${table.corpusVersion})) > 0`),
+  ],
+);
+
+/**
+ * Authentication identifiers are never stored in their original form. The
+ * identity resolver receives a server-side HMAC and returns only this opaque
+ * account id; personal-data services have no direct table privilege.
+ */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerBinding: bytea("owner_binding")
+      .notNull()
+      .default(sql`gen_random_bytes(32)`),
+    status: accountStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "accounts_lifecycle_check",
+      sql`(${table.status} IN ('active', 'suspended') AND ${table.deletedAt} IS NULL) OR (${table.status} = 'deleted' AND ${table.deletedAt} IS NOT NULL AND ${table.deletedAt} >= ${table.createdAt})`,
+    ),
+    check("accounts_owner_binding_check", sql`octet_length(${table.ownerBinding}) = 32`),
+    uniqueIndex("accounts_id_uidx").on(table.id),
+    uniqueIndex("accounts_owner_binding_uidx").on(table.ownerBinding),
+  ],
+);
+
+export const accountIdentityKeys = pgTable(
+  "account_identity_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    identityHmac: bytea("identity_hmac").notNull(),
+    hmacKeyVersion: smallint("hmac_key_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("account_identity_keys_hmac_uidx").on(table.hmacKeyVersion, table.identityHmac),
+    uniqueIndex("account_identity_keys_account_version_uidx").on(table.accountId, table.hmacKeyVersion),
+    check(
+      "account_identity_keys_hmac_check",
+      sql`octet_length(${table.identityHmac}) = 32 AND ${table.hmacKeyVersion} BETWEEN 1 AND 32767`,
+    ),
+    check(
+      "account_identity_keys_lifecycle_check",
+      sql`${table.retiredAt} IS NULL OR ${table.retiredAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+/**
+ * Deployment continuity sentinel for the purpose-specific account identity
+ * HMAC. Only a domain-separated fingerprint is persisted; runtime roles may
+ * verify it through a narrowly granted SECURITY DEFINER function but never
+ * read or mutate this registry directly.
+ */
+export const accountHmacKeyRegistry = pgTable(
+  "account_hmac_key_registry",
+  {
+    hmacKeyVersion: smallint("hmac_key_version").primaryKey(),
+    keyFingerprint: bytea("key_fingerprint").notNull(),
+    activatedAt: timestamp("activated_at", { withTimezone: true }).notNull().defaultNow(),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "account_hmac_key_registry_fingerprint_check",
+      sql`${table.hmacKeyVersion} BETWEEN 1 AND 32767 AND octet_length(${table.keyFingerprint}) = 32`,
+    ),
+    check(
+      "account_hmac_key_registry_lifecycle_check",
+      sql`${table.retiredAt} IS NULL OR ${table.retiredAt} >= ${table.activatedAt}`,
+    ),
+  ],
+);
+
+export const personalVaults = pgTable(
+  "personal_vaults",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
+    currentRevision: bigint("current_revision", { mode: "number" }).notNull().default(0),
+    currentPayloadId: uuid("current_payload_id"),
+    currentKeyringId: uuid("current_keyring_id"),
+    currentManifestId: uuid("current_manifest_id"),
+    headCommitId: uuid("head_commit_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("personal_vaults_id_account_uidx").on(table.id, table.accountId),
+    uniqueIndex("personal_vaults_account_uidx").on(table.accountId),
+    foreignKey({
+      name: "personal_vaults_current_payload_fk",
+      columns: [table.currentPayloadId, table.accountId, table.id],
+      foreignColumns: [
+        personalVaultPayloads.id,
+        personalVaultPayloads.accountId,
+        personalVaultPayloads.vaultId,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vaults_current_keyring_fk",
+      columns: [table.currentKeyringId, table.accountId, table.id],
+      foreignColumns: [
+        personalVaultKeyrings.id,
+        personalVaultKeyrings.accountId,
+        personalVaultKeyrings.vaultId,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vaults_current_manifest_fk",
+      columns: [table.currentManifestId, table.accountId, table.id],
+      foreignColumns: [
+        personalVaultManifests.id,
+        personalVaultManifests.accountId,
+        personalVaultManifests.vaultId,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vaults_head_commit_fk",
+      columns: [table.headCommitId, table.accountId, table.id],
+      foreignColumns: [personalVaultCommits.id, personalVaultCommits.accountId, personalVaultCommits.vaultId],
+    }).onDelete("restrict"),
+    check("personal_vaults_revision_check", sql`${table.currentRevision} BETWEEN 0 AND 9007199254740991`),
+    check(
+      "personal_vaults_head_lifecycle_check",
+      sql`(${table.currentRevision} = 0 AND ${table.currentPayloadId} IS NULL AND ${table.currentKeyringId} IS NULL AND ${table.currentManifestId} IS NULL AND ${table.headCommitId} IS NULL) OR (${table.currentRevision} BETWEEN 1 AND 9007199254740991 AND ${table.currentPayloadId} IS NOT NULL AND ${table.currentKeyringId} IS NOT NULL AND ${table.currentManifestId} IS NOT NULL AND ${table.headCommitId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const personalVaultPayloads = pgTable(
+  "personal_vault_payloads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    wirePayload: jsonb("wire_payload").$type<Record<string, unknown>>().notNull(),
+    contentHash: text("content_hash").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("personal_vault_payloads_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_payloads_vault_revision_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.revision,
+    ),
+    foreignKey({
+      name: "personal_vault_payloads_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    check("personal_vault_payloads_revision_check", sql`${table.revision} BETWEEN 1 AND 9007199254740991`),
+    check(
+      "personal_vault_payloads_hash_size_check",
+      sql`${table.contentHash} ~ '^[a-f0-9]{64}$' AND ${table.byteLength} BETWEEN 4112 AND 8388624 AND (${table.byteLength} - 16) % 4096 = 0 AND jsonb_typeof(${table.wirePayload}) = 'object'`,
+    ),
+  ],
+);
+
+export const personalVaultKeyrings = pgTable(
+  "personal_vault_keyrings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    wirePayload: jsonb("wire_payload").$type<Record<string, unknown>>().notNull(),
+    contentHash: text("content_hash").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_keyrings_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_keyrings_vault_revision_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.revision,
+    ),
+    foreignKey({
+      name: "personal_vault_keyrings_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    check("personal_vault_keyrings_revision_check", sql`${table.revision} BETWEEN 1 AND 9007199254740991`),
+    check(
+      "personal_vault_keyrings_hash_size_check",
+      sql`${table.contentHash} ~ '^[a-f0-9]{64}$' AND ${table.byteLength} BETWEEN 1 AND 262144 AND jsonb_typeof(${table.wirePayload}) = 'object'`,
+    ),
+  ],
+);
+
+export const personalVaultManifests = pgTable(
+  "personal_vault_manifests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    wirePayload: jsonb("wire_payload").$type<Record<string, unknown>>().notNull(),
+    contentHash: text("content_hash").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_manifests_id_account_vault_uidx").on(
+      table.id,
+      table.accountId,
+      table.vaultId,
+    ),
+    uniqueIndex("personal_vault_manifests_vault_revision_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.revision,
+    ),
+    foreignKey({
+      name: "personal_vault_manifests_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    check("personal_vault_manifests_revision_check", sql`${table.revision} BETWEEN 1 AND 9007199254740991`),
+    check(
+      "personal_vault_manifests_hash_size_check",
+      sql`${table.contentHash} ~ '^[a-f0-9]{64}$' AND ${table.byteLength} BETWEEN 1 AND 1048576 AND jsonb_typeof(${table.wirePayload}) = 'object'`,
+    ),
+  ],
+);
+
+export const personalVaultCommits = pgTable(
+  "personal_vault_commits",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    revision: bigint("revision", { mode: "number" }).notNull(),
+    parentCommitId: uuid("parent_commit_id"),
+    payloadId: uuid("payload_id").notNull(),
+    keyringId: uuid("keyring_id").notNull(),
+    manifestId: uuid("manifest_id").notNull(),
+    wirePayload: jsonb("wire_payload").$type<Record<string, unknown>>().notNull(),
+    contentHash: text("content_hash").notNull(),
+    byteLength: integer("byte_length").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_commits_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_commits_vault_revision_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.revision,
+    ),
+    foreignKey({
+      name: "personal_vault_commits_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "personal_vault_commits_parent_fk",
+      columns: [table.parentCommitId, table.accountId, table.vaultId],
+      foreignColumns: [table.id, table.accountId, table.vaultId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vault_commits_payload_fk",
+      columns: [table.payloadId, table.accountId, table.vaultId],
+      foreignColumns: [
+        personalVaultPayloads.id,
+        personalVaultPayloads.accountId,
+        personalVaultPayloads.vaultId,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vault_commits_keyring_fk",
+      columns: [table.keyringId, table.accountId, table.vaultId],
+      foreignColumns: [
+        personalVaultKeyrings.id,
+        personalVaultKeyrings.accountId,
+        personalVaultKeyrings.vaultId,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "personal_vault_commits_manifest_fk",
+      columns: [table.manifestId, table.accountId, table.vaultId],
+      foreignColumns: [
+        personalVaultManifests.id,
+        personalVaultManifests.accountId,
+        personalVaultManifests.vaultId,
+      ],
+    }).onDelete("restrict"),
+    check("personal_vault_commits_revision_check", sql`${table.revision} BETWEEN 1 AND 9007199254740991`),
+    check(
+      "personal_vault_commits_hash_size_check",
+      sql`${table.contentHash} ~ '^[a-f0-9]{64}$' AND ${table.byteLength} BETWEEN 1 AND 1048576 AND jsonb_typeof(${table.wirePayload}) = 'object'`,
+    ),
+    check(
+      "personal_vault_commits_parent_check",
+      sql`(${table.revision} = 1 AND ${table.parentCommitId} IS NULL) OR (${table.revision} > 1 AND ${table.parentCommitId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const personalVaultDevices = pgTable(
+  "personal_vault_devices",
+  {
+    id: uuid("id").primaryKey(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    keyId: uuid("key_id").notNull(),
+    wrappingPublicKey: jsonb("wrapping_public_key").$type<Record<string, unknown>>().notNull(),
+    signingPublicKey: jsonb("signing_public_key").$type<Record<string, unknown>>().notNull(),
+    keyDigest: bytea("key_digest").notNull(),
+    status: personalVaultDeviceStatusEnum("status").notNull().default("active"),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_devices_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_devices_key_uidx").on(table.accountId, table.vaultId, table.keyId),
+    uniqueIndex("personal_vault_devices_digest_uidx").on(table.accountId, table.vaultId, table.keyDigest),
+    foreignKey({
+      name: "personal_vault_devices_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    check(
+      "personal_vault_devices_keys_check",
+      sql`octet_length(${table.keyDigest}) = 32 AND jsonb_typeof(${table.wrappingPublicKey}) = 'object' AND jsonb_typeof(${table.signingPublicKey}) = 'object'`,
+    ),
+    check(
+      "personal_vault_devices_lifecycle_check",
+      sql`(${table.status} = 'active' AND ${table.revokedAt} IS NULL) OR (${table.status} = 'revoked' AND ${table.revokedAt} IS NOT NULL AND ${table.revokedAt} >= ${table.createdAt})`,
+    ),
+    check(
+      "personal_vault_devices_last_seen_check",
+      sql`${table.lastSeenAt} IS NULL OR ${table.lastSeenAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const personalVaultPairings = pgTable(
+  "personal_vault_pairings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    requestingDeviceId: uuid("requesting_device_id").notNull(),
+    approvingDeviceId: uuid("approving_device_id"),
+    state: personalVaultPairingStateEnum("state").notNull().default("pending"),
+    codeDigest: bytea("code_digest").notNull(),
+    requestPayload: jsonb("request_payload").$type<Record<string, unknown>>().notNull(),
+    responsePayload: jsonb("response_payload").$type<Record<string, unknown>>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_pairings_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_pairings_code_digest_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.codeDigest,
+    ),
+    index("personal_vault_pairings_pending_expiry_idx")
+      .on(table.expiresAt, table.id)
+      .where(sql`${table.state} = 'pending'`),
+    index("personal_vault_pairings_terminal_retention_idx")
+      .on(table.updatedAt, table.id)
+      .where(sql`${table.state} IN ('consumed', 'expired', 'cancelled')`),
+    foreignKey({
+      name: "personal_vault_pairings_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "personal_vault_pairings_approving_device_fk",
+      columns: [table.approvingDeviceId, table.accountId, table.vaultId],
+      foreignColumns: [personalVaultDevices.id, personalVaultDevices.accountId, personalVaultDevices.vaultId],
+    }).onDelete("restrict"),
+    check(
+      "personal_vault_pairings_payload_check",
+      sql`octet_length(${table.codeDigest}) = 32 AND jsonb_typeof(${table.requestPayload}) = 'object' AND (${table.responsePayload} IS NULL OR jsonb_typeof(${table.responsePayload}) = 'object')`,
+    ),
+    check(
+      "personal_vault_pairings_lifecycle_check",
+      sql`${table.expiresAt} > ${table.createdAt} AND ((${table.state} = 'pending' AND ${table.approvingDeviceId} IS NULL AND ${table.responsePayload} IS NULL AND ${table.consumedAt} IS NULL) OR (${table.state} = 'approved' AND ${table.responsePayload} IS NOT NULL AND ${table.consumedAt} IS NULL) OR (${table.state} = 'consumed' AND ${table.responsePayload} IS NOT NULL AND ${table.consumedAt} IS NOT NULL AND ${table.consumedAt} >= ${table.createdAt}) OR (${table.state} IN ('expired', 'cancelled') AND ${table.consumedAt} IS NULL))`,
+    ),
+    check(
+      "personal_vault_pairings_distinct_devices_check",
+      sql`${table.approvingDeviceId} IS NULL OR ${table.approvingDeviceId} <> ${table.requestingDeviceId}`,
+    ),
+  ],
+);
+
+export const personalVaultCommands = pgTable(
+  "personal_vault_commands",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    accountId: uuid("account_id").notNull(),
+    vaultId: uuid("vault_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    actorKind: personalVaultCommandActorKindEnum("actor_kind").notNull(),
+    actorKeyId: uuid("actor_key_id"),
+    requestHash: text("request_hash").notNull(),
+    status: personalVaultCommandStatusEnum("status").notNull().default("pending"),
+    responseBody: jsonb("response_body").$type<Record<string, unknown>>(),
+    responseEtag: text("response_etag"),
+    responseRevision: bigint("response_revision", { mode: "number" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("personal_vault_commands_id_account_vault_uidx").on(table.id, table.accountId, table.vaultId),
+    uniqueIndex("personal_vault_commands_idempotency_uidx").on(
+      table.accountId,
+      table.vaultId,
+      table.idempotencyKey,
+    ),
+    index("personal_vault_commands_completed_retention_idx")
+      .on(table.completedAt, table.id)
+      .where(sql`${table.status} IN ('succeeded', 'failed')`),
+    index("personal_vault_commands_pending_attention_idx")
+      .on(table.createdAt, table.id)
+      .where(sql`${table.status} = 'pending'`),
+    foreignKey({
+      name: "personal_vault_commands_vault_account_fk",
+      columns: [table.vaultId, table.accountId],
+      foreignColumns: [personalVaults.id, personalVaults.accountId],
+    }).onDelete("cascade"),
+    check(
+      "personal_vault_commands_request_check",
+      sql`char_length(${table.idempotencyKey}) BETWEEN 16 AND 128 AND ${table.idempotencyKey} !~ '[[:space:]]' AND ${table.requestHash} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      "personal_vault_commands_actor_check",
+      sql`(${table.actorKind} = 'account' AND ${table.actorKeyId} IS NULL) OR (${table.actorKind} IN ('device', 'recovery') AND ${table.actorKeyId} IS NOT NULL)`,
+    ),
+    check(
+      "personal_vault_commands_lifecycle_check",
+      sql`(${table.status} = 'pending' AND ${table.completedAt} IS NULL AND ${table.responseBody} IS NULL AND ${table.responseEtag} IS NULL AND ${table.responseRevision} IS NULL) OR (${table.status} = 'succeeded' AND ${table.completedAt} IS NOT NULL AND ${table.responseBody} IS NOT NULL AND char_length(btrim(${table.responseEtag})) > 0 AND ${table.responseRevision} BETWEEN 1 AND 9007199254740991) OR (${table.status} = 'failed' AND ${table.completedAt} IS NOT NULL AND ${table.responseBody} IS NOT NULL AND ${table.responseEtag} IS NULL AND (${table.responseRevision} IS NULL OR ${table.responseRevision} BETWEEN 1 AND 9007199254740991))`,
+    ),
   ],
 );

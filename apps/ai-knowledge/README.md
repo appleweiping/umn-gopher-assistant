@@ -1,15 +1,15 @@
 # AI Knowledge Retrieval Service
 
-This service is the no-key, evidence-first retrieval boundary for UMN Gopher Assistant. It does not call a language model, fetch linked pages, read the encrypted personal vault, or ingest content from the current `LIVE_ONLY` and `DEEPLINK_ONLY` campus adapters. Its answer paragraphs are extracted from project-owned Apache-2.0 bilingual summaries and every paragraph cites the exact reviewed record used.
+This service is the no-key, evidence-first retrieval boundary for UMN Gopher Assistant. It does not call a language model, fetch linked pages, read the encrypted personal vault, or ingest content from the current `LIVE_ONLY` and `DEEPLINK_ONLY` campus adapters. Its answer paragraphs are extracted from project-owned Apache-2.0 bilingual summaries and every paragraph cites the exact project-authored record used.
 
 ## Trust boundary
 
 - `POST /v1/query` accepts only `campusId`, `locale`, and a 2–500 character query. Pydantic models reject unknown fields, HTML, encoded HTML, control/format characters, invalid Unicode, and unsupported campus or locale values.
 - `POST /v1/query` is private and requires a fresh Core-service HMAC over the exact canonical value `POST\n/v1/query\n<bodySha256>\n<traceId>\n<timestamp>\n<nonce>`. The nonce is a fresh unpredictable 128-bit canonical base64url value for every attempt. Missing, malformed, stale, replayed, nonce-reused, or body-mismatched requests return one generic HTTP 401. `GET /healthz` remains unauthenticated for orchestration.
-- Retrieval filters by campus **before** scoring. It combines a BM25-style lexical score with deterministic character n-gram similarity, then applies a relative relevance floor and stable reranking.
+- Retrieval filters by campus **before** scoring. A candidate must first clear an absolute, explainable evidence gate using topical title/category/keyword anchors, supporting body terms, and query coverage. BM25-style lexical and deterministic character n-gram scores rank only accepted candidates; weak incidental overlap returns `no-results`.
 - The corpus loader rejects invalid UTF-8, duplicate JSON keys, oversized files, non-UMN or non-HTTPS verification links, malformed timestamps, duplicate identifiers, and any per-record content hash mismatch. Every document must resolve both a project-summary descriptor and a separate official-verification descriptor.
 - The PostgreSQL loader uses a repeatable-read, read-only transaction and validates the two governed source joins plus each citation's chunk, document, locale, and campus association before exposing the snapshot. A missing, disabled, wrong-role, wrong-license, cross-campus, or URL-mismatched source invalidates the entire revision.
-- Official links are verification entrances only. The linked pages are neither fetched nor embedded. `verificationState: schematic` makes clear that project-authored summaries have not been approved by a campus.
+- Citations expose the governed project summary and official verification link as separate objects. Official links are verification entrances only: the linked pages are neither fetched nor embedded, and `contentRetrieved` is always `false`. `summaryVerificationState: schematic` makes clear that current project-authored summaries have not been approved by a campus.
 - `enabled: false`, `verificationState: retired`, or a non-null `deletedAt` removes a record on the next valid file reload. An invalid changed corpus fails closed instead of serving the prior snapshot.
 - A failed database synchronization becomes the latest ingestion revision, so database-backed reads fail closed instead of silently serving the older revision.
 - `AI_KNOWLEDGE_ENABLED=false` is a runtime kill switch. Unknown switch values also fail closed.
@@ -55,7 +55,7 @@ Local Core and retrieval processes use the same fixed development-only HMAC key.
 ## Endpoints
 
 - `GET /healthz` verifies the selected corpus revision and reports its SHA-256 without exposing paths, content, or connection details. It returns HTTP 503 when retrieval is disabled or the current revision cannot be verified.
-- `POST /v1/query` returns `answered`, `stale`, `conflict`, or `no-results`. `stale` is derived from record timestamps. `conflict` is emitted only when selected records explicitly share a conflict group with different variants.
+- `POST /v1/query` returns `answered`, `stale`, `conflict`, or `no-results`. `stale` is derived only from project-summary timestamps. Each citation binds `documentId`, `summarySource`, and `verificationLink` without attributing summary text or freshness to the linked page. `conflict` is emitted only when selected records explicitly share a conflict group with different variants.
 
 The timestamp acceptance window is 60 seconds. An instance rejects either a previously seen valid signature or a previously seen valid nonce during that window, but replay state is intentionally process-local: a captured request can still be replayed against a different replica or after restart until it expires. The endpoint is read-only, production transport is TLS, and Core applies distributed rate limiting; deployments requiring global nonce semantics must add a shared replay store before widening this boundary.
 
@@ -75,6 +75,34 @@ To change a record:
 4. Run the full test suite. A changed document with an old hash is intentionally unavailable.
 
 The repository Apache-2.0 license applies to the original summaries. A link does not grant reuse rights to the linked page, and no such rights are asserted here.
+
+## Retrieval quality release gate
+
+[`ai_knowledge/data/retrieval-eval-v1.json`](./ai_knowledge/data/retrieval-eval-v1.json)
+is a versioned, corpus-hash-bound evaluation set. Its schema requires at least
+150 unique cases, two supported paraphrases in every campus/locale/category
+cell, and five abstention cases in every campus/locale segment. The shipped v1
+set contains supported, unsupported, ambiguous, hard-negative, and reproduced
+false-positive cases in English and Simplified Chinese.
+
+Run the deterministic gate from this directory:
+
+```bash
+python -m ai_knowledge.evaluation
+```
+
+The gate measures answer precision, supported-query recall, top-1 category
+accuracy, mean reciprocal rank, abstention recall, campus leakage, and complete
+evidence-graph integrity globally and for every campus and locale. The v1
+thresholds require perfect results and zero leakage. Answering any critical
+hard-negative or reproduced false-positive case is also an independent failure,
+even if aggregate thresholds are changed later.
+
+Output contains only dataset/corpus hashes, aggregate metrics, and failing case
+identifiers/categories; raw query text is never emitted. A corpus change must
+update and re-review the evaluation dataset's corpus hash and expectations. A
+retrieval change must pass this gate before corpus synchronization or release.
+`pnpm evaluate:ai`, `pnpm verify:python`, and CI run the same command.
 
 ## PostgreSQL synchronization
 

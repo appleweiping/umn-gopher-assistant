@@ -18,6 +18,7 @@ import { HealthController } from "./health/health.controller.js";
 import { HealthService } from "./health/health.service.js";
 import { ProblemDetailsFilter } from "./http/problem-details.filter.js";
 import { RequestIdInterceptor } from "./http/request-id.interceptor.js";
+import { PersonalVaultModule } from "./personal-vault/personal-vault.module.js";
 import { InMemoryCampusRepository } from "./repositories/in-memory-campus.repository.js";
 import { InMemorySourceRepository } from "./repositories/in-memory-source.repository.js";
 import { InMemoryWorldManifestRepository } from "./repositories/in-memory-world-manifest.repository.js";
@@ -26,7 +27,7 @@ import { SourcesController } from "./sources/sources.controller.js";
 import { WorldsController } from "./worlds/worlds.controller.js";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, PersonalVaultModule],
   controllers: [
     AiController,
     CampusesController,

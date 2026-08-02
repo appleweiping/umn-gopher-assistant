@@ -107,12 +107,13 @@ def conflict_response() -> dict[str, object]:
     response = answered_response()
     first_citation = copy.deepcopy(response["citations"][0])  # type: ignore[index]
     first_paragraph = response["paragraphs"][0]  # type: ignore[index]
-    second_citation = {
-        **first_citation,
-        "id": "citation-conflicting",
-        "sourceId": "official-tc-library-conflicting",
-        "contentSha256": "b" * 64,
-    }
+    second_citation = copy.deepcopy(first_citation)
+    second_citation.update(
+        id="citation-conflicting",
+        documentId="tc-library-conflicting",
+        contentSha256="b" * 64,
+    )
+    second_citation["verificationLink"]["sourceId"] = "official-tc-library-conflicting"
     first_paragraph["citationIds"] = [first_citation["id"], second_citation["id"]]
     response["state"] = "conflict"
     response["citations"] = [first_citation, second_citation]
@@ -137,15 +138,15 @@ def conflict_response() -> dict[str, object]:
             "cross-campus",
         ),
         (
-            lambda value: value["citations"][0].update(verificationState="retired"),
-            "retired evidence",
+            lambda value: value["citations"][0].update(summaryVerificationState="verified"),
+            "schematic",
         ),
         (
-            lambda value: value["citations"][0].update(freshnessState="UNKNOWN"),
-            "unknown freshness",
+            lambda value: value["citations"][0].update(summaryFreshnessState="UNKNOWN"),
+            "FRESH",
         ),
         (
-            lambda value: value["citations"][0].update(freshnessState="STALE"),
+            lambda value: value["citations"][0].update(summaryFreshnessState="STALE"),
             "only FRESH",
         ),
     ],
@@ -209,7 +210,7 @@ def test_query_response_rejects_unsafe_evidence_text(mutation: object) -> None:
         QueryResponse.model_validate(response)
 
 
-def test_conflict_response_requires_two_genuinely_distinct_sources() -> None:
+def test_conflict_response_requires_distinct_records_links_and_content() -> None:
     response = conflict_response()
     assert QueryResponse.model_validate(response).state == "conflict"
 
@@ -221,10 +222,17 @@ def test_conflict_response_requires_two_genuinely_distinct_sources() -> None:
     with pytest.raises(ValidationError, match="at least two citations"):
         QueryResponse.model_validate(one_citation)
 
-    same_source = conflict_response()
-    same_source["citations"][1]["sourceId"] = same_source["citations"][0]["sourceId"]  # type: ignore[index]
-    with pytest.raises(ValidationError, match="distinct sources"):
-        QueryResponse.model_validate(same_source)
+    same_record = conflict_response()
+    same_record["citations"][1]["documentId"] = same_record["citations"][0]["documentId"]  # type: ignore[index]
+    with pytest.raises(ValidationError, match="distinct records"):
+        QueryResponse.model_validate(same_record)
+
+    same_verification_link = conflict_response()
+    same_verification_link["citations"][1]["verificationLink"]["sourceId"] = (  # type: ignore[index]
+        same_verification_link["citations"][0]["verificationLink"]["sourceId"]  # type: ignore[index]
+    )
+    with pytest.raises(ValidationError, match="distinct verification links"):
+        QueryResponse.model_validate(same_verification_link)
 
     same_content = conflict_response()
     same_content["citations"][1]["contentSha256"] = same_content["citations"][0][  # type: ignore[index]
@@ -232,3 +240,56 @@ def test_conflict_response_requires_two_genuinely_distinct_sources() -> None:
     ]
     with pytest.raises(ValidationError, match="genuinely different"):
         QueryResponse.model_validate(same_content)
+
+    mixed_revision = conflict_response()
+    mixed_revision["citations"][1]["summarySource"]["corpusSha256"] = "f" * 64  # type: ignore[index]
+    with pytest.raises(ValidationError, match="cannot mix summary corpus revisions"):
+        QueryResponse.model_validate(mixed_revision)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda citation: citation.update(sourceId="official-tc-library"),
+        lambda citation: citation.update(sourceUrl="https://www.lib.umn.edu/"),
+        lambda citation: citation["summarySource"].update(
+            sourceId=citation["verificationLink"]["sourceId"]
+        ),
+        lambda citation: citation["summarySource"]["license"].update(
+            evidenceUrl="https://www.apache.org/licenses/LICENSE-1.0"
+        ),
+        lambda citation: citation["verificationLink"].update(contentRetrieved=True),
+    ],
+)
+def test_citation_provenance_shape_fails_closed(mutation: object) -> None:
+    response = answered_response()
+    mutation(response["citations"][0])  # type: ignore[operator,index]
+    with pytest.raises(ValidationError):
+        QueryResponse.model_validate(response)
+
+
+@pytest.mark.parametrize(
+    "source_url",
+    [
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/../corpus.json",
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/./corpus.json",
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/%2e%2e/corpus.json",
+        "https://github.com/appleweiping/umn-gopher-assistant/blob/%2F/corpus.json",
+    ],
+)
+def test_citation_summary_source_rejects_ambiguous_repository_paths(source_url: str) -> None:
+    response = answered_response()
+    response["citations"][0]["summarySource"]["sourceUrl"] = source_url  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="identify this repository"):
+        QueryResponse.model_validate(response)
+
+
+def test_citation_summary_source_accepts_explicit_default_https_port() -> None:
+    response = answered_response()
+    source_url = response["citations"][0]["summarySource"]["sourceUrl"]  # type: ignore[index]
+    response["citations"][0]["summarySource"]["sourceUrl"] = source_url.replace(  # type: ignore[index,union-attr]
+        "github.com/", "github.com:443/"
+    )
+
+    assert QueryResponse.model_validate(response).citations

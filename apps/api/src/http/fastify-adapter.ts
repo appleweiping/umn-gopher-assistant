@@ -4,25 +4,34 @@ import { Transform, type TransformCallback } from "node:stream";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 
 const MAX_TRUSTED_PROXY_RANGES = 16;
-const AI_QUERY_BODY_LIMIT = 8_192;
+export const DEFAULT_BODY_LIMIT = 1_048_576;
+export const AI_QUERY_BODY_LIMIT = 8_192;
+export const PERSONAL_VAULT_MUTATION_BODY_LIMIT = 16 * 1_024 * 1_024;
 
-class AiQueryBodyTooLargeError extends Error {
+class RequestBodyTooLargeError extends Error {
   readonly code = "FST_ERR_CTP_BODY_TOO_LARGE";
   readonly statusCode = 413;
 
-  constructor() {
-    super("AI query body exceeds the configured byte limit");
-    this.name = "AiQueryBodyTooLargeError";
+  constructor(resource: "AI query" | "personal vault mutation") {
+    super(`${resource} body exceeds the configured byte limit`);
+    this.name = "RequestBodyTooLargeError";
   }
 }
 
 class LimitedRequestBody extends Transform {
   receivedEncodedLength = 0;
 
+  constructor(
+    private readonly limit: number,
+    private readonly resource: "AI query" | "personal vault mutation",
+  ) {
+    super();
+  }
+
   override _transform(chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback): void {
     this.receivedEncodedLength += chunk.byteLength;
-    if (this.receivedEncodedLength > AI_QUERY_BODY_LIMIT) {
-      callback(new AiQueryBodyTooLargeError());
+    if (this.receivedEncodedLength > this.limit) {
+      callback(new RequestBodyTooLargeError(this.resource));
       return;
     }
     callback(undefined, chunk);
@@ -31,6 +40,42 @@ class LimitedRequestBody extends Transform {
 
 function isAiQueryRequest(method: string, rawUrl: string | undefined): boolean {
   return method === "POST" && rawUrl?.split("?", 1)[0] === "/v1/ai/query";
+}
+
+function isPersonalVaultMutation(method: string, rawUrl: string | undefined): boolean {
+  const path = rawUrl?.split("?", 1)[0];
+  if (path === undefined) return false;
+  if (method === "PUT" && path === "/v1/personal/vault/payload") return true;
+  if (
+    method === "POST" &&
+    (path === "/v1/personal/vault" ||
+      path === "/v1/personal/vault/device-pairings" ||
+      path === "/v1/personal/vault/rotations")
+  ) {
+    return true;
+  }
+  return method === "POST" && /^\/v1\/personal\/vault\/device-pairings\/[^/]+\/approval$/u.test(path);
+}
+
+function requestBodyPolicy(
+  method: string,
+  rawUrl: string | undefined,
+):
+  | {
+      readonly limit: number;
+      readonly resource: "AI query" | "personal vault mutation";
+    }
+  | undefined {
+  if (isAiQueryRequest(method, rawUrl)) {
+    return { limit: AI_QUERY_BODY_LIMIT, resource: "AI query" };
+  }
+  if (isPersonalVaultMutation(method, rawUrl)) {
+    return {
+      limit: PERSONAL_VAULT_MUTATION_BODY_LIMIT,
+      resource: "personal vault mutation",
+    };
+  }
+  return undefined;
 }
 
 function isValidProxyRange(value: string): boolean {
@@ -70,13 +115,24 @@ export function createFastifyAdapter(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): FastifyAdapter {
   const adapter = new FastifyAdapter({
-    bodyLimit: 1_048_576,
+    bodyLimit: DEFAULT_BODY_LIMIT,
     requestIdHeader: "x-request-id",
     routerOptions: { ignoreTrailingSlash: false },
     trustProxy: trustedProxySetting(environment),
   });
+  adapter.getInstance().addHook("onRoute", (route) => {
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    if (methods.some((method) => isAiQueryRequest(method, route.url))) {
+      route.bodyLimit = AI_QUERY_BODY_LIMIT;
+      return;
+    }
+    if (methods.some((method) => isPersonalVaultMutation(method, route.url))) {
+      route.bodyLimit = PERSONAL_VAULT_MUTATION_BODY_LIMIT;
+    }
+  });
   adapter.getInstance().addHook("preParsing", (request, _reply, payload, done) => {
-    if (!isAiQueryRequest(request.method, request.raw.url)) {
+    const policy = requestBodyPolicy(request.method, request.raw.url);
+    if (policy === undefined) {
       done(undefined, payload);
       return;
     }
@@ -84,12 +140,12 @@ export function createFastifyAdapter(
     if (
       declaredLength !== undefined &&
       /^\d+$/u.test(declaredLength) &&
-      Number(declaredLength) > AI_QUERY_BODY_LIMIT
+      Number(declaredLength) > policy.limit
     ) {
-      done(new AiQueryBodyTooLargeError());
+      done(new RequestBodyTooLargeError(policy.resource));
       return;
     }
-    const limited = new LimitedRequestBody();
+    const limited = new LimitedRequestBody(policy.limit, policy.resource);
     payload.once("error", (error) => limited.destroy(error));
     done(undefined, payload.pipe(limited));
   });

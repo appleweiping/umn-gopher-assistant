@@ -16,16 +16,35 @@ const queryBoundaryFixtures = JSON.parse(
 
 const citation = {
   id: "citation.library-hours",
+  documentId: "tc-library-hours",
   campusId: "tc",
-  sourceId: "tc-library-hours",
   category: "library",
   title: { en: "Library hours", "zh-CN": "图书馆开放时间" },
-  sourceUrl: "https://www.lib.umn.edu/spaces",
   contentSha256: "a".repeat(64),
   updatedAt: "2026-07-22T12:00:00.000Z",
-  freshnessState: "FRESH",
-  verificationState: "campus-reviewed",
+  summaryFreshnessState: "FRESH",
+  summaryVerificationState: "schematic",
   excerpt: "The synthetic reviewed record lists the current opening hours.",
+  summarySource: {
+    kind: "project-authored-summary",
+    sourceId: "uga-ai-summary-corpus-v1",
+    sourceUrl:
+      "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+    corpusSha256: "c".repeat(64),
+    license: {
+      status: "OPEN_REUSE",
+      spdxId: "Apache-2.0",
+      evidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+    },
+  },
+  verificationLink: {
+    kind: "official-verification-link",
+    sourceId: "official-tc-library-hours",
+    sourceUrl: "https://www.lib.umn.edu/spaces",
+    licenseStatus: "DEEPLINK_ONLY",
+    sourceUse: "verification-link-only",
+    contentRetrieved: false,
+  },
 } as const;
 
 const answeredResponse = {
@@ -120,13 +139,41 @@ describe("AI query response contract", () => {
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
-        citations: [citation, { ...citation, sourceId: "tc-library-hours-copy" }],
+        citations: [
+          {
+            ...citation,
+            summarySource: {
+              ...citation.summarySource,
+              sourceUrl: "https://github.com/appleweiping/umn-gopher-assistant/blob/main/README.md",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [citation, { ...citation, documentId: "tc-library-hours-copy" }],
       }).success,
     ).toBe(false);
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
         paragraphs: [{ ...answeredResponse.paragraphs[0], citationIds: [citation.id, citation.id] }],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceUrl: "https://umn.edu@example.invalid/phishing",
+            },
+          },
+        ],
       }).success,
     ).toBe(false);
   });
@@ -147,7 +194,15 @@ describe("AI query response contract", () => {
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
-        citations: [{ ...citation, sourceUrl: "https://umn.edu@example.invalid/phishing" }],
+        citations: [
+          {
+            ...citation,
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceUrl: "https://umn.edu/dept/@current",
+            },
+          },
+        ],
       }).success,
     ).toBe(false);
   });
@@ -171,25 +226,51 @@ describe("AI query response contract", () => {
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
         state: "stale",
-        citations: [{ ...citation, freshnessState: "EXPIRED" }],
+        citations: [{ ...citation, summaryFreshnessState: "EXPIRED" }],
       }).success,
     ).toBe(true);
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
-        citations: [{ ...citation, freshnessState: "EXPIRED" }],
+        state: "conflict",
+        paragraphs: [
+          {
+            ...answeredResponse.paragraphs[0],
+            citationIds: [citation.id, "citation.library-hours-conflicting"],
+          },
+        ],
+        citations: [
+          citation,
+          {
+            ...citation,
+            id: "citation.library-hours-conflicting",
+            documentId: "tc-library-hours-conflicting",
+            contentSha256: "b".repeat(64),
+            summarySource: { ...citation.summarySource, corpusSha256: "d".repeat(64) },
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceId: "official-tc-library-hours-conflicting",
+            },
+          },
+        ],
       }).success,
     ).toBe(false);
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
-        citations: [{ ...citation, freshnessState: "UNKNOWN" }],
+        citations: [{ ...citation, summaryFreshnessState: "EXPIRED" }],
       }).success,
     ).toBe(false);
     expect(
       AiQueryResponseSchema.safeParse({
         ...answeredResponse,
-        citations: [{ ...citation, verificationState: "retired" }],
+        citations: [{ ...citation, summaryFreshnessState: "UNKNOWN" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [{ ...citation, summaryVerificationState: "retired" }],
       }).success,
     ).toBe(false);
   });
@@ -211,8 +292,12 @@ describe("AI query response contract", () => {
           {
             ...citation,
             id: "citation.library-hours-conflicting",
-            sourceId: "tc-library-hours-conflicting",
+            documentId: "tc-library-hours-conflicting",
             contentSha256: "b".repeat(64),
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceId: "official-tc-library-hours-conflicting",
+            },
           },
         ],
       }).success,
@@ -225,12 +310,16 @@ describe("AI query response contract", () => {
     ).toBe(false);
   });
 
-  it("requires every citation to be used and rejects fabricated same-source conflicts", () => {
+  it("requires every citation to be used and rejects conflicts without independent documents and links", () => {
     const unused = {
       ...citation,
       id: "citation.unused",
-      sourceId: "tc-library-unused",
+      documentId: "tc-library-unused",
       contentSha256: "b".repeat(64),
+      verificationLink: {
+        ...citation.verificationLink,
+        sourceId: "official-tc-library-unused",
+      },
     } as const;
     expect(
       AiQueryResponseSchema.safeParse({ ...answeredResponse, citations: [citation, unused] }).success,
@@ -245,7 +334,127 @@ describe("AI query response contract", () => {
             citationIds: [citation.id, "citation.copy"],
           },
         ],
-        citations: [citation, { ...citation, id: "citation.copy", contentSha256: "b".repeat(64) }],
+        citations: [
+          citation,
+          {
+            ...citation,
+            id: "citation.copy",
+            documentId: "tc-library-copy",
+            contentSha256: "b".repeat(64),
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        state: "conflict",
+        paragraphs: [
+          {
+            ...answeredResponse.paragraphs[0],
+            citationIds: [citation.id, "citation.copy"],
+          },
+        ],
+        citations: [
+          citation,
+          {
+            ...citation,
+            id: "citation.copy",
+            contentSha256: "b".repeat(64),
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceId: "official-tc-library-copy",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("keeps authored-summary provenance separate from the non-retrieved official link", () => {
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            summarySource: {
+              ...citation.summarySource,
+              sourceUrl:
+                "https://github.com:443/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            summarySource: {
+              ...citation.summarySource,
+              sourceUrl: "https://github.com/example/another-project/blob/main/corpus.json",
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            summarySource: { ...citation.summarySource, corpusSha256: "not-a-digest" },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            summarySource: {
+              ...citation.summarySource,
+              license: { ...citation.summarySource.license, spdxId: "MIT" },
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            verificationLink: { ...citation.verificationLink, contentRetrieved: true },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [
+          {
+            ...citation,
+            verificationLink: {
+              ...citation.verificationLink,
+              sourceId: citation.summarySource.sourceId,
+            },
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      AiQueryResponseSchema.safeParse({
+        ...answeredResponse,
+        citations: [{ ...citation, sourceId: "ambiguous-source", sourceUrl: "https://umn.edu/" }],
       }).success,
     ).toBe(false);
   });

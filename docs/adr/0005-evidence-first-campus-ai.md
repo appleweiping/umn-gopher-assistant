@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-07-23
+- Amended: 2026-08-02
 
 ## Context
 
@@ -14,9 +15,9 @@ The platform already separates source license, freshness, verification, campus, 
 The initial implemented AI mode is deterministic `no-key-hybrid` retrieval over project-authored Apache-2.0 bilingual summaries. It is not generative AI.
 
 - Every non-empty paragraph cites one or more records returned in the same response.
-- A citation is limited to the requested campus and an allowlisted credential-free `https://*.umn.edu` verification URL.
+- A citation is limited to the requested campus and preserves two distinct roles: a governed project-authored summary source and an allowlisted credential-free `https://*.umn.edu` verification link. The link is never represented as the source of the summary excerpt.
 - `answered` uses only fresh evidence. Stale, conflicting, unknown-freshness, retired, and empty states cannot silently become an ordinary answer.
-- Conflict requires at least two referenced records with different source IDs and content hashes.
+- Conflict requires at least two referenced authored documents with different document IDs, official verification-link IDs, and content hashes.
 - Queries are bounded NFC plain text. HTML, encoded HTML, control, format, and surrogate characters are rejected at both public and private boundaries.
 - The browser uses a same-origin BFF. It does not forward cookies, bearer tokens, personal-vault data, or arbitrary upstream URLs. Production binds the BFF session to a trusted-edge HMAC assertion carrying an opaque privacy-network token.
 - The API applies a streaming 8 KiB request limit, domain-separated HMAC pseudonyms, and an atomic Redis client/network/global limiter. Clearing the browser cookie does not reset the production network bucket. Redis failure fails closed.
@@ -24,9 +25,11 @@ The initial implemented AI mode is deterministic `no-key-hybrid` retrieval over 
 - The isolated Python service does not fetch official links, invoke a model, or log query text.
 - Production requires PostgreSQL 17 and the PostgreSQL backend. The reviewed JSON backend is an explicit development/test mode only.
 - Corpus synchronization is transactional and serialized. Deleted records cascade physically; retired records are excluded before ranking; failed revisions make reads unavailable instead of silently serving an older revision.
+- Candidate acceptance uses absolute evidence strength rather than normalizing a weak best match into apparent confidence. A candidate needs a topical title/category/keyword anchor, bounded supporting evidence, and sufficient query coverage; ranking occurs only after that fail-closed gate.
+- A versioned bilingual evaluation set is bound to the exact corpus hash and must cover every campus, locale, and implemented category plus unsupported, ambiguous, hard-negative, and reproduced false-positive queries. CI and corpus release require perfect v1 global and segmented metrics, zero cross-campus evidence, complete citation graphs, and zero critical-safety answers.
 - pgvector storage is present for a future reviewed embedding pipeline, but embeddings are nullable and the current service neither writes nor queries vectors. The UI and telemetry must not claim vector search.
 
-The OpenAPI response schema carries `x-uga-semantic-validator: ai-query-response-v1`. The SDK generator recognizes this reviewed extension and emits the same cross-field trust checks instead of validating only JSON shape.
+The OpenAPI response schema carries a versioned AI response semantic validator. The SDK generator recognizes this reviewed extension and emits the same evidence-graph and role-specific provenance checks instead of validating only JSON shape. ADR 0006 defines the citation boundary that separates authored summaries from link-only official verification pages.
 
 BYOK and local-model controls remain visibly disabled until provider isolation, explicit consent, secret storage, egress policy, model-output validation, and privacy tests are implemented. Cloud models do not receive private-vault plaintext by default.
 
@@ -34,7 +37,11 @@ BYOK and local-model controls remain visibly disabled until provider isolation, 
 
 The first AI mode remains useful during provider outages and can be reproduced in CI without external inference. Its answers are intentionally narrower than a general chatbot and primarily direct users to the appropriate official service.
 
-Operators must curate and release the bilingual corpus, run synchronization before serving a new revision, monitor ingestion state, and keep Redis and PostgreSQL available. A bad or failed release is visible as unavailability rather than stale success.
+Operators must curate and release the bilingual corpus, jointly review its
+corpus-bound evaluation set, pass the retrieval quality gate, run synchronization
+before serving a new revision, monitor ingestion state, and keep Redis and
+PostgreSQL available. A bad or failed release is visible as unavailability rather
+than stale success.
 
 Adding embeddings or generation requires a new ADR and measured retrieval-quality, prompt-injection, privacy, deletion-propagation, licensing, and provider-failure evidence. Merely populating the vector column is not sufficient.
 

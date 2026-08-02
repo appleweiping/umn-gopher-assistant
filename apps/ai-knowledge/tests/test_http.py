@@ -50,16 +50,38 @@ def test_query_response_matches_strict_public_shape(client: TestClient) -> None:
     assert body["retrieval"] == {"mode": "no-key-hybrid", "documentsConsidered": 5}
     assert body["citations"][0].keys() == {
         "id",
+        "documentId",
         "campusId",
-        "sourceId",
         "category",
         "title",
-        "sourceUrl",
         "contentSha256",
         "updatedAt",
-        "freshnessState",
-        "verificationState",
+        "summaryFreshnessState",
+        "summaryVerificationState",
+        "summarySource",
+        "verificationLink",
         "excerpt",
+    }
+    citation = body["citations"][0]
+    assert citation["summarySource"].keys() == {
+        "kind",
+        "sourceId",
+        "sourceUrl",
+        "corpusSha256",
+        "license",
+    }
+    assert citation["summarySource"]["license"].keys() == {
+        "status",
+        "spdxId",
+        "evidenceUrl",
+    }
+    assert citation["verificationLink"] == {
+        "kind": "official-verification-link",
+        "sourceId": "official-tc-library",
+        "sourceUrl": "https://www.lib.umn.edu/",
+        "licenseStatus": "DEEPLINK_ONLY",
+        "sourceUse": "verification-link-only",
+        "contentRetrieved": False,
     }
     assert set(body["paragraphs"][0]["citationIds"]) <= {
         citation["id"] for citation in body["citations"]

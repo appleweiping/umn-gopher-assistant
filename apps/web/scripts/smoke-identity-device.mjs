@@ -1,11 +1,24 @@
 #!/usr/bin/env node
 
-import { createPublicKey, randomBytes, randomUUID, verify as verifySignature } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  generateKeyPairSync,
+  randomBytes,
+  randomUUID,
+  sign as signData,
+  verify as verifySignature,
+} from "node:crypto";
 import { existsSync } from "node:fs";
+import { createServer } from "node:http";
 import { isIP } from "node:net";
 import { pathToFileURL } from "node:url";
 
 const DEVICE_CLIENT_ID = "gopher-cli";
+const WEB_CLIENT_ID = "gopher-web";
+const WEB_REDIRECT_URI = "http://127.0.0.1:3000/auth/callback";
+const MCP_CLIENT_ID = "gopher-mcp";
+const MCP_REDIRECT_URI = "http://127.0.0.1:4100/oauth/callback";
 const REQUESTED_SCOPES = ["openid", "offline_access", "campus:read", "admin:write"];
 export const DEFAULT_API_AUDIENCE = "gopher-api";
 export const DEFAULT_MCP_AUDIENCE = "http://127.0.0.1:4100/mcp";
@@ -92,6 +105,64 @@ function positiveNumber(record, key, label) {
     `${label} has an invalid ${key}`,
   );
   return value;
+}
+
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+export function createDpopKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const publicJwk = publicKey.export({ format: "jwk" });
+  invariant(
+    publicJwk.kty === "EC" &&
+      publicJwk.crv === "P-256" &&
+      typeof publicJwk.x === "string" &&
+      typeof publicJwk.y === "string" &&
+      publicJwk.d === undefined,
+    "Generated DPoP public key is not a public P-256 JWK",
+  );
+  const thumbprint = createHash("sha256")
+    .update(
+      JSON.stringify({
+        crv: publicJwk.crv,
+        kty: publicJwk.kty,
+        x: publicJwk.x,
+        y: publicJwk.y,
+      }),
+      "utf8",
+    )
+    .digest("base64url");
+  return { privateKey, publicJwk, thumbprint };
+}
+
+function canonicalDpopHtu(value) {
+  const url = new URL(value);
+  url.hash = "";
+  url.search = "";
+  return url.toString();
+}
+
+export function createDpopProof({ key, method, nonce, url }) {
+  const header = {
+    alg: "ES256",
+    jwk: key.publicJwk,
+    typ: "dpop+jwt",
+  };
+  const payload = {
+    htm: method.toUpperCase(),
+    htu: canonicalDpopHtu(url),
+    iat: Math.floor(Date.now() / 1_000),
+    jti: randomUUID(),
+    ...(nonce === undefined ? {} : { nonce }),
+  };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
+  const signature = signData(null, Buffer.from(signingInput, "ascii"), {
+    dsaEncoding: "ieee-p1363",
+    key: key.privateKey,
+  });
+  invariant(signature.length === 64, "Generated DPoP proof does not have a raw ES256 signature");
+  return `${signingInput}.${signature.toString("base64url")}`;
 }
 
 function isExplicitLoopbackHostname(hostname) {
@@ -327,7 +398,17 @@ async function discoverDeviceEndpoints(issuerUrl) {
   const discovery = await readJson(response, "OIDC discovery");
   const exactIssuer = issuerUrl.toString().replace(/\/$/u, "");
   invariant(discovery.issuer === exactIssuer, "OIDC discovery issuer is not exact");
+  invariant(
+    Array.isArray(discovery.dpop_signing_alg_values_supported) &&
+      discovery.dpop_signing_alg_values_supported.includes("ES256"),
+    "OIDC discovery does not advertise ES256 DPoP proofs",
+  );
   return {
+    authorizationEndpoint: assertIssuerEndpoint(
+      requiredString(discovery, "authorization_endpoint", "OIDC discovery"),
+      issuerUrl,
+      "OIDC authorization endpoint",
+    ),
     deviceEndpoint: assertIssuerEndpoint(
       requiredString(discovery, "device_authorization_endpoint", "OIDC discovery"),
       issuerUrl,
@@ -377,6 +458,153 @@ async function requestDeviceAuthorization(deviceEndpoint, issuerUrl) {
     userCode: requiredString(body, "user_code", "RFC 8628 device authorization"),
     verificationUri,
   };
+}
+
+async function readOauthError(response, label) {
+  invariant(
+    response.status === 400 || response.status === 401,
+    `${label} returned unexpected HTTP ${String(response.status)}`,
+  );
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
+  invariant(contentType === "application/json", `${label} did not return an OAuth JSON error`);
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new SmokeError(`${label} returned an invalid OAuth JSON error`);
+  }
+  const error = requiredString(body, "error", label);
+  invariant(
+    error === "invalid_dpop_proof" ||
+      error === "invalid_grant" ||
+      error === "invalid_request" ||
+      error === "authorization_pending" ||
+      error === "slow_down",
+    `${label} returned an unexpected OAuth error`,
+  );
+  return {
+    code: error,
+    dpopRelated: typeof body.error_description === "string" && /\bdpop\b/iu.test(body.error_description),
+  };
+}
+
+async function tokenRequestWithDpop(tokenEndpoint, parameters, key, label) {
+  let nonce;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await request(tokenEndpoint, {
+      body: new URLSearchParams(parameters),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        dpop: createDpopProof({
+          key,
+          method: "POST",
+          nonce,
+          url: tokenEndpoint,
+        }),
+      },
+      method: "POST",
+    });
+    if (response.ok) return readJson(response, label);
+    const challengedNonce = response.headers.get("dpop-nonce");
+    if (attempt === 0 && challengedNonce !== null && challengedNonce.length > 0) {
+      nonce = challengedNonce;
+      continue;
+    }
+    const { code: error } = await readOauthError(response, label);
+    throw new SmokeError(`${label} was rejected with ${error}`);
+  }
+  throw new SmokeError(`${label} exhausted its DPoP nonce retry`);
+}
+
+async function assertTokenRequestWithoutDpopFails(tokenEndpoint, parameters, label) {
+  const response = await request(tokenEndpoint, {
+    body: new URLSearchParams(parameters),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    method: "POST",
+  });
+  invariant(!response.ok, `${label} unexpectedly issued a token without a DPoP proof`);
+  const error = await readOauthError(response, label);
+  invariant(
+    (error.code === "invalid_dpop_proof" || error.code === "invalid_request") && error.dpopRelated,
+    `${label} did not fail specifically because its DPoP proof was absent`,
+  );
+}
+
+function assertDpopTokenResponse(tokenResponse, key, label) {
+  invariant(tokenResponse?.token_type === "DPoP", `${label} did not return token_type DPoP`);
+  const accessToken = requiredString(tokenResponse, "access_token", label);
+  const refreshToken = requiredString(tokenResponse, "refresh_token", label);
+  const { payload } = decodeJwt(accessToken);
+  invariant(
+    payload.cnf !== null &&
+      typeof payload.cnf === "object" &&
+      !Array.isArray(payload.cnf) &&
+      payload.cnf.jkt === key.thumbprint,
+    `${label} access token is not bound to the expected DPoP key`,
+  );
+  return { accessToken, refreshToken };
+}
+
+async function verifyRefreshRotation(tokenEndpoint, clientId, initialRefreshToken, key, label) {
+  const refreshParameters = {
+    client_id: clientId,
+    grant_type: "refresh_token",
+    refresh_token: initialRefreshToken,
+  };
+  const wrongKeyResponse = await request(tokenEndpoint, {
+    body: new URLSearchParams(refreshParameters),
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      dpop: createDpopProof({
+        key: createDpopKey(),
+        method: "POST",
+        url: tokenEndpoint,
+      }),
+    },
+    method: "POST",
+  });
+  invariant(!wrongKeyResponse.ok, `${label} accepted a refresh proof from the wrong DPoP key`);
+  const { code: wrongKeyError } = await readOauthError(wrongKeyResponse, `${label} wrong-key refresh`);
+  invariant(
+    wrongKeyError === "invalid_dpop_proof" ||
+      wrongKeyError === "invalid_grant" ||
+      wrongKeyError === "invalid_request",
+    `${label} wrong-key refresh returned an unexpected OAuth error`,
+  );
+
+  const refreshed = await tokenRequestWithDpop(
+    tokenEndpoint,
+    refreshParameters,
+    key,
+    `${label} same-key refresh`,
+  );
+  const { refreshToken: rotatedRefreshToken } = assertDpopTokenResponse(
+    refreshed,
+    key,
+    `${label} same-key refresh`,
+  );
+  invariant(
+    rotatedRefreshToken !== initialRefreshToken,
+    `${label} did not rotate its one-time refresh token`,
+  );
+
+  const replayResponse = await request(tokenEndpoint, {
+    body: new URLSearchParams(refreshParameters),
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      dpop: createDpopProof({ key, method: "POST", url: tokenEndpoint }),
+    },
+    method: "POST",
+  });
+  invariant(!replayResponse.ok, `${label} accepted a replayed refresh token`);
+  const { code: replayError } = await readOauthError(replayResponse, `${label} old refresh-token replay`);
+  invariant(
+    replayError === "invalid_dpop_proof" ||
+      replayError === "invalid_grant" ||
+      replayError === "invalid_request",
+    `${label} old refresh-token replay returned an unexpected OAuth error`,
+  );
+  return true;
 }
 
 function installedChromeCandidates() {
@@ -509,15 +737,312 @@ async function completeBrowserAuthorization(browser, verificationUri, userCode, 
   }
 }
 
+function createPkceMaterial() {
+  const verifier = randomBytes(48).toString("base64url");
+  return {
+    challenge: createHash("sha256").update(verifier, "ascii").digest("base64url"),
+    verifier,
+  };
+}
+
+function webAuthorizationUrl(
+  authorizationEndpoint,
+  key,
+  pkce,
+  state,
+  { clientId = WEB_CLIENT_ID, includeDpopJkt = true, redirectUri = WEB_REDIRECT_URI } = {},
+) {
+  const url = new URL(authorizationEndpoint);
+  url.search = new URLSearchParams({
+    client_id: clientId,
+    code_challenge: pkce.challenge,
+    code_challenge_method: "S256",
+    nonce: randomUUID(),
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid campus:read",
+    state,
+    ...(includeDpopJkt ? { dpop_jkt: key.thumbprint } : {}),
+  }).toString();
+  return url;
+}
+
+async function assertMissingDpopJktRejected(
+  authorizationEndpoint,
+  { clientId = WEB_CLIENT_ID, redirectUri = WEB_REDIRECT_URI } = {},
+) {
+  const key = createDpopKey();
+  const state = randomUUID();
+  const url = webAuthorizationUrl(authorizationEndpoint, key, createPkceMaterial(), state, {
+    clientId,
+    includeDpopJkt: false,
+    redirectUri,
+  });
+  url.searchParams.set("prompt", "none");
+  let response;
+  try {
+    response = await fetch(url, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(requestTimeoutMilliseconds),
+    });
+  } catch {
+    throw new SmokeError("DPoP authorization-code binding check could not reach the identity provider");
+  }
+  invariant(response.status === 302, "Authorization without dpop_jkt was not rejected by redirect");
+  const location = response.headers.get("location");
+  invariant(location !== null, "Authorization without dpop_jkt did not return an error redirect");
+  const callback = new URL(location, redirectUri);
+  invariant(
+    callback.origin === new URL(redirectUri).origin && callback.pathname === new URL(redirectUri).pathname,
+    "Authorization without dpop_jkt escaped the registered callback",
+  );
+  invariant(
+    callback.searchParams.get("error") === "invalid_request" &&
+      callback.searchParams.get("error_description")?.includes("dpop_jkt") === true &&
+      callback.searchParams.get("state") === state,
+    "Authorization without dpop_jkt was not rejected by the strict DPoP client policy",
+  );
+}
+
+async function startWebCallbackServer(redirectUri) {
+  let resolveCallback;
+  const callbackPromise = new Promise((resolve) => {
+    resolveCallback = resolve;
+  });
+  const expected = new URL(redirectUri);
+  const server = createServer((incoming, response) => {
+    let target;
+    try {
+      target = new URL(incoming.url ?? "/", expected.origin);
+    } catch {
+      response.writeHead(400, { "content-type": "text/plain" });
+      response.end("Invalid callback.");
+      return;
+    }
+    if (incoming.method !== "GET" || target.pathname !== expected.pathname) {
+      response.writeHead(404, { "content-type": "text/plain" });
+      response.end("Not found.");
+      return;
+    }
+    response.writeHead(200, {
+      "cache-control": "no-store",
+      "content-type": "text/plain",
+    });
+    response.end("Authorization callback captured by the isolated smoke test.");
+    resolveCallback(target);
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", () => reject(new SmokeError("Loopback web callback listener could not start")));
+    server.listen(Number(expected.port), expected.hostname, resolve);
+  });
+  return {
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error === undefined) resolve();
+          else reject(new SmokeError("Loopback web callback listener could not stop"));
+        });
+      }),
+    waitForCallback: () => callbackPromise,
+  };
+}
+
+async function obtainWebAuthorizationCode(
+  browser,
+  authorizationEndpoint,
+  identity,
+  key,
+  { clientId = WEB_CLIENT_ID, redirectUri = WEB_REDIRECT_URI } = {},
+) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  page.setDefaultTimeout(browserActionTimeoutMilliseconds);
+  const pkce = createPkceMaterial();
+  const state = randomUUID();
+  const authorizationUrl = webAuthorizationUrl(authorizationEndpoint, key, pkce, state, {
+    clientId,
+    redirectUri,
+  });
+  let callbackServer;
+  let phase = "callback listener";
+  try {
+    callbackServer = await startWebCallbackServer(redirectUri);
+    phase = "authorization navigation";
+    await page.goto(authorizationUrl.toString(), { waitUntil: "domcontentloaded" });
+    phase = "synthetic login";
+    await page.locator('#username, input[name="username"]').first().fill(identity.username);
+    await page.locator('#password, input[name="password"]').first().fill(identity.password);
+    await page.locator('#kc-login, button[type="submit"], input[type="submit"]').first().click();
+
+    const consentButton = page
+      .locator(
+        '#kc-oauth #kc-login[name="accept"], #kc-oauth button[name="accept"], #kc-oauth input[name="accept"]',
+      )
+      .first();
+    try {
+      await consentButton.waitFor({ state: "visible", timeout: 2_000 });
+      await consentButton.click();
+    } catch {
+      // Consent is disabled in the synthetic local realm.
+    }
+
+    phase = "authorization callback";
+    const callback = await withTimeout(
+      () => callbackServer.waitForCallback(),
+      browserActionTimeoutMilliseconds,
+      "Web authorization callback",
+    );
+    invariant(callback.searchParams.get("error") === null, "Web authorization returned an OAuth error");
+    invariant(callback.searchParams.get("state") === state, "Web authorization state did not round-trip");
+    return {
+      code: requiredString(Object.fromEntries(callback.searchParams), "code", "Web authorization callback"),
+      verifier: pkce.verifier,
+    };
+  } catch (error) {
+    if (error instanceof SmokeError) throw error;
+    let pageState = "unknown page";
+    try {
+      const callback = new URL(redirectUri);
+      const current = new URL(page.url());
+      if (current.origin === callback.origin && current.pathname === callback.pathname) {
+        pageState = "callback page";
+      } else if (await page.locator("#kc-oauth").isVisible()) {
+        pageState = "consent page";
+      } else if (await page.locator("#username").isVisible()) {
+        pageState = "login page";
+      } else if (await page.locator("#kc-error-message").isVisible()) {
+        pageState = "identity-provider error page";
+      } else {
+        const visibleForm = page.locator("form:visible").first();
+        const formId = (await visibleForm.count()) === 0 ? "none" : await visibleForm.getAttribute("id");
+        pageState = `identity path ${current.pathname} with form ${formId ?? "unnamed"}`;
+      }
+    } catch {
+      // Diagnostic classification is intentionally best-effort and secret-free.
+    }
+    throw new SmokeError(`Headless web authorization-code flow failed during ${phase} (${pageState})`);
+  } finally {
+    await Promise.all([
+      withTimeout(() => context.close(), browserContextCleanupTimeoutMilliseconds, "Web context cleanup"),
+      callbackServer === undefined
+        ? Promise.resolve()
+        : withTimeout(
+            () => callbackServer.close(),
+            browserContextCleanupTimeoutMilliseconds,
+            "Web callback cleanup",
+          ),
+    ]);
+  }
+}
+
+async function verifyAuthorizationCodeDpopFlow(
+  browser,
+  authorizationEndpoint,
+  tokenEndpoint,
+  identity,
+  jwks,
+  issuer,
+  { clientId, label, redirectUri, resource },
+) {
+  await assertMissingDpopJktRejected(authorizationEndpoint, { clientId, redirectUri });
+  const key = createDpopKey();
+
+  const unprovedCode = await obtainWebAuthorizationCode(browser, authorizationEndpoint, identity, key, {
+    clientId,
+    redirectUri,
+  });
+  await assertTokenRequestWithoutDpopFails(
+    tokenEndpoint,
+    {
+      client_id: clientId,
+      code: unprovedCode.code,
+      code_verifier: unprovedCode.verifier,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+    },
+    `${label} authorization-code token request without DPoP`,
+  );
+
+  const provedCode = await obtainWebAuthorizationCode(browser, authorizationEndpoint, identity, key, {
+    clientId,
+    redirectUri,
+  });
+  const tokenResponse = await tokenRequestWithDpop(
+    tokenEndpoint,
+    {
+      client_id: clientId,
+      code: provedCode.code,
+      code_verifier: provedCode.verifier,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri,
+    },
+    key,
+    `${label} authorization-code token request`,
+  );
+  const { accessToken, refreshToken } = assertDpopTokenResponse(
+    tokenResponse,
+    key,
+    `${label} authorization-code token request`,
+  );
+  verifyAccessToken(accessToken, {
+    clientId,
+    issuer,
+    jwks,
+    resource,
+  });
+  await verifyRefreshRotation(tokenEndpoint, clientId, refreshToken, key, `${label} client`);
+  return {
+    audience: resource === "mcp" ? DEFAULT_MCP_AUDIENCE : DEFAULT_API_AUDIENCE,
+    authorizationCodeBound: true,
+    missingProofRejected: true,
+    refreshRotated: true,
+    tokenType: "DPoP",
+  };
+}
+
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function pollTokenEndpoint(tokenEndpoint, deviceAuthorization) {
+async function pollTokenEndpoint(tokenEndpoint, deviceAuthorization, key) {
   const deadline =
     Date.now() + Math.min(deviceAuthorization.expiresIn * 1_000, maximumPollingDurationMilliseconds);
   let intervalMilliseconds = deviceAuthorization.interval * 1_000;
+  let nonce;
 
+  while (Date.now() < deadline) {
+    const response = await request(tokenEndpoint, {
+      body: new URLSearchParams({
+        client_id: DEVICE_CLIENT_ID,
+        device_code: deviceAuthorization.deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        dpop: createDpopProof({ key, method: "POST", nonce, url: tokenEndpoint }),
+      },
+      method: "POST",
+    });
+    if (response.ok) return readJson(response, "OIDC token polling");
+
+    const challengedNonce = response.headers.get("dpop-nonce");
+    if (challengedNonce !== null && challengedNonce.length > 0 && challengedNonce !== nonce) {
+      nonce = challengedNonce;
+      continue;
+    }
+    const { code: error } = await readOauthError(response, "OIDC token polling");
+    if (error === "slow_down") intervalMilliseconds += 5_000;
+    else invariant(error === "authorization_pending", "OIDC token polling was denied or expired");
+    await delay(Math.min(intervalMilliseconds, Math.max(0, deadline - Date.now())));
+  }
+
+  throw new SmokeError("RFC 8628 device authorization expired before a token was issued");
+}
+
+async function assertDeviceTokenWithoutDpopFails(tokenEndpoint, deviceAuthorization) {
+  const deadline =
+    Date.now() + Math.min(deviceAuthorization.expiresIn * 1_000, maximumPollingDurationMilliseconds);
+  let intervalMilliseconds = deviceAuthorization.interval * 1_000;
   while (Date.now() < deadline) {
     const response = await request(tokenEndpoint, {
       body: new URLSearchParams({
@@ -528,21 +1053,16 @@ async function pollTokenEndpoint(tokenEndpoint, deviceAuthorization) {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       method: "POST",
     });
-    if (response.ok) return readJson(response, "OIDC token polling");
-
-    invariant(response.status === 400, `OIDC token polling returned HTTP ${String(response.status)}`);
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      throw new SmokeError("OIDC token polling returned invalid JSON");
+    invariant(!response.ok, "CLI device token endpoint issued a token without a DPoP proof");
+    const error = await readOauthError(response, "CLI device token request without DPoP");
+    if ((error.code === "invalid_dpop_proof" || error.code === "invalid_request") && error.dpopRelated) {
+      return true;
     }
-    if (body?.error === "slow_down") intervalMilliseconds += 5_000;
-    else invariant(body?.error === "authorization_pending", "OIDC token polling was denied or expired");
+    if (error.code === "slow_down") intervalMilliseconds += 5_000;
+    else invariant(error.code === "authorization_pending", "CLI device token request was denied or expired");
     await delay(Math.min(intervalMilliseconds, Math.max(0, deadline - Date.now())));
   }
-
-  throw new SmokeError("RFC 8628 device authorization expired before a token was issued");
+  throw new SmokeError("CLI device token request did not reach its DPoP enforcement decision");
 }
 
 function decodeJwtJsonSegment(segment, label) {
@@ -603,10 +1123,43 @@ export function assertAccessTokenClaims(
   };
 }
 
+function assertMcpAccessTokenClaims(
+  payload,
+  { apiAudience = DEFAULT_API_AUDIENCE, mcpAudience = DEFAULT_MCP_AUDIENCE } = {},
+) {
+  invariant(typeof payload.scope === "string", "MCP access token is missing its scope claim");
+  const scopes = new Set(payload.scope.split(/\s+/u).filter(Boolean));
+  invariant(scopes.has("campus:read"), "MCP access token is missing campus:read");
+  invariant(!scopes.has("admin:write"), "MCP access token contains the unapproved admin:write scope");
+  const audiences = typeof payload.aud === "string" ? [payload.aud] : payload.aud;
+  invariant(
+    Array.isArray(audiences) && audiences.every((audience) => typeof audience === "string"),
+    "MCP access token has an invalid audience claim",
+  );
+  invariant(
+    audiences.length === 1 && audiences[0] === mcpAudience,
+    "MCP access token does not have one exact MCP audience",
+  );
+  invariant(!audiences.includes(apiAudience), "MCP access token contains the Core API audience");
+  return {
+    adminWriteAbsent: true,
+    apiAudienceAbsent: true,
+    campusReadPresent: true,
+    mcpAudiencePresent: true,
+  };
+}
+
 export function verifyAccessToken(
   accessToken,
-  { jwks, issuer, nowSeconds = Math.floor(Date.now() / 1_000) },
+  {
+    clientId = DEVICE_CLIENT_ID,
+    jwks,
+    issuer,
+    nowSeconds = Math.floor(Date.now() / 1_000),
+    resource = "api",
+  },
 ) {
+  invariant(resource === "api" || resource === "mcp", "OIDC access token has an unknown resource");
   const { header, payload, signature, signingInput } = decodeJwt(accessToken);
   invariant(header.alg === "RS256", "OIDC access token does not use RS256");
   invariant(header.typ === "at+jwt", "OIDC access token does not use the RFC 9068 at+jwt type");
@@ -640,8 +1193,8 @@ export function verifyAccessToken(
 
   const clientClaims = [payload.azp, payload.client_id].filter((value) => value !== undefined);
   invariant(
-    clientClaims.length > 0 && clientClaims.every((value) => value === DEVICE_CLIENT_ID),
-    "OIDC access token client is not gopher-cli",
+    clientClaims.length > 0 && clientClaims.every((value) => value === clientId),
+    "OIDC access token client is not the expected public client",
   );
   invariant(
     typeof payload.exp === "number" &&
@@ -674,7 +1227,7 @@ export function verifyAccessToken(
   }
 
   return {
-    ...assertAccessTokenClaims(payload),
+    ...(resource === "mcp" ? assertMcpAccessTokenClaims(payload) : assertAccessTokenClaims(payload)),
     clientExact: true,
     issuerExact: true,
     signatureVerified: true,
@@ -742,22 +1295,85 @@ export async function runIdentityDeviceSmoke() {
       "Keycloak temporary-user creation did not return an identifier",
     );
 
-    const { deviceEndpoint, jwksEndpoint, tokenEndpoint } = await discoverDeviceEndpoints(issuerUrl);
-    const deviceAuthorization = await requestDeviceAuthorization(deviceEndpoint, issuerUrl);
+    const { authorizationEndpoint, deviceEndpoint, jwksEndpoint, tokenEndpoint } =
+      await discoverDeviceEndpoints(issuerUrl);
+    const jwks = await readJwks(jwksEndpoint);
     const launch = await launchHeadlessBrowser();
     browser = launch.browser;
     browserRuntime = launch.runtime;
+
+    const web = await verifyAuthorizationCodeDpopFlow(
+      browser,
+      authorizationEndpoint,
+      tokenEndpoint,
+      identityState.identity,
+      jwks,
+      exactIssuer,
+      {
+        clientId: WEB_CLIENT_ID,
+        label: "Web",
+        redirectUri: WEB_REDIRECT_URI,
+        resource: "api",
+      },
+    );
+    const mcp = await verifyAuthorizationCodeDpopFlow(
+      browser,
+      authorizationEndpoint,
+      tokenEndpoint,
+      identityState.identity,
+      jwks,
+      exactIssuer,
+      {
+        clientId: MCP_CLIENT_ID,
+        label: "MCP",
+        redirectUri: MCP_REDIRECT_URI,
+        resource: "mcp",
+      },
+    );
+
+    const unprovedDeviceAuthorization = await requestDeviceAuthorization(deviceEndpoint, issuerUrl);
+    await completeBrowserAuthorization(
+      browser,
+      unprovedDeviceAuthorization.verificationUri,
+      unprovedDeviceAuthorization.userCode,
+      identityState.identity,
+    );
+    await assertDeviceTokenWithoutDpopFails(tokenEndpoint, unprovedDeviceAuthorization);
+
+    const deviceAuthorization = await requestDeviceAuthorization(deviceEndpoint, issuerUrl);
     await completeBrowserAuthorization(
       browser,
       deviceAuthorization.verificationUri,
       deviceAuthorization.userCode,
       identityState.identity,
     );
-    const tokenResponse = await pollTokenEndpoint(tokenEndpoint, deviceAuthorization);
-    const accessToken = requiredString(tokenResponse, "access_token", "OIDC token response");
-    const jwks = await readJwks(jwksEndpoint);
+    const deviceKey = createDpopKey();
+    const tokenResponse = await pollTokenEndpoint(tokenEndpoint, deviceAuthorization, deviceKey);
+    const { accessToken, refreshToken } = assertDpopTokenResponse(
+      tokenResponse,
+      deviceKey,
+      "CLI device token request",
+    );
     const assertions = verifyAccessToken(accessToken, { issuer: exactIssuer, jwks });
-    result = { assertions, browser: browserRuntime, status: "passed" };
+    await verifyRefreshRotation(
+      tokenEndpoint,
+      DEVICE_CLIENT_ID,
+      refreshToken,
+      deviceKey,
+      "CLI device client",
+    );
+    result = {
+      assertions,
+      browser: browserRuntime,
+      cli: {
+        missingProofRejected: true,
+        refreshRotated: true,
+        tokenType: "DPoP",
+      },
+      mcp,
+      status: "passed",
+      web,
+    };
   } catch (error) {
     primaryFailure =
       error instanceof SmokeError ? error : new SmokeError("Identity device smoke failed unexpectedly");

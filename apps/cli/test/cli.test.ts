@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createCli } from "../src/cli.js";
 import { MemorySecretStore, type SecretStore } from "../src/secret-store.js";
+import { TEST_DPOP_CREDENTIAL, TEST_DPOP_PRIVATE_JWK, testAccessToken } from "./dpop-fixture.js";
 import { captureIo, jsonResponse, oidcDiscovery, takeResponse } from "./helpers.js";
 
 const temporaryDirectories: string[] = [];
@@ -155,12 +156,16 @@ describe("uga command contract", () => {
     const forbidden = captureIo();
     const forbiddenApp = createCli({
       configPath: await configPath(),
+      environment: {
+        UGA_ACCESS_TOKEN: TEST_DPOP_CREDENTIAL.accessToken,
+        UGA_DPOP_PRIVATE_JWK: JSON.stringify(TEST_DPOP_PRIVATE_JWK),
+      },
       fetch: vi.fn<typeof fetch>(
         async () =>
           new Response(
             JSON.stringify({
               detail: "Denied",
-              instance: "/v1/campuses",
+              instance: "/v1/personal/vault/bootstrap",
               status: 403,
               title: "Forbidden",
               traceId: "trace-safe",
@@ -173,7 +178,16 @@ describe("uga command contract", () => {
       secretStore: new MemorySecretStore(),
     });
     await expect(
-      forbiddenApp.run(["--json", "--api-base-url", "http://127.0.0.1:3001", "campuses", "list"]),
+      forbiddenApp.run([
+        "--json",
+        "--api-base-url",
+        "http://127.0.0.1:3001",
+        "--issuer",
+        "http://127.0.0.1:8080/realms/gopher",
+        "request",
+        "get",
+        "/v1/personal/vault/bootstrap",
+      ]),
     ).resolves.toBe(5);
     expect(JSON.parse(forbidden.stdout.join(""))).toMatchObject({
       error: { code: "permission-denied", exitCode: 5 },
@@ -229,16 +243,17 @@ describe("uga command contract", () => {
         verification_uri: "http://127.0.0.1:8080/verify",
       }),
       jsonResponse({
-        access_token: "access-token-must-not-print",
+        access_token: testAccessToken(undefined, "access-token-must-not-print"),
         expires_in: 300,
         refresh_token: "refresh-token-must-not-print",
         scope: "openid campus:read",
-        token_type: "Bearer",
+        token_type: "DPoP",
       }),
     ];
     const application = createCli({
       configPath: file,
       fetch: vi.fn<typeof fetch>(async () => takeResponse(responses)),
+      generateDpopPrivateJwk: () => Promise.resolve(TEST_DPOP_PRIVATE_JWK),
       io: captured.io,
       secretStore: new MemorySecretStore(false),
       sleep: async () => undefined,

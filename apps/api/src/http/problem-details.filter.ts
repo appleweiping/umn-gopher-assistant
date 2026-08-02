@@ -1,7 +1,11 @@
 import { Catch, HttpException, HttpStatus, type ArgumentsHost, type ExceptionFilter } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 
-import { getBearerChallenge } from "../auth/bearer-auth.errors.js";
+import {
+  DpopReplayStoreUnavailableException,
+  DpopRateLimitExceededException,
+  getDpopChallenge,
+} from "../auth/bearer-auth.errors.js";
 import { AiRateLimitExceededException, AiUnavailableException } from "./ai-unavailable.exception.js";
 import { CatalogUnavailableException } from "./catalog-unavailable.exception.js";
 import { ensureRequestId } from "./request-id.interceptor.js";
@@ -31,6 +35,14 @@ const problemByStatus: Readonly<Record<number, { readonly slug: string; readonly
   [HttpStatus.NOT_FOUND]: { slug: "not-found", title: "Not Found" },
   [HttpStatus.GONE]: { slug: "gone", title: "Gone" },
   [HttpStatus.CONFLICT]: { slug: "conflict", title: "Conflict" },
+  [HttpStatus.PRECONDITION_FAILED]: {
+    slug: "precondition-failed",
+    title: "Precondition Failed",
+  },
+  [HttpStatus.PRECONDITION_REQUIRED]: {
+    slug: "precondition-required",
+    title: "Precondition Required",
+  },
   [HttpStatus.TOO_MANY_REQUESTS]: { slug: "too-many-requests", title: "Too Many Requests" },
   [HttpStatus.SERVICE_UNAVAILABLE]: { slug: "service-unavailable", title: "Service Unavailable" },
   [HttpStatus.INTERNAL_SERVER_ERROR]: { slug: "internal-server-error", title: "Internal Server Error" },
@@ -86,6 +98,13 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
     exception instanceof AiUnavailableException || exception instanceof AiRateLimitExceededException
       ? { failureCode: exception.failureCode }
       : {};
+  const response = isHttpException ? exception.getResponse() : undefined;
+  const genericFailureCode =
+    typeof response === "object" &&
+    "failureCode" in response &&
+    typeof (response as { readonly failureCode?: unknown }).failureCode === "string"
+      ? { failureCode: (response as { readonly failureCode: string }).failureCode }
+      : {};
 
   return {
     type: `https://api.gopher-assistant.example/problems/${definition.slug}`,
@@ -96,6 +115,7 @@ export function toProblemDetails(exception: unknown, instance: string, traceId: 
     traceId,
     ...catalogExtensions,
     ...aiExtensions,
+    ...genericFailureCode,
   };
 }
 
@@ -107,11 +127,24 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const reply = context.getResponse<FastifyReply>();
     const traceId = ensureRequestId(request);
     const problem = toProblemDetails(exception, request.url, traceId);
-    const bearerChallenge = getBearerChallenge(exception);
+    const dpopChallenge = getDpopChallenge(exception);
 
     reply.header("X-Request-Id", traceId);
-    if (bearerChallenge !== undefined) {
-      reply.header("WWW-Authenticate", bearerChallenge);
+    if (
+      problem.status === 401 ||
+      problem.status === 403 ||
+      exception instanceof DpopReplayStoreUnavailableException
+    ) {
+      reply.header("Cache-Control", "no-store");
+    }
+    if (request.url.split("?", 1)[0]?.startsWith("/v1/personal/vault") === true) {
+      reply.header("Cache-Control", "no-store");
+    }
+    if (dpopChallenge !== undefined) {
+      reply.header("WWW-Authenticate", dpopChallenge.value);
+      if (dpopChallenge.nonce !== undefined) {
+        reply.header("DPoP-Nonce", dpopChallenge.nonce);
+      }
     }
     if (exception instanceof CatalogUnavailableException) {
       reply.header("Cache-Control", "no-store");
@@ -125,6 +158,13 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       reply.header("RateLimit-Limit", String(exception.limit));
       reply.header("RateLimit-Remaining", String(exception.remaining));
       reply.header("RateLimit-Reset", String(exception.resetAfterSeconds));
+    }
+    if (exception instanceof DpopRateLimitExceededException) {
+      reply.header("Cache-Control", "no-store");
+      reply.header("Retry-After", String(exception.retryAfterSeconds));
+      reply.header("RateLimit-Limit", String(exception.limit));
+      reply.header("RateLimit-Remaining", "0");
+      reply.header("RateLimit-Reset", String(exception.retryAfterSeconds));
     }
     void reply.status(problem.status).type("application/problem+json").send(problem);
   }

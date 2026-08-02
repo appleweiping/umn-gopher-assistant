@@ -7,7 +7,9 @@ export type AuthorizationSpecVersion = (typeof AUTHORIZATION_SPEC_VERSIONS)[numb
 export type McpProtocolVersion = (typeof MCP_PROTOCOL_VERSIONS)[number];
 
 export interface OAuthConfig {
+  readonly allowedClientIds: ReadonlySet<string>;
   readonly authorizationServer: string;
+  readonly dpopRedisUrl: URL;
   readonly issuer: string;
   readonly jwksUrl: URL;
   readonly mode: "oauth";
@@ -172,6 +174,49 @@ function assertProductionUrl(url: URL, name: string): void {
   if (url.protocol !== "https:") throw new TypeError(`${name} must use HTTPS in production`);
 }
 
+function parseRedisUrl(raw: string, production: boolean): URL {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new TypeError(
+      "MCP_DPOP_REDIS_URL must be a password-authenticated Redis URL (rediss in production)",
+    );
+  }
+  if (
+    (url.protocol !== "redis:" && url.protocol !== "rediss:") ||
+    url.username !== "" ||
+    url.password.length === 0 ||
+    (url.pathname !== "" && url.pathname !== "/") ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    (production && url.protocol !== "rediss:") ||
+    (url.protocol === "redis:" && !isLoopbackHostname(url.hostname))
+  ) {
+    throw new TypeError(
+      "MCP_DPOP_REDIS_URL must be a password-authenticated Redis URL (rediss in production)",
+    );
+  }
+  return url;
+}
+
+function parseAllowedClientIds(raw: string | undefined): ReadonlySet<string> {
+  const values = (raw ?? "gopher-mcp").split(",").map((value) => value.trim());
+  const clientIds = new Set<string>();
+  for (const value of values) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$/u.test(value) || clientIds.has(value)) {
+      throw new TypeError(
+        "MCP_ALLOWED_CLIENT_IDS must contain unique comma-separated OAuth client identifiers",
+      );
+    }
+    clientIds.add(value);
+  }
+  if (clientIds.size === 0 || clientIds.size > 16) {
+    throw new TypeError("MCP_ALLOWED_CLIENT_IDS must contain from 1 through 16 clients");
+  }
+  return clientIds;
+}
+
 export function loadMcpServerConfig(environment: Environment = process.env): McpServerConfig {
   const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
   const port = parseInteger(environment, "MCP_PORT", 4100, 1, 65_535);
@@ -261,7 +306,17 @@ export function loadMcpServerConfig(environment: Environment = process.env): Mcp
       assertProductionUrl(jwksUrl, "MCP_OAUTH_JWKS_URL");
       assertProductionUrl(apiBaseUrl, "GOPHER_API_BASE_URL");
     }
-    auth = { authorizationServer, issuer, jwksUrl, mode: "oauth" };
+    auth = {
+      allowedClientIds: parseAllowedClientIds(environment["MCP_ALLOWED_CLIENT_IDS"]),
+      authorizationServer,
+      dpopRedisUrl: parseRedisUrl(
+        environment["MCP_DPOP_REDIS_URL"] ?? "redis://:local-redis-password-only@127.0.0.1:6379",
+        nodeEnv === "production",
+      ),
+      issuer,
+      jwksUrl,
+      mode: "oauth",
+    };
   } else {
     throw new TypeError("MCP_AUTH_MODE must be oauth or none");
   }

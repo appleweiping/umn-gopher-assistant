@@ -8,4 +8,5 @@ export * from "./moderation.js";
 export * from "./routing.js";
 export * from "./security.js";
 export * from "./source.js";
+export * from "./vault-sync.js";
 export * from "./world.js";

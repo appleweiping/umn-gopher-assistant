@@ -3,6 +3,7 @@ import {
   operationDefinitions,
   type OperationDefinition,
   type OperationId,
+  type DpopPrivateJwk,
   type components,
 } from "@umn-gopher-assistant/sdk";
 import { Command, CommanderError, InvalidArgumentError } from "commander";
@@ -23,6 +24,7 @@ import { type CliIo, CliOutput } from "./output.js";
 import { abortableSleep, OidcClient, type Sleep } from "./oidc.js";
 import { RawApiClient, type RawMethod } from "./raw-api.js";
 import { NapiKeyringSecretStore, type SecretStore } from "./secret-store.js";
+import { SocketCredentialRefreshLock } from "./refresh-lock.js";
 import { CLI_VERSION } from "./version.js";
 
 type CampusId = components["schemas"]["CampusId"];
@@ -57,6 +59,7 @@ export interface CliDependencies {
   readonly configPath?: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly fetch?: typeof fetch;
+  readonly generateDpopPrivateJwk?: () => Promise<DpopPrivateJwk>;
   readonly io?: CliIo;
   readonly now?: () => number;
   readonly secretStore?: SecretStore;
@@ -176,8 +179,12 @@ export function createCli(dependencies: CliDependencies = {}): CliApplication {
   });
   const auth = new AuthManager({
     environment,
+    ...(dependencies.generateDpopPrivateJwk === undefined
+      ? {}
+      : { generateDpopPrivateJwk: dependencies.generateDpopPrivateJwk }),
     now,
     oidc,
+    refreshLock: new SocketCredentialRefreshLock(`config:${repository.path}`),
     secretStore: dependencies.secretStore ?? new NapiKeyringSecretStore(),
   });
   const program = new Command();
@@ -197,7 +204,9 @@ export function createCli(dependencies: CliDependencies = {}): CliApplication {
     return new GopherClient({
       ...(issuer === undefined
         ? {}
-        : { accessToken: () => auth.getAccessToken(settings.profile, issuer, dependencies.signal) }),
+        : {
+            dpopCredential: () => auth.getDpopCredential(settings.profile, issuer, dependencies.signal),
+          }),
       baseUrl: requireApiBaseUrl(settings),
       fetch: sdkFetch,
     });
@@ -489,7 +498,7 @@ export function createCli(dependencies: CliDependencies = {}): CliApplication {
           const settings = await currentSettings();
           const issuer = settings.issuer;
           const raw = new RawApiClient({
-            accessToken: async () => {
+            credential: async () => {
               if (issuer === undefined) {
                 throw new CliError(
                   ExitCode.config,
@@ -497,7 +506,7 @@ export function createCli(dependencies: CliDependencies = {}): CliApplication {
                   "OIDC issuer is required for authentication.",
                 );
               }
-              return auth.getAccessToken(settings.profile, issuer, dependencies.signal);
+              return auth.getDpopCredential(settings.profile, issuer, dependencies.signal);
             },
             baseUrl: requireApiBaseUrl(settings),
             http,

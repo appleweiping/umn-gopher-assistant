@@ -1,9 +1,17 @@
 import assert from "node:assert/strict";
-import { generateKeyPairSync, sign } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  generateKeyPairSync,
+  sign,
+  verify as verifySignature,
+} from "node:crypto";
 import { test } from "node:test";
 
 import {
   cleanupIdentityWithReauthentication,
+  createDpopKey,
+  createDpopProof,
   DEFAULT_API_AUDIENCE,
   DEFAULT_MCP_AUDIENCE,
   parseIdentityBaseUrl,
@@ -54,6 +62,55 @@ function verify(token) {
   return verifyAccessToken(token, { issuer, jwks, nowSeconds });
 }
 
+test("creates a public ES256 DPoP proof with the RFC 7638 thumbprint", () => {
+  const key = createDpopKey();
+  const proof = createDpopProof({
+    key,
+    method: "post",
+    nonce: "server-nonce",
+    url: "https://identity.example/token?ignored=true#fragment",
+  });
+  const [headerSegment, payloadSegment, signatureSegment] = proof.split(".");
+  const header = JSON.parse(Buffer.from(headerSegment, "base64url").toString("utf8"));
+  const payload = JSON.parse(Buffer.from(payloadSegment, "base64url").toString("utf8"));
+
+  assert.equal(header.alg, "ES256");
+  assert.equal(header.typ, "dpop+jwt");
+  assert.equal(header.jwk.kty, "EC");
+  assert.equal(header.jwk.crv, "P-256");
+  assert.equal(header.jwk.d, undefined);
+  assert.equal(payload.htm, "POST");
+  assert.equal(payload.htu, "https://identity.example/token");
+  assert.equal(payload.nonce, "server-nonce");
+  assert.match(payload.jti, /^[0-9a-f-]{36}$/u);
+  assert.equal(
+    verifySignature(
+      null,
+      Buffer.from(`${headerSegment}.${payloadSegment}`, "ascii"),
+      {
+        dsaEncoding: "ieee-p1363",
+        key: createPublicKey({ format: "jwk", key: header.jwk }),
+      },
+      Buffer.from(signatureSegment, "base64url"),
+    ),
+    true,
+  );
+
+  const thumbprint = createHash("sha256")
+    .update(
+      JSON.stringify({
+        crv: header.jwk.crv,
+        kty: header.jwk.kty,
+        x: header.jwk.x,
+        y: header.jwk.y,
+      }),
+      "utf8",
+    )
+    .digest("base64url");
+  assert.equal(key.thumbprint, thumbprint);
+  assert.notEqual(createDpopProof({ key, method: "POST", url: "https://identity.example/token" }), proof);
+});
+
 test("cryptographically verifies the narrow CLI token", () => {
   assert.deepEqual(verify(tokenFor(allowedPayload)), {
     adminWriteAbsent: true,
@@ -64,6 +121,49 @@ test("cryptographically verifies the narrow CLI token", () => {
     mcpAudienceAbsent: true,
     signatureVerified: true,
   });
+});
+
+test("cryptographically verifies the exact MCP audience without API confusion", () => {
+  assert.deepEqual(
+    verifyAccessToken(
+      tokenFor({
+        ...allowedPayload,
+        aud: DEFAULT_MCP_AUDIENCE,
+        azp: "gopher-mcp",
+      }),
+      {
+        clientId: "gopher-mcp",
+        issuer,
+        jwks,
+        nowSeconds,
+        resource: "mcp",
+      },
+    ),
+    {
+      adminWriteAbsent: true,
+      apiAudienceAbsent: true,
+      campusReadPresent: true,
+      clientExact: true,
+      issuerExact: true,
+      mcpAudiencePresent: true,
+      signatureVerified: true,
+    },
+  );
+  assert.throws(() =>
+    verifyAccessToken(
+      tokenFor({
+        ...allowedPayload,
+        azp: "gopher-mcp",
+      }),
+      {
+        clientId: "gopher-mcp",
+        issuer,
+        jwks,
+        nowSeconds,
+        resource: "mcp",
+      },
+    ),
+  );
 });
 
 test("accepts the issuer's bounded URI-form JWT ID", () => {

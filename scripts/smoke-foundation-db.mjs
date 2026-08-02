@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,8 @@ const smokeEnvironment = {
   AI_KNOWLEDGE_READER_DB_USER: "gopher_ai_reader",
   AI_KNOWLEDGE_SYNC_DB_PASSWORD: "local-ai-sync-password-only",
   AI_KNOWLEDGE_SYNC_DB_USER: "gopher_ai_sync",
+  API_PERSONAL_DB_PASSWORD: "local-api-personal-password-only",
+  API_PERSONAL_DB_USER: "gopher_api_personal",
   KEYCLOAK_DB: "keycloak",
   KEYCLOAK_DB_PASSWORD: "local-keycloak-password-only",
   KEYCLOAK_DB_USER: "gopher_keycloak",
@@ -37,6 +39,24 @@ function compose(arguments_, allowFailure = false) {
     throw new Error(`${commandLabel} ${arguments_.join(" ")} failed with status ${String(result.status)}`);
   }
   return result;
+}
+
+function composeAsync(arguments_) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn("docker", ["compose", "--file", composeFile, ...arguments_], {
+      cwd: repositoryRoot,
+      env: smokeEnvironment,
+      stdio: "inherit",
+    });
+    child.once("error", rejectPromise);
+    child.once("exit", (status) => {
+      if (status === 0) {
+        resolvePromise();
+      } else {
+        rejectPromise(new Error(`concurrent ${commandLabel} database command failed`));
+      }
+    });
+  });
 }
 
 function composeMustFail(
@@ -145,8 +165,29 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'AI projection-integrity constraint is missing';
   END IF;
-  IF (SELECT count(*) FROM platform_schema_migrations) <> 2 THEN
-    RAISE EXCEPTION 'migration ledger does not contain exactly two migrations';
+  IF to_regclass('public.personal_vaults') IS NULL
+    OR to_regclass('public.personal_vault_payloads') IS NULL
+    OR to_regclass('public.personal_vault_commands') IS NULL THEN
+    RAISE EXCEPTION 'personal vault synchronization tables are missing';
+  END IF;
+  IF (SELECT count(*) FROM platform_schema_migrations) <> 5 THEN
+    RAISE EXCEPTION 'migration ledger does not contain exactly five migrations';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM platform_schema_migrations
+    WHERE version = '0003_personal_vault_ephemera_retention'
+      AND checksum ~ '^[a-f0-9]{64}$'
+  ) THEN
+    RAISE EXCEPTION 'personal-vault ephemeral retention migration is not registered';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM platform_schema_migrations
+    WHERE version = '0004_account_hmac_continuity'
+      AND checksum ~ '^[a-f0-9]{64}$'
+  ) THEN
+    RAISE EXCEPTION 'account-HMAC continuity migration is not registered';
   END IF;
   IF NOT EXISTS (
     SELECT 1
@@ -168,7 +209,7 @@ BEGIN
   IF EXISTS (
     SELECT 1
     FROM pg_roles
-    WHERE rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_keycloak')
+    WHERE rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_api_personal', 'gopher_keycloak')
       AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolreplication OR rolbypassrls)
   ) THEN
     RAISE EXCEPTION 'a runtime database role has elevated role attributes';
@@ -177,17 +218,126 @@ BEGIN
     SELECT 1
     FROM pg_auth_members AS membership
     JOIN pg_roles AS member ON member.oid = membership.member
-    WHERE member.rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_keycloak')
+    WHERE member.rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_api_personal', 'gopher_keycloak')
   ) THEN
     RAISE EXCEPTION 'a runtime database role retained an unsafe role membership';
   END IF;
   IF (
     SELECT count(*)
     FROM pg_roles
-    WHERE rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_keycloak')
+    WHERE rolname IN ('gopher_ai_reader', 'gopher_ai_sync', 'gopher_api_personal', 'gopher_keycloak')
       AND rolcanlogin
-  ) <> 3 THEN
+  ) <> 4 THEN
     RAISE EXCEPTION 'dedicated runtime database roles are missing';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM pg_class
+    WHERE oid IN (
+      'personal_vaults'::regclass,
+      'personal_vault_payloads'::regclass,
+      'personal_vault_keyrings'::regclass,
+      'personal_vault_manifests'::regclass,
+      'personal_vault_commits'::regclass,
+      'personal_vault_devices'::regclass,
+      'personal_vault_pairings'::regclass,
+      'personal_vault_commands'::regclass
+    )
+      AND relrowsecurity
+      AND relforcerowsecurity
+  ) <> 8 THEN
+    RAISE EXCEPTION 'personal tables must enable and force row-level security';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM pg_policy
+    WHERE polrelid IN (
+      'personal_vaults'::regclass,
+      'personal_vault_payloads'::regclass,
+      'personal_vault_keyrings'::regclass,
+      'personal_vault_manifests'::regclass,
+      'personal_vault_commits'::regclass,
+      'personal_vault_devices'::regclass,
+      'personal_vault_pairings'::regclass,
+      'personal_vault_commands'::regclass
+    )
+  ) <> 8 THEN
+    RAISE EXCEPTION 'personal tables must each have one account isolation policy';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc
+    WHERE oid = 'resolve_personal_account(bytea,smallint,bytea,smallint)'::regprocedure
+      AND prosecdef
+      AND proconfig @> ARRAY['search_path=pg_catalog, pg_temp']
+  ) THEN
+    RAISE EXCEPTION 'personal account resolver is not a fixed-search-path security definer';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc
+    WHERE oid = 'maintain_personal_vault_ephemera(boolean,integer)'::regprocedure
+      AND prosecdef
+      AND proconfig @> ARRAY[
+        'search_path=pg_catalog, pg_temp',
+        'row_security=off'
+      ]
+  ) THEN
+    RAISE EXCEPTION 'personal-vault maintenance is not a fixed-search-path security definer';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    CROSS JOIN LATERAL aclexplode(
+      coalesce(procedure.proacl, acldefault('f', procedure.proowner))
+    ) AS privilege
+    WHERE procedure.oid =
+      'maintain_personal_vault_ephemera(boolean,integer)'::regprocedure
+      AND privilege.grantee = 0
+      AND privilege.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'PUBLIC can execute personal-vault maintenance';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND has_function_privilege('gopher_api_personal', procedure.oid, 'EXECUTE')
+  ) <> 2
+    OR NOT has_function_privilege(
+      'gopher_api_personal',
+      'resolve_personal_account(bytea,smallint,bytea,smallint)'::regprocedure,
+      'EXECUTE'
+    )
+    OR NOT has_function_privilege(
+      'gopher_api_personal',
+      'assert_account_hmac_key_continuity(smallint,bytea,smallint,bytea,boolean,boolean)'::regprocedure,
+      'EXECUTE'
+    ) THEN
+    RAISE EXCEPTION 'personal API function allowlist did not converge exactly';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND (
+        has_function_privilege('gopher_ai_reader', procedure.oid, 'EXECUTE')
+        OR has_function_privilege('gopher_ai_sync', procedure.oid, 'EXECUTE')
+      )
+  ) THEN
+    RAISE EXCEPTION 'AI runtime role retained public-schema function execution';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'accounts'
+      AND column_name = 'owner_binding'
+      AND is_nullable = 'NO'
+  ) THEN
+    RAISE EXCEPTION 'stable account owner binding is missing';
   END IF;
 END
 $$;
@@ -278,7 +428,7 @@ try {
     "--set",
     "ON_ERROR_STOP=1",
     "--command",
-    "ALTER ROLE gopher_ai_reader BYPASSRLS; ALTER ROLE gopher_ai_sync BYPASSRLS; ALTER ROLE gopher_keycloak BYPASSRLS; GRANT gopher TO gopher_ai_reader; GRANT pg_read_all_data TO gopher_ai_sync; GRANT pg_write_all_data TO gopher_keycloak;",
+    "ALTER ROLE gopher_ai_reader BYPASSRLS; ALTER ROLE gopher_ai_sync BYPASSRLS; ALTER ROLE gopher_api_personal BYPASSRLS; ALTER ROLE gopher_keycloak BYPASSRLS; GRANT gopher TO gopher_ai_reader; GRANT pg_read_all_data TO gopher_ai_sync; GRANT pg_write_all_data TO gopher_api_personal; GRANT pg_write_all_data TO gopher_keycloak;",
   ]);
 
   // Simulate an existing Debian-based volume whose postgres account used a
@@ -339,6 +489,10 @@ try {
   const syncConnection = {
     password: smokeEnvironment.AI_KNOWLEDGE_SYNC_DB_PASSWORD,
     user: smokeEnvironment.AI_KNOWLEDGE_SYNC_DB_USER,
+  };
+  const personalConnection = {
+    password: smokeEnvironment.API_PERSONAL_DB_PASSWORD,
+    user: smokeEnvironment.API_PERSONAL_DB_USER,
   };
   const keycloakConnection = {
     password: smokeEnvironment.KEYCLOAK_DB_PASSWORD,
@@ -410,6 +564,586 @@ try {
     "AI sync schema-owner escalation",
   );
 
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT assert_account_hmac_key_continuity(
+          1::smallint, decode(repeat('c1', 32), 'hex'),
+          NULL::smallint, NULL::bytea, false, false
+        );
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT assert_account_hmac_key_continuity(
+          1::smallint, decode(repeat('c2', 32), 'hex'),
+          NULL::smallint, NULL::bytea, false, false
+        );
+      `,
+    }),
+    "same-version account HMAC replacement",
+    /fingerprint does not match the registered key version/iu,
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT assert_account_hmac_key_continuity(
+          2::smallint, decode(repeat('c3', 32), 'hex'),
+          1::smallint, decode(repeat('c1', 32), 'hex'), false, false
+        );
+      `,
+    }),
+  );
+
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        WITH first_resolution AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint)
+        ), second_resolution AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint)
+        ), other_resolution AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('22', 32), 'hex'), 1::smallint)
+        )
+        SELECT 1 / (
+          first_resolution.account_id = second_resolution.account_id
+          AND first_resolution.owner_binding = second_resolution.owner_binding
+          AND first_resolution.account_id <> other_resolution.account_id
+          AND first_resolution.owner_binding <> other_resolution.owner_binding
+          AND first_resolution.owner_binding <> decode(repeat('11', 32), 'hex')
+        )::integer
+        FROM first_resolution, second_resolution, other_resolution;
+
+        BEGIN;
+        SELECT set_config('app.account_id', account_id::text, true)
+        FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint);
+        INSERT INTO personal_vaults (account_id)
+        SELECT account_id
+        FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint);
+        SELECT 1 / (count(*) = 1)::integer FROM personal_vaults;
+        COMMIT;
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT assert_account_hmac_key_continuity(
+          3::smallint, decode(repeat('c4', 32), 'hex'),
+          2::smallint, decode(repeat('c3', 32), 'hex'), false, false
+        );
+      `,
+    }),
+    "account HMAC rotation before previous finalization",
+    /requires the previous rotation to be finalized/iu,
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        BEGIN;
+        UPDATE account_hmac_key_registry
+        SET retired_at = clock_timestamp()
+        WHERE hmac_key_version = 1;
+        UPDATE account_identity_keys
+        SET retired_at = clock_timestamp()
+        WHERE hmac_key_version = 1;
+        SELECT assert_account_hmac_key_continuity(
+          3::smallint, decode(repeat('c4', 32), 'hex'),
+          2::smallint, decode(repeat('c3', 32), 'hex'), false, false
+        );
+      `,
+    }),
+    "account HMAC rotation with dormant accounts missing the previous mapping",
+    /cannot advance while accounts lack the previous key version/iu,
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        BEGIN;
+        INSERT INTO account_identity_keys (
+          account_id, identity_hmac, hmac_key_version
+        )
+        SELECT
+          account.id,
+          digest('smoke-v2:' || account.id::text, 'sha256'),
+          2::smallint
+        FROM accounts AS account
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM account_identity_keys AS identity_key
+          WHERE identity_key.account_id = account.id
+            AND identity_key.hmac_key_version = 2
+            AND identity_key.retired_at IS NULL
+        );
+        SELECT assert_account_hmac_key_continuity(
+          2::smallint, decode(repeat('c3', 32), 'hex'),
+          NULL::smallint, NULL::bytea, true, false
+        );
+        SELECT assert_account_hmac_key_continuity(
+          3::smallint, decode(repeat('c4', 32), 'hex'),
+          2::smallint, decode(repeat('c3', 32), 'hex'), false, false
+        );
+        SELECT 1 / (count(*) = 1)::integer
+        FROM account_hmac_key_registry
+        WHERE hmac_key_version = 3
+          AND retired_at IS NULL;
+        ROLLBACK;
+      `,
+    }),
+  );
+
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        WITH rotation_aware_first_login AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(
+            decode(repeat('a0', 32), 'hex'), 2::smallint,
+            decode(repeat('a1', 32), 'hex'), 1::smallint
+          )
+        ), old_instance_lookup AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('a1', 32), 'hex'), 1::smallint)
+        )
+        SELECT 1 / (
+          rotation_aware_first_login.account_id = old_instance_lookup.account_id
+          AND rotation_aware_first_login.owner_binding = old_instance_lookup.owner_binding
+        )::integer
+        FROM rotation_aware_first_login, old_instance_lookup;
+      `,
+    }),
+  );
+
+  const concurrentNewUserCommand = `
+    SELECT * FROM resolve_personal_account(
+      decode(repeat('a2', 32), 'hex'), 2::smallint,
+      decode(repeat('a3', 32), 'hex'), 1::smallint
+    );`;
+  await Promise.all(
+    Array.from({ length: 8 }, () =>
+      composeAsync(
+        postgresPsqlArguments({
+          ...personalConnection,
+          command: concurrentNewUserCommand,
+        }),
+      ),
+    ),
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        SELECT 1 / (
+          count(*) = 2
+          AND count(DISTINCT account_id) = 1
+        )::integer
+        FROM account_identity_keys
+        WHERE (hmac_key_version = 2 AND identity_hmac = decode(repeat('a2', 32), 'hex'))
+           OR (hmac_key_version = 1 AND identity_hmac = decode(repeat('a3', 32), 'hex'));
+      `,
+    }),
+  );
+
+  const rollingDeploymentCommands = [
+    ...Array.from(
+      { length: 4 },
+      () => `
+      SELECT * FROM resolve_personal_account(
+        decode(repeat('a5', 32), 'hex'), 1::smallint
+      );`,
+    ),
+    ...Array.from(
+      { length: 4 },
+      () => `
+      SELECT * FROM resolve_personal_account(
+        decode(repeat('a4', 32), 'hex'), 2::smallint,
+        decode(repeat('a5', 32), 'hex'), 1::smallint
+      );`,
+    ),
+  ];
+  await Promise.all(
+    rollingDeploymentCommands.map((command) =>
+      composeAsync(
+        postgresPsqlArguments({
+          ...personalConnection,
+          command,
+        }),
+      ),
+    ),
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        SELECT 1 / (
+          count(*) = 2
+          AND count(DISTINCT account_id) = 1
+        )::integer
+        FROM account_identity_keys
+        WHERE (hmac_key_version = 2 AND identity_hmac = decode(repeat('a4', 32), 'hex'))
+           OR (hmac_key_version = 1 AND identity_hmac = decode(repeat('a5', 32), 'hex'));
+      `,
+    }),
+  );
+
+  const concurrentRotationCommand = `
+    SELECT account_id, encode(owner_binding, 'hex')
+    FROM resolve_personal_account(
+      decode(repeat('44', 32), 'hex'),
+      2::smallint,
+      decode(repeat('11', 32), 'hex'),
+      1::smallint
+    );`;
+  await Promise.all(
+    Array.from({ length: 8 }, () =>
+      composeAsync(
+        postgresPsqlArguments({
+          ...personalConnection,
+          command: concurrentRotationCommand,
+        }),
+      ),
+    ),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        WITH previous_resolution AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint)
+        ), current_resolution AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('44', 32), 'hex'), 2::smallint)
+        ), repeated_rotation AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(
+            decode(repeat('44', 32), 'hex'), 2::smallint,
+            decode(repeat('11', 32), 'hex'), 1::smallint
+          )
+        )
+        SELECT 1 / (
+          previous_resolution.account_id = current_resolution.account_id
+          AND previous_resolution.account_id = repeated_rotation.account_id
+          AND previous_resolution.owner_binding = current_resolution.owner_binding
+          AND previous_resolution.owner_binding = repeated_rotation.owner_binding
+        )::integer
+        FROM previous_resolution, current_resolution, repeated_rotation;
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT assert_account_hmac_key_continuity(
+          2::smallint, decode(repeat('c3', 32), 'hex'),
+          NULL::smallint, NULL::bytea, true, false
+        );
+      `,
+    }),
+    "account HMAC finalization with unmigrated accounts",
+    /cannot be finalized while accounts remain unmigrated/iu,
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        SELECT 1 / (
+          count(*) = 2
+          AND count(DISTINCT account_id) = 1
+        )::integer
+        FROM account_identity_keys
+        WHERE (hmac_key_version = 1 AND identity_hmac = decode(repeat('11', 32), 'hex'))
+           OR (hmac_key_version = 2 AND identity_hmac = decode(repeat('44', 32), 'hex'));
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "SELECT * FROM resolve_personal_account(decode(repeat('77', 32), 'hex'), 1::smallint);",
+    }),
+  );
+  const divergentRotationCommands = ["88", "99"].map((digestByte) =>
+    composeAsync(
+      postgresPsqlArguments({
+        ...personalConnection,
+        command: `
+          SELECT * FROM resolve_personal_account(
+            decode(repeat('${digestByte}', 32), 'hex'), 2::smallint,
+            decode(repeat('77', 32), 'hex'), 1::smallint
+          );`,
+      }),
+    ),
+  );
+  const divergentRotationOutcomes = await Promise.allSettled(divergentRotationCommands);
+  if (
+    divergentRotationOutcomes.filter((outcome) => outcome.status === "fulfilled").length !== 1 ||
+    divergentRotationOutcomes.filter((outcome) => outcome.status === "rejected").length !== 1
+  ) {
+    throw new Error("conflicting concurrent identity rotations did not produce exactly one winner");
+  }
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        SELECT 1 / (
+          count(*) = 2
+          AND count(DISTINCT account_id) = 1
+          AND count(*) FILTER (WHERE hmac_key_version = 2) = 1
+        )::integer
+        FROM account_identity_keys
+        WHERE account_id = (
+          SELECT account_id
+          FROM account_identity_keys
+          WHERE hmac_key_version = 1
+            AND identity_hmac = decode(repeat('77', 32), 'hex')
+        );
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT * FROM resolve_personal_account(
+          decode(repeat('55', 32), 'hex'), 2::smallint,
+          decode(repeat('22', 32), 'hex'), 1::smallint
+        );
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT * FROM resolve_personal_account(
+          decode(repeat('55', 32), 'hex'), 2::smallint,
+          decode(repeat('11', 32), 'hex'), 1::smallint
+        );
+      `,
+    }),
+    "identity rotation collision across accounts",
+    /current and previous identity HMACs map to different accounts/iu,
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT * FROM resolve_personal_account(
+          decode(repeat('a6', 32), 'hex'), 2::smallint,
+          decode(repeat('a7', 32), 'hex'), 1::smallint
+        );
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        DELETE FROM account_identity_keys
+        WHERE hmac_key_version = 1
+          AND identity_hmac = decode(repeat('a7', 32), 'hex');
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        WITH current_only AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('a6', 32), 'hex'), 2::smallint)
+        ), missing_previous AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(
+            decode(repeat('a6', 32), 'hex'), 2::smallint,
+            decode(repeat('a7', 32), 'hex'), 1::smallint
+          )
+        )
+        SELECT 1 / (
+          current_only.account_id = missing_previous.account_id
+          AND current_only.owner_binding = missing_previous.owner_binding
+        )::integer
+        FROM current_only, missing_previous;
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT * FROM resolve_personal_account(
+          decode(repeat('a8', 32), 'hex'), 2::smallint,
+          decode(repeat('a9', 32), 'hex'), 1::smallint
+        );
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        UPDATE account_identity_keys
+        SET retired_at = clock_timestamp()
+        WHERE hmac_key_version = 1
+          AND identity_hmac = decode(repeat('a9', 32), 'hex');
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        WITH current_only AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(decode(repeat('a8', 32), 'hex'), 2::smallint)
+        ), retired_previous AS MATERIALIZED (
+          SELECT * FROM resolve_personal_account(
+            decode(repeat('a8', 32), 'hex'), 2::smallint,
+            decode(repeat('a9', 32), 'hex'), 1::smallint
+          )
+        )
+        SELECT 1 / (
+          current_only.account_id = retired_previous.account_id
+          AND current_only.owner_binding = retired_previous.owner_binding
+        )::integer
+        FROM current_only, retired_previous;
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "SELECT * FROM resolve_personal_account(decode(repeat('aa', 32), 'hex'), 1::smallint);",
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        UPDATE account_identity_keys
+        SET retired_at = clock_timestamp()
+        WHERE hmac_key_version = 1
+          AND identity_hmac = decode(repeat('aa', 32), 'hex');
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        SELECT * FROM resolve_personal_account(
+          decode(repeat('ab', 32), 'hex'), 2::smallint,
+          decode(repeat('aa', 32), 'hex'), 1::smallint
+        );
+      `,
+    }),
+    "identity rotation from a retired previous mapping",
+    /previous personal account identity is not active/iu,
+  );
+  compose(
+    postgresPsqlArguments({
+      password: smokeEnvironment.POSTGRES_PASSWORD,
+      user: smokeEnvironment.POSTGRES_USER,
+      command: `
+        SELECT 1 / (count(*) = 0)::integer
+        FROM account_identity_keys
+        WHERE hmac_key_version = 2
+          AND identity_hmac = decode(repeat('ab', 32), 'hex');
+      `,
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "SELECT 1 / (count(*) = 0)::integer FROM personal_vaults;",
+    }),
+  );
+  compose(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        BEGIN;
+        SELECT set_config('app.account_id', account_id::text, true)
+        FROM resolve_personal_account(decode(repeat('22', 32), 'hex'), 1::smallint);
+        SELECT 1 / (count(*) = 0)::integer FROM personal_vaults;
+        ROLLBACK;
+      `,
+    }),
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: `
+        BEGIN;
+        SELECT set_config('app.account_id', account_id::text, true)
+        FROM resolve_personal_account(decode(repeat('22', 32), 'hex'), 1::smallint);
+        INSERT INTO personal_vaults (account_id)
+        SELECT account_id
+        FROM resolve_personal_account(decode(repeat('11', 32), 'hex'), 1::smallint);
+      `,
+    }),
+    "personal API cross-account write through RLS",
+    /row-level security|violates row-level security policy/iu,
+  );
+  for (const forbiddenTable of ["accounts", "account_identity_keys", "audit_events"]) {
+    composeMustFail(
+      postgresPsqlArguments({
+        ...personalConnection,
+        command: `SELECT count(*) FROM ${forbiddenTable};`,
+      }),
+      `personal API direct access to ${forbiddenTable}`,
+    );
+  }
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "UPDATE personal_vault_payloads SET content_hash = content_hash;",
+    }),
+    "personal API mutation of immutable encrypted payloads",
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "DELETE FROM personal_vaults;",
+    }),
+    "personal API vault deletion outside a dedicated lifecycle command",
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "SELECT * FROM resolve_personal_account(decode(repeat('33', 31), 'hex'), 1::smallint);",
+    }),
+    "personal API malformed identity HMAC",
+    /identity HMAC must contain exactly 32 bytes/iu,
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "CREATE TEMP TABLE forbidden_personal_temp (id integer);",
+    }),
+    "personal API temporary-table creation",
+  );
+  composeMustFail(
+    postgresPsqlArguments({
+      ...personalConnection,
+      command: "SET ROLE gopher;",
+    }),
+    "personal API migration-owner role escalation",
+  );
+
   composeMustFail(
     postgresPsqlArguments({
       ...keycloakConnection,
@@ -440,7 +1174,7 @@ try {
     "DELETE FROM knowledge_ingestion_runs WHERE corpus_version = 'smoke-sync';",
   ]);
   console.log(
-    "Database upgrade smoke passed with legacy UID normalization, preserved platform and Keycloak data, exact UMN URL governance, projection integrity, isolated runtime roles, dedicated Keycloak ownership, PostGIS, pgvector, and migration ledger.",
+    "Database upgrade smoke passed with retained-volume migration, stable owner binding, atomic first-login and rolling-deployment identity-HMAC rotation concurrency, migrated and retired-key handling, conflict rejection, forced tenant RLS, negative cross-account and privilege checks, isolated runtime roles, dedicated Keycloak ownership, PostGIS, pgvector, and migration ledger.",
   );
   completed = true;
 } finally {

@@ -7,6 +7,8 @@ export { JoseAccessTokenVerifier } from "./auth.js";
 export type { AccessTokenVerifier, VerifiedAccessIdentity } from "./auth.js";
 export { loadMcpServerConfig } from "./config.js";
 export type { McpServerConfig } from "./config.js";
+export { DpopVerificationError, RedisDpopProofVerifier } from "./dpop.js";
+export type { DpopProofVerifier } from "./dpop.js";
 export { createMcpHttpApplication, createMcpHttpServer } from "./http.js";
 export { MCP_TOOL_CATALOG, McpToolService } from "./tools.js";
 export { FutureWriteConfirmationMachine } from "./write-policy.js";

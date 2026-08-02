@@ -58,7 +58,8 @@ def test_postgres_17_sync_loader_and_database_guards(tmp_path: Path) -> None:
     )
     assert len(snapshot.documents) == 25
     assert result.state == "answered"
-    assert result.citations[0].source_id == "official-tc-library"
+    assert result.citations[0].verification_link.source_id == "official-tc-library"
+    assert result.citations[0].summary_source.corpus_sha256 == first.corpus_version
     assert result.retrieval.mode == "no-key-hybrid"
 
     with psycopg.connect(database_url, row_factory=dict_row) as connection:

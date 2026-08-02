@@ -153,6 +153,28 @@ describe("AI same-origin BFF", () => {
         citations: [{ ...aiResponse().citations[0], campusId: "duluth" }],
       },
     },
+    {
+      label: "an optimistic verification claim without a review artifact",
+      response: {
+        ...aiResponse(),
+        citations: [{ ...aiResponse().citations[0], summaryVerificationState: "verified" }],
+      },
+    },
+    {
+      label: "a verification link falsely marked as retrieved content",
+      response: {
+        ...aiResponse(),
+        citations: [
+          {
+            ...aiResponse().citations[0],
+            verificationLink: {
+              ...aiResponse().citations[0]?.verificationLink,
+              contentRetrieved: true,
+            },
+          },
+        ],
+      },
+    },
   ])("rejects $label", async ({ response: upstreamBody }) => {
     vi.stubEnv("GOPHER_API_BASE_URL", "https://api.internal.example");
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(upstreamBody));
@@ -354,8 +376,13 @@ describe("AI same-origin BFF", () => {
             {
               ...aiCitationForDuluth(),
               campusId: "duluth",
+              documentId: "duluth-library-overview",
               id: "duluth-library-hours",
-              sourceId: "duluth-library-knowledge",
+              verificationLink: {
+                ...aiCitationForDuluth().verificationLink,
+                sourceId: "official-duluth-library",
+                sourceUrl: "https://lib.d.umn.edu/",
+              },
             },
           ],
           paragraphs: [

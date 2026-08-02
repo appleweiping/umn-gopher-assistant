@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TaskBoard } from "../components/task-board";
 import type { PersonalVaultLockReason, PersonalVaultStatus } from "../components/personal-vault-provider";
+import { PersonalVaultClientError } from "../lib/personal-vault/client";
 
 const vault = {
   addTask: vi.fn<(title: string) => Promise<void>>().mockResolvedValue(undefined),
@@ -13,11 +14,13 @@ const vault = {
   cancelSetup: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   confirmRecoverySaved: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   deleteLegacy: vi.fn<() => boolean>().mockReturnValue(true),
+  enableAccountSync: vi.fn<(code: string) => Promise<void>>().mockResolvedValue(undefined),
   error: null as string | null,
   expireRecoveryInput: vi.fn(),
   exportLegacy: vi.fn<() => boolean>().mockReturnValue(true),
   lastLockReason: null as PersonalVaultLockReason | null,
   legacyAvailable: false,
+  hasPendingPairing: false,
   lock: vi.fn(),
   recover: vi
     .fn<(code: string, allowOldestDeviceRevocation?: boolean) => Promise<void>>()
@@ -26,6 +29,39 @@ const vault = {
   recoveryDeviceLimitReached: false,
   recoverySecretExpiry: null as "display" | "input" | null,
   retryLegacyImport: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  syncNow: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  syncState: "local-only" as
+    | "signed-out"
+    | "local-only"
+    | "syncing"
+    | "synced"
+    | "deferred"
+    | "conflict"
+    | "pairing"
+    | "recovery"
+    | "hardening"
+    | "rollback",
+  beginDevicePairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  cancelDevicePairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  regenerateDevicePairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  pollDevicePairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  listDevicePairings: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  approveDevicePairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  beginRemoteRecovery: vi.fn<(code: string) => Promise<void>>().mockResolvedValue(undefined),
+  resumeRemoteRecovery: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  abandonRemoteRecoveryPairing: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  prepareRemoteRecoveryRotation: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  confirmRemoteRecoveryRotation: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  pairingCode: null as string | null,
+  pairingId: null as string | null,
+  pairingExpiresAt: null as string | null,
+  pairings: [],
+  remoteRecoveryStage: null as
+    | "available"
+    | "pairing-pending"
+    | "hardening-required"
+    | "rotation-pending"
+    | null,
   status: "unlocked" as PersonalVaultStatus,
   tasks: [{ id: "reading-response", title: "Draft reading response", done: false }],
   toggleTask: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
@@ -44,17 +80,37 @@ function resetVault(): void {
   vault.cancelSetup.mockResolvedValue(undefined);
   vault.confirmRecoverySaved.mockResolvedValue(undefined);
   vault.deleteLegacy.mockReturnValue(true);
+  vault.enableAccountSync.mockResolvedValue(undefined);
   vault.exportLegacy.mockReturnValue(true);
   vault.recover.mockResolvedValue(undefined);
   vault.retryLegacyImport.mockResolvedValue(undefined);
+  vault.syncNow.mockResolvedValue(undefined);
+  vault.beginDevicePairing.mockResolvedValue(undefined);
+  vault.cancelDevicePairing.mockResolvedValue(undefined);
+  vault.regenerateDevicePairing.mockResolvedValue(undefined);
+  vault.pollDevicePairing.mockResolvedValue(undefined);
+  vault.listDevicePairings.mockResolvedValue(undefined);
+  vault.approveDevicePairing.mockResolvedValue(undefined);
+  vault.beginRemoteRecovery.mockResolvedValue(undefined);
+  vault.resumeRemoteRecovery.mockResolvedValue(undefined);
+  vault.abandonRemoteRecoveryPairing.mockResolvedValue(undefined);
+  vault.prepareRemoteRecoveryRotation.mockResolvedValue(undefined);
+  vault.confirmRemoteRecoveryRotation.mockResolvedValue(undefined);
   vault.toggleTask.mockResolvedValue(undefined);
   vault.unlock.mockResolvedValue(undefined);
   vault.error = null;
   vault.lastLockReason = null;
   vault.legacyAvailable = false;
+  vault.hasPendingPairing = false;
   vault.recoveryCode = null;
   vault.recoveryDeviceLimitReached = false;
   vault.recoverySecretExpiry = null;
+  vault.syncState = "local-only";
+  vault.pairingCode = null;
+  vault.pairingId = null;
+  vault.pairingExpiresAt = null;
+  vault.pairings = [];
+  vault.remoteRecoveryStage = null;
   vault.status = "unlocked";
   vault.tasks = [{ id: "reading-response", title: "Draft reading response", done: false }];
 }
@@ -75,6 +131,119 @@ describe("task board", () => {
     expect(vault.addTask).toHaveBeenCalledWith("Book tutoring");
     expect(window.localStorage.getItem("uga.tasks")).toBeNull();
     expect(screen.getByRole("button", { name: "Lock vault" })).toBeVisible();
+  });
+
+  it("clears and marks an invalid original recovery code without hiding the local-only vault", async () => {
+    const user = userEvent.setup();
+    vault.enableAccountSync.mockRejectedValueOnce(new PersonalVaultClientError("AUTHENTICATION_FAILED"));
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    const input = screen.getByLabelText("Original recovery code");
+    await user.type(input, "wrong-code");
+    await user.click(screen.getByRole("button", { name: "Enable account sync" }));
+
+    expect(vault.enableAccountSync).toHaveBeenCalledWith("wrong-code");
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Lock vault" })).toBeVisible();
+  });
+
+  it("offers independent remote recovery and clears a rejected old code", async () => {
+    const user = userEvent.setup();
+    vault.status = "needs-setup";
+    vault.syncState = "recovery";
+    vault.remoteRecoveryStage = "available";
+    vault.beginRemoteRecovery.mockRejectedValueOnce(new PersonalVaultClientError("AUTHENTICATION_FAILED"));
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    const input = screen.getByLabelText("Old recovery code");
+    await user.type(input, "wrong-remote-code");
+    await user.click(screen.getByRole("button", { name: "Authenticate and recover this device" }));
+
+    expect(vault.beginRemoteRecovery).toHaveBeenCalledWith("wrong-remote-code");
+    await waitFor(() => expect(input).toHaveValue(""));
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("button", { name: "Create private vault" })).not.toBeInTheDocument();
+  });
+
+  it("blocks ordinary edits until recovery hardening is complete", async () => {
+    const user = userEvent.setup();
+    vault.status = "unlocked";
+    vault.syncState = "hardening";
+    vault.remoteRecoveryStage = "hardening-required";
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    expect(screen.getByRole("checkbox", { name: /reading response/u })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "New task" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add task" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Generate new recovery code and harden" }));
+    expect(vault.prepareRemoteRecoveryRotation).toHaveBeenCalledOnce();
+    expect(vault.addTask).not.toHaveBeenCalled();
+    expect(vault.toggleTask).not.toHaveBeenCalled();
+  });
+
+  it("requires explicit offline-save confirmation before sending recovery rotation", async () => {
+    const user = userEvent.setup();
+    vault.status = "show-remote-recovery-code";
+    vault.syncState = "hardening";
+    vault.remoteRecoveryStage = "hardening-required";
+    vault.recoveryCode = "UGA1-REPLACEMENT-RECOVERY-CODE";
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    expect(screen.getByText("UGA1-REPLACEMENT-RECOVERY-CODE")).toBeVisible();
+    expect(screen.getByText(/No rotation is sent before confirmation/u)).toBeVisible();
+    expect(vault.confirmRemoteRecoveryRotation).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "I saved it offline; rotate now" }));
+    expect(vault.confirmRemoteRecoveryRotation).toHaveBeenCalledOnce();
+  });
+
+  it("resumes a confirmed rotation without showing the recovery code again", async () => {
+    const user = userEvent.setup();
+    vault.status = "locked";
+    vault.syncState = "hardening";
+    vault.remoteRecoveryStage = "rotation-pending";
+    vault.recoveryCode = null;
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    expect(screen.queryByText(/UGA1-/u)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue key rotation and read-back" }));
+    expect(vault.resumeRemoteRecovery).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", {
+        name: "Abandon this recovery and start over",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("allows an expired pairing-stage recovery to be explicitly abandoned, but explains the boundary", async () => {
+    const user = userEvent.setup();
+    vault.status = "needs-setup";
+    vault.syncState = "recovery";
+    vault.remoteRecoveryStage = "pairing-pending";
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    const abandon = screen.getByRole("button", {
+      name: "Abandon this recovery and start over",
+    });
+    expect(abandon).toHaveAccessibleDescription(/clears only the unpromoted temporary device/u);
+    await user.click(abandon);
+    expect(vault.abandonRemoteRecoveryPairing).toHaveBeenCalledOnce();
+  });
+
+  it("offers keyboard-accessible cancellation and regeneration after a pairing code is cleared", async () => {
+    const user = userEvent.setup();
+    vault.status = "needs-setup";
+    vault.syncState = "pairing";
+    vault.hasPendingPairing = true;
+    vault.pairingId = "50000000-0000-4000-8000-000000000005";
+    vault.pairingExpiresAt = "2026-07-23T01:00:00.000Z";
+    render(createElement(TaskBoard, { locale: "en" }));
+
+    expect(screen.getByText(/pairing code was cleared/u)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel pairing request" }));
+    expect(vault.cancelDevicePairing).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Cancel and generate new code" }));
+    expect(vault.regenerateDevicePairing).toHaveBeenCalledOnce();
   });
 
   it("requires an accessible confirmation before deleting legacy data and defaults focus to cancel", async () => {

@@ -82,9 +82,18 @@ the repository root. The database image is built from a digest-pinned PostGIS
 base with checksum-pinned pgvector source. A dedicated one-shot migration
 service applies every ordered SQL migration transactionally, records a
 checksum ledger, and upgrades existing foundation-only volumes before dependent
-services start.
+services start. Its privilege convergence transaction first revokes existing
+runtime function access, then grants only the reviewed personal-API function
+allowlist under bounded statement and lock timeouts.
 
     docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up --build --wait
+
+Keycloak startup import creates a missing local realm but cannot update a realm
+already retained in PostgreSQL. The `keycloak-reconcile` one-shot therefore
+runs after Keycloak is healthy and idempotently converges the versioned DPoP
+policy, DPoP-bound public-client attributes, and exact `personal:read` /
+`personal:write` links. A reconciliation failure makes Compose startup fail
+closed; neither administrator credentials nor access tokens are printed.
 
 `pnpm smoke:db` creates an isolated temporary Compose project, reproduces a
 foundation-only legacy volume, runs the migration service, verifies preserved
@@ -107,23 +116,26 @@ password-grant and service-account denial, API/MCP audience separation, and the
 exact local MCP audience mapper through the Keycloak Admin API. The script never
 prints the administrator or access tokens.
 
-For an explicit token-level negative escalation check, export the same two
-administrator variables and run `pnpm smoke:identity:device`. It creates and
-then deletes a synthetic complete-profile user, completes the real device login
-headlessly, and proves that a requested `admin:write` scope and the MCP audience
-do not enter the CLI access token while the exact `gopher-api` audience remains.
-The token signature, issuer, and `gopher-cli` authorized-client claim are also
-verified against the discovery JWKS. Sensitive values are never printed or
-inherited by the browser process, and exact-username cleanup is audited.
+For explicit token-level DPoP and negative-escalation checks, export the same
+two administrator variables and run `pnpm smoke:identity:device`. It creates
+and deletes one synthetic complete-profile user, drives the real Web and MCP
+authorization-code flows plus the CLI device flow headlessly, and verifies
+proof-bound token and refresh requests for all three public clients. It also
+proves that requested `admin:write` does not enter the tokens and that API and
+MCP audiences remain exact and separate. Signatures, issuers, authorized-client
+claims, token types, and `cnf.jkt` are checked against the discovery JWKS.
+Sensitive values are never printed or inherited by the browser process, and
+exact-username cleanup is audited.
 
-After building the API and MCP server, `pnpm smoke:mcp:oauth` starts both on
-loopback, creates two synthetic same-realm service clients, and verifies exact
-MCP scope and audience handling. It proves that a valid API-audience token, a
-master-realm administrator token, and a missing token are all rejected while
-the MCP-audience token can call the three read-only tools and obtain the exact
-five-campus data. Both clients and both listeners are audited as removed in the
-bounded cleanup path. Set `KEYCLOAK_ADMIN` and `KEYCLOAK_ADMIN_PASSWORD`; the
-script does not print or pass those credentials to either runtime.
+After building the API and MCP server and starting local Compose Redis,
+`pnpm smoke:mcp:oauth` starts both runtimes plus an ephemeral loopback
+issuer/JWKS fixture. It issues a DPoP-bound `at+jwt` solely for the strict
+resource test and proves API/MCP audience isolation, the nonce
+challenge/retry, proof replay rejection, and rejection of missing credentials,
+Bearer fallback, and a proof signed by the wrong key. A valid MCP proof can
+call the three read-only tools and retrieve the exact five-campus data. The API,
+MCP, and issuer listeners are audited as closed; the fixture creates no
+Keycloak client or persistent credential and never prints a token or key.
 
 After `pnpm build`, `pnpm smoke:api` starts the compiled API on an ephemeral
 loopback port and verifies health, all five campus records, source filtering,
@@ -170,6 +182,11 @@ Development can run the reviewed file corpus explicitly. Production requires
 PostgreSQL 17, a successful transactional corpus synchronization, Redis-backed
 distributed abuse control, and no file fallback. pgvector storage is present,
 but the current implementation truthfully reports that vector search is off.
+Weak lexical overlap now fails closed: a candidate needs absolute topical
+evidence and sufficient query coverage before it can become an answer. A
+corpus-bound, versioned bilingual release gate exercises at least 150 supported,
+unsupported, ambiguous, and hard-negative cases across every campus and locale;
+it is required by both local verification and CI.
 See the [campus knowledge operations runbook](docs/ai-knowledge-operations.md)
 and [ADR 0005](docs/adr/0005-evidence-first-campus-ai.md).
 
@@ -217,10 +234,14 @@ theme preferences are stored in first-party cookies so the initial server render
 matches the browser state. The Plan task board is a separate local encrypted
 vault; it never uses the old plaintext task `localStorage` value.
 
-### Local encrypted task vault
+### End-to-end encrypted personal task vault
 
-The Plan page offers an offline, single-browser task vault. It is deliberately
-not an account, sync service, or cross-device backup.
+The Plan page offers an offline-first encrypted task vault. It works entirely
+locally without an account; after sign-in, a user can explicitly enable
+account-bound ciphertext synchronization. The API stores only strict encrypted
+snapshots, public authorization descriptors, signed commits, and bounded
+replay/idempotency records. It never receives task plaintext, a vault root key,
+a recovery code, or a device private key.
 
 - First use requires an explicit **Create private vault** action. A recovery
   code is shown once and must be acknowledged before the encrypted records are
@@ -237,9 +258,25 @@ not an account, sync service, or cross-device backup.
 - If a legacy value is malformed or a migration fails, it remains available for
   explicit export or deletion. The application does not fall back to plaintext
   task storage.
-- Clearing site data or losing the local ciphertext makes these tasks
-  unrecoverable. The recovery code does not promise recovery on another device.
-  Store it offline and do not upload, screenshot-share, or send it to others.
+- While the vault is marked **Local only**, clearing site data or losing the
+  local ciphertext makes its tasks unrecoverable. Cross-device recovery becomes
+  possible only after account-bound synchronization has completed and the
+  current recovery code has been saved offline.
+- Remote recovery verifies the recovery-derived public authorization key before
+  downloading encrypted state, registers a replacement device through a signed
+  pairing transition, then blocks ordinary reads/writes until it rotates the
+  root key and recovery credential, revokes old devices, and independently
+  reads back the exact committed head. The replacement recovery code is shown
+  once and is never sent to the server.
+- Sync, pairing, and rotation commands are durably staged before transmission.
+  They replay exactly while their proof is current; after expiry, a fresh
+  signed read must prove either the exact applied successor or the exact
+  unchanged parent before an atomic proof-only renewal. Conflicting, forked,
+  stale, rolled-back, malformed, or incorrectly signed server state fails
+  closed instead of overwriting local data.
+- Store every current recovery code offline. Do not upload, screenshot-share,
+  or send it to another person. The service cannot recover a lost code or
+  decrypt a vault on the user's behalf.
 - Browsers without Worker, IndexedDB, WebCrypto, or non-extractable `CryptoKey`
   persistence are shown an unavailable/read-only state; existing legacy data is
   retained without a plaintext fallback.
@@ -320,16 +357,20 @@ runs leave this destructive-origin test skipped.
 - Weather, routes, personal class schedules, community posts, and moderation
   items are authored demonstrations unless a provenance link says otherwise.
   Public Sessions and TC/Duluth events are live-only views; assistant answers
-  come from the reviewed project-authored corpus. Both retain provenance and
+  come from the project-authored corpus. Citations separate the summary source
+  from the link-only official page supplied for verification. Both retain provenance and
   are unavailable offline.
 - Official links leave the app and require a network connection. Their content,
   availability, accessibility, and licensing remain the source owner's
   responsibility.
 - The schematic map is paired with a text list and is not an official map,
   accessible-route guarantee, emergency route, or live navigation system.
-- The local task vault is single-browser and offline-only; it is not an account,
-  synchronization service, backup, or institutional record. Clearing site data
-  or losing its ciphertext makes its tasks unrecoverable.
+- The personal task vault is not an institutional record or an escrowed backup.
+  Local-only vaults cannot be recovered after site data is lost. Synced vaults
+  still require the current recovery code and authenticated account boundary;
+  the service cannot decrypt or reset them. The protocol detects rollback only
+  against a trusted local anchor and does not yet provide global fork
+  transparency against a malicious storage service.
 - Installability and offline behavior require a supported browser and a secure
   context (localhost is accepted for development).
 
@@ -368,10 +409,14 @@ permission to republish the target.
 
 ## Documentation
 
+- [HDUHelp product study and UMN adaptation principles](docs/research/hduhelp-product-study.md)
 - [Architecture](docs/architecture.md)
 - [Data source policy](docs/data-source-policy.md)
 - [Public catalog operations](docs/public-catalog-operations.md)
 - [Campus knowledge operations](docs/ai-knowledge-operations.md)
+- [Personal-vault operations and ephemeral retention](docs/personal-vault-operations.md)
+- [Account identity HMAC continuity and rotation](docs/account-hmac-operations.md)
+- [API health and production-readiness gate](docs/health.md)
 - [Threat model](docs/threat-model.md)
 - [Security and supply-chain evidence](docs/security-supply-chain.md)
 - [Identity and authorization boundary](docs/identity.md)

@@ -14,14 +14,33 @@ const response: AiQueryResponse = {
       campusId: "tc",
       category: "library",
       contentSha256: "a".repeat(64),
+      documentId: "tc-library-overview",
       excerpt: "A project-authored summary of the official library entry point.",
-      freshnessState: "FRESH",
       id: "citation-1",
-      sourceId: "ai-tc-library",
-      sourceUrl: "https://www.lib.umn.edu/",
+      summaryFreshnessState: "FRESH",
+      summarySource: {
+        kind: "project-authored-summary",
+        sourceId: "uga-ai-summary-corpus-v1",
+        sourceUrl:
+          "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+        corpusSha256: "c".repeat(64),
+        license: {
+          status: "OPEN_REUSE",
+          spdxId: "Apache-2.0",
+          evidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+        },
+      },
+      summaryVerificationState: "schematic",
       title: { en: "Libraries", "zh-CN": "图书馆" },
       updatedAt: "2026-07-22T00:00:00.000Z",
-      verificationState: "schematic",
+      verificationLink: {
+        kind: "official-verification-link",
+        sourceId: "official-tc-library",
+        sourceUrl: "https://www.lib.umn.edu/",
+        licenseStatus: "DEEPLINK_ONLY",
+        sourceUse: "verification-link-only",
+        contentRetrieved: false,
+      },
     },
   ],
   locale: "en",
@@ -36,6 +55,10 @@ const response: AiQueryResponse = {
   retrieval: { documentsConsidered: 5, mode: "no-key-hybrid" },
   state: "answered",
 };
+const responseCitation = response.citations[0];
+if (responseCitation === undefined) {
+  throw new Error("AI client fixture must include a citation");
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
@@ -126,6 +149,21 @@ describe("HTTP AI knowledge client", () => {
   it.each([
     ["unknown field", { ...response, privatePrompt: "do not leak" }],
     ["cross-campus citation", { ...response, citations: [{ ...response.citations[0], campusId: "duluth" }] }],
+    [
+      "collapsed provenance roles",
+      {
+        ...response,
+        citations: [
+          {
+            ...responseCitation,
+            verificationLink: {
+              ...responseCitation.verificationLink,
+              sourceId: responseCitation.summarySource.sourceId,
+            },
+          },
+        ],
+      },
+    ],
     [
       "uncited paragraph",
       { ...response, paragraphs: [{ ...response.paragraphs[0], citationIds: ["missing"] }] },

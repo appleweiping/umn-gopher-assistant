@@ -62,18 +62,27 @@ importers:
       '@nestjs/platform-fastify':
         specifier: 11.1.28
         version: 11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.28(@nestjs/common@11.1.28(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
+      '@noble/hashes':
+        specifier: 1.8.0
+        version: 1.8.0
       '@umn-gopher-assistant/config':
         specifier: workspace:*
         version: link:../../packages/config
       '@umn-gopher-assistant/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@umn-gopher-assistant/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       fastify:
         specifier: 5.10.0
         version: 5.10.0
       jose:
         specifier: 6.2.3
         version: 6.2.3
+      postgres:
+        specifier: 3.4.9
+        version: 3.4.9
       redis:
         specifier: 6.1.0
         version: 6.1.0
@@ -83,6 +92,9 @@ importers:
       rxjs:
         specifier: 7.8.2
         version: 7.8.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@nestjs/cli':
         specifier: 11.0.24
@@ -121,6 +133,9 @@ importers:
       '@types/node':
         specifier: 24.10.4
         version: 24.10.4
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -161,6 +176,9 @@ importers:
       jose:
         specifier: 6.2.3
         version: 6.2.3
+      redis:
+        specifier: 6.1.0
+        version: 6.1.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -201,6 +219,9 @@ importers:
       '@umn-gopher-assistant/crypto':
         specifier: workspace:*
         version: link:../../packages/crypto
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       next:
         specifier: 16.2.11
         version: 16.2.11(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -213,6 +234,9 @@ importers:
       react-dom:
         specifier: 19.2.7
         version: 19.2.7(react@19.2.7)
+      redis:
+        specifier: 6.1.0
+        version: 6.1.0
     devDependencies:
       '@axe-core/playwright':
         specifier: 4.12.1
@@ -341,6 +365,9 @@ importers:
 
   packages/sdk:
     dependencies:
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       zod:
         specifier: 'catalog:'
         version: 4.4.3

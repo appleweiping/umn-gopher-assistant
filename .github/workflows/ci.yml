@@ -60,18 +60,33 @@ jobs:
             PYTHONPATH="$install_dir" python - <<'PY'
           from ai_knowledge.config import Settings
           from ai_knowledge.corpus import read_corpus_manifest
+          from ai_knowledge.evaluation import (
+              DEFAULT_CORPUS_PATH,
+              DEFAULT_DATASET_PATH,
+              run_evaluation,
+          )
 
           settings = Settings.from_environment({"NODE_ENV": "test", "AI_KNOWLEDGE_BACKEND": "file"})
           manifest, corpus_hash = read_corpus_manifest(settings.corpus_path)
           assert settings.corpus_path.is_file()
           assert len(manifest.documents) == 25
           assert len(corpus_hash) == 64
+          quality = run_evaluation(
+              dataset_path=DEFAULT_DATASET_PATH,
+              corpus_path=DEFAULT_CORPUS_PATH,
+          )
+          assert quality.passed
+          assert quality.case_count >= 150
           PY
           )
 
       - name: Run unit and contract-parity tests
         working-directory: apps/ai-knowledge
         run: python -m pytest -m "not integration"
+
+      - name: Enforce the bilingual retrieval-quality release gate
+        working-directory: apps/ai-knowledge
+        run: python -m ai_knowledge.evaluation
 
       - name: Audit runtime dependencies
         working-directory: apps/ai-knowledge
@@ -143,6 +158,15 @@ jobs:
           assert result["campusId"] == "tc"
           assert result["state"] in {"answered", "stale", "conflict"}
           assert result["citations"]
+          for citation in result["citations"]:
+              assert "sourceId" not in citation
+              assert "sourceUrl" not in citation
+              assert citation["summaryVerificationState"] == "schematic"
+              assert citation["summarySource"]["kind"] == "project-authored-summary"
+              assert citation["summarySource"]["corpusSha256"] == health["corpusSha256"]
+              assert citation["verificationLink"]["kind"] == "official-verification-link"
+              assert citation["verificationLink"]["sourceUse"] == "verification-link-only"
+              assert citation["verificationLink"]["contentRetrieved"] is False
           PY
 
       - name: Preserve AI service logs

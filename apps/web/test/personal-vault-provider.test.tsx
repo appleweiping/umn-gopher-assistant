@@ -8,6 +8,11 @@ import { PersonalVaultProvider, usePersonalVault } from "../components/personal-
 
 const client = vi.hoisted(() => ({
   addTask: vi.fn<() => Promise<never>>(),
+  abandonRemoteRecoveryPairing: vi.fn<
+    () => Promise<{
+      method: "abandon-remote-recovery-pairing";
+    }>
+  >(),
   beginSetup: vi.fn<
     () => Promise<{
       method: "begin-setup";
@@ -17,14 +22,36 @@ const client = vi.hoisted(() => ({
   confirmSetup: vi.fn<
     () => Promise<{
       method: "confirm-setup";
+      syncState: "synced";
       snapshot: { revision: number; tasks: readonly [] };
     }>
   >(),
-  inspect: vi.fn<() => Promise<{ method: "inspect"; hasVault: boolean }>>(),
+  inspect: vi.fn<
+    () => Promise<{
+      method: "inspect";
+      hasVault: boolean;
+      hasPendingPairing: boolean;
+      pairingId: string | null;
+      pairingExpiresAt: string | null;
+      remoteRecoveryStage: "available" | "pairing-pending" | "hardening-required" | "rotation-pending" | null;
+      syncState:
+        | "signed-out"
+        | "local-only"
+        | "syncing"
+        | "synced"
+        | "deferred"
+        | "conflict"
+        | "pairing"
+        | "recovery"
+        | "hardening"
+        | "rollback";
+    }>
+  >(),
   terminateWhenSettled: vi.fn<() => Promise<void>>(),
   unlock: vi.fn<
     () => Promise<{
       method: "unlock";
+      syncState: "synced";
       snapshot: { revision: number; tasks: readonly [] };
     }>
   >(),
@@ -61,6 +88,10 @@ vi.mock("../lib/personal-vault/client", () => {
       return client.addTask();
     }
 
+    abandonRemoteRecoveryPairing() {
+      return client.abandonRemoteRecoveryPairing();
+    }
+
     terminateWhenSettled() {
       return client.terminateWhenSettled();
     }
@@ -77,6 +108,7 @@ function Probe() {
       <output data-testid="lock-reason">{vault.lastLockReason}</output>
       <output data-testid="recovery-expiry">{vault.recoverySecretExpiry}</output>
       <output data-testid="recovery-code">{vault.recoveryCode}</output>
+      <output data-testid="remote-recovery-stage">{vault.remoteRecoveryStage}</output>
       {vault.error === null ? null : <p role="alert">{vault.error}</p>}
       <button onClick={() => void vault.unlock()} type="button">
         Unlock
@@ -93,6 +125,9 @@ function Probe() {
       <button onClick={vault.deleteLegacy} type="button">
         Delete legacy
       </button>
+      <button onClick={() => void vault.abandonRemoteRecoveryPairing()} type="button">
+        Abandon remote recovery
+      </button>
     </div>
   );
 }
@@ -100,22 +135,46 @@ function Probe() {
 describe("personal vault provider UX state", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    client.inspect.mockResolvedValue({ method: "inspect", hasVault: true });
+    client.inspect.mockResolvedValue({
+      method: "inspect",
+      hasVault: true,
+      hasPendingPairing: false,
+      pairingId: null,
+      pairingExpiresAt: null,
+      remoteRecoveryStage: null,
+      syncState: "synced",
+    });
     client.terminateWhenSettled.mockResolvedValue(undefined);
+    client.abandonRemoteRecoveryPairing.mockResolvedValue({
+      method: "abandon-remote-recovery-pairing",
+    });
     client.beginSetup.mockResolvedValue({
       method: "begin-setup",
       recoveryCode: "UGA1-0000-0000-0000-0000-0000-0000-0000-0000",
     });
     client.confirmSetup.mockResolvedValue({
       method: "confirm-setup",
+      syncState: "synced",
       snapshot: { revision: 1, tasks: [] },
     });
   });
 
   it("retains actionable write-failure guidance after locking and terminating the session", async () => {
     const user = userEvent.setup();
-    client.inspect.mockResolvedValue({ method: "inspect", hasVault: true });
-    client.unlock.mockResolvedValue({ method: "unlock", snapshot: { revision: 1, tasks: [] } });
+    client.inspect.mockResolvedValue({
+      method: "inspect",
+      hasVault: true,
+      hasPendingPairing: false,
+      pairingId: null,
+      pairingExpiresAt: null,
+      remoteRecoveryStage: null,
+      syncState: "synced",
+    });
+    client.unlock.mockResolvedValue({
+      method: "unlock",
+      syncState: "synced",
+      snapshot: { revision: 1, tasks: [] },
+    });
     client.addTask.mockRejectedValue(new Error("storage failed"));
 
     render(
@@ -138,7 +197,15 @@ describe("personal vault provider UX state", () => {
   });
 
   it("clears the one-time recovery display and terminates its Worker after the short timeout", async () => {
-    client.inspect.mockResolvedValue({ method: "inspect", hasVault: false });
+    client.inspect.mockResolvedValue({
+      method: "inspect",
+      hasVault: false,
+      hasPendingPairing: false,
+      pairingId: null,
+      pairingExpiresAt: null,
+      remoteRecoveryStage: null,
+      syncState: "synced",
+    });
     render(
       createElement(PersonalVaultProvider, {
         children: createElement(Probe),
@@ -172,7 +239,15 @@ describe("personal vault provider UX state", () => {
   it("retains legacy plaintext when the strict encrypted commit fails before verified reopen", async () => {
     const legacyRaw = '[{"id":"legacy","title":"Preserve me","done":false}]';
     window.localStorage.setItem("uga.tasks", legacyRaw);
-    client.inspect.mockResolvedValue({ method: "inspect", hasVault: false });
+    client.inspect.mockResolvedValue({
+      method: "inspect",
+      hasVault: false,
+      hasPendingPairing: false,
+      pairingId: null,
+      pairingExpiresAt: null,
+      remoteRecoveryStage: null,
+      syncState: "synced",
+    });
     client.confirmSetup.mockRejectedValueOnce(new Error("Injected strict-durability write failure"));
     const user = userEvent.setup();
 
@@ -189,6 +264,44 @@ describe("personal vault provider UX state", () => {
 
     await waitFor(() => expect(screen.getByTestId("vault-status")).toHaveTextContent("needs-setup"));
     expect(window.localStorage.getItem("uga.tasks")).toBe(legacyRaw);
+    expect(client.terminateWhenSettled).toHaveBeenCalled();
+  });
+
+  it("re-inspects after explicitly abandoning only a pairing-stage remote recovery", async () => {
+    client.inspect
+      .mockResolvedValueOnce({
+        method: "inspect",
+        hasVault: false,
+        hasPendingPairing: false,
+        pairingId: null,
+        pairingExpiresAt: null,
+        remoteRecoveryStage: "pairing-pending",
+        syncState: "recovery",
+      })
+      .mockResolvedValueOnce({
+        method: "inspect",
+        hasVault: false,
+        hasPendingPairing: false,
+        pairingId: null,
+        pairingExpiresAt: null,
+        remoteRecoveryStage: "available",
+        syncState: "recovery",
+      });
+    const user = userEvent.setup();
+    render(
+      createElement(PersonalVaultProvider, {
+        children: createElement(Probe),
+        locale: "en",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("remote-recovery-stage")).toHaveTextContent("pairing-pending"),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Abandon remote recovery" }));
+
+    await waitFor(() => expect(screen.getByTestId("remote-recovery-stage")).toHaveTextContent("available"));
+    expect(client.abandonRemoteRecoveryPairing).toHaveBeenCalledOnce();
     expect(client.terminateWhenSettled).toHaveBeenCalled();
   });
 

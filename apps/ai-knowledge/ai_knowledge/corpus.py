@@ -3,13 +3,23 @@ from __future__ import annotations
 import hashlib
 import json
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from pydantic import ValidationError
 
-from .models import CampusId, CorpusManifest, KnowledgeDocument
+from .models import (
+    CampusId,
+    CorpusManifest,
+    KnowledgeDocument,
+    KnowledgeSourceDescriptor,
+    KnowledgeSourceResourceKind,
+    LicenseStatus,
+    VerificationState,
+)
 
 MAX_CORPUS_BYTES = 2 * 1_024 * 1_024
 
@@ -62,12 +72,87 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True, slots=True)
+class KnowledgeSourceSnapshot:
+    id: str
+    campus_ids: tuple[CampusId, ...]
+    resource_kind: KnowledgeSourceResourceKind
+    source_url: str
+    license_status: LicenseStatus
+    license_evidence_url: str | None
+    enabled: bool
+
+    @classmethod
+    def from_descriptor(cls, source: KnowledgeSourceDescriptor) -> KnowledgeSourceSnapshot:
+        return cls(
+            id=source.id,
+            campus_ids=tuple(source.campus_ids),
+            resource_kind=source.resource_kinds[0],
+            source_url=str(source.source_url),
+            license_status=source.license_status,
+            license_evidence_url=(
+                str(source.license_evidence_url)
+                if source.license_evidence_url is not None
+                else None
+            ),
+            enabled=source.is_enabled(),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class CorpusSnapshot:
     documents: tuple[KnowledgeDocument, ...]
+    source_registry: Mapping[str, KnowledgeSourceSnapshot]
     corpus_sha256: str
+
+    def __post_init__(self) -> None:
+        registry = dict(self.source_registry)
+        if any(key != source.id for key, source in registry.items()):
+            raise CorpusIntegrityError("knowledge source registry identity is invalid")
+        referenced_source_ids = {
+            source_id
+            for document in self.documents
+            for source_id in (document.summary_source_id, document.verification_source_id)
+        }
+        if set(registry) != referenced_source_ids:
+            raise CorpusIntegrityError(
+                "knowledge source registry must exactly match active document references"
+            )
+        object.__setattr__(self, "source_registry", MappingProxyType(registry))
+
+        for document in self.documents:
+            if document.verification_state is not VerificationState.SCHEMATIC:
+                raise CorpusIntegrityError(
+                    "active knowledge summaries lack supported review evidence"
+                )
+            summary = self.source(document.summary_source_id)
+            verification = self.source(document.verification_source_id)
+            if (
+                not summary.enabled
+                or summary.resource_kind is not KnowledgeSourceResourceKind.SUMMARY
+                or summary.license_status is not LicenseStatus.OPEN_REUSE
+                or summary.license_evidence_url != "https://www.apache.org/licenses/LICENSE-2.0"
+                or document.campus_id not in summary.campus_ids
+            ):
+                raise CorpusIntegrityError("knowledge summary source governance is invalid")
+            if (
+                summary.id == verification.id
+                or not verification.enabled
+                or verification.resource_kind is not KnowledgeSourceResourceKind.VERIFICATION_LINK
+                or verification.license_status is not LicenseStatus.DEEPLINK_ONLY
+                or verification.license_evidence_url is not None
+                or verification.campus_ids != (document.campus_id,)
+                or verification.source_url != str(document.verification_url)
+            ):
+                raise CorpusIntegrityError("knowledge verification source governance is invalid")
 
     def for_campus(self, campus_id: CampusId) -> tuple[KnowledgeDocument, ...]:
         return tuple(document for document in self.documents if document.campus_id == campus_id)
+
+    def source(self, source_id: str) -> KnowledgeSourceSnapshot:
+        try:
+            return self.source_registry[source_id]
+        except KeyError:
+            raise CorpusIntegrityError("knowledge document source is unavailable") from None
 
 
 class KnowledgeRepository:
@@ -134,7 +219,17 @@ class KnowledgeRepository:
                 document for document in manifest.documents if document.is_publishable()
             )
 
+        referenced_source_ids = {
+            source_id
+            for document in documents
+            for source_id in (document.summary_source_id, document.verification_source_id)
+        }
         return CorpusSnapshot(
             documents=documents,
+            source_registry={
+                source.id: KnowledgeSourceSnapshot.from_descriptor(source)
+                for source in manifest.source_registry
+                if source.id in referenced_source_ids
+            },
             corpus_sha256=corpus_sha256,
         )

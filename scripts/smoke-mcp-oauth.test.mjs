@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import test from "node:test";
 
@@ -60,6 +61,43 @@ test("resource claims require the exact least-privilege scope and one audience",
       ),
     /exact single expected audience/u,
   );
+});
+
+test("strict smoke fixtures bind an at+jwt and DPoP proof to one key and resource", () => {
+  const issuer = "http://127.0.0.1:4200/issuer";
+  const signingKey = subject.createFixtureSigningKey();
+  const proofKey = subject.createDpopKey();
+  const accessToken = subject.createFixtureAccessToken({
+    audience: subject.mcpAudience,
+    dpopJkt: proofKey.thumbprint,
+    issuer,
+    signingKey,
+  });
+  const [tokenHeader, tokenPayload] = accessToken
+    .split(".")
+    .slice(0, 2)
+    .map((part) => JSON.parse(Buffer.from(part, "base64url").toString("utf8")));
+  assert.equal(tokenHeader.typ, "at+jwt");
+  assert.equal(tokenHeader.alg, "RS256");
+  assert.equal(tokenPayload.azp, "gopher-mcp");
+  assert.equal(tokenPayload.cnf.jkt, proofKey.thumbprint);
+  assert.doesNotThrow(() => subject.assertResourceClaims(tokenPayload, issuer, subject.mcpAudience));
+
+  const proof = subject.createResourceDpopProof({
+    accessToken,
+    key: proofKey,
+    nonce: "fixture-nonce",
+  });
+  const [proofHeader, proofPayload] = proof
+    .split(".")
+    .slice(0, 2)
+    .map((part) => JSON.parse(Buffer.from(part, "base64url").toString("utf8")));
+  assert.equal(proofHeader.typ, "dpop+jwt");
+  assert.equal(proofHeader.alg, "ES256");
+  assert.equal(proofPayload.htm, "POST");
+  assert.equal(proofPayload.htu, subject.mcpAudience);
+  assert.equal(proofPayload.nonce, "fixture-nonce");
+  assert.equal(proofPayload.ath, createHash("sha256").update(accessToken, "ascii").digest("base64url"));
 });
 
 test("campus and world results preserve exact IDs and schematic trust indicators", () => {

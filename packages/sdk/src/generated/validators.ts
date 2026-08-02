@@ -9,13 +9,1253 @@ import { operationDefinitions } from "./operations.js";
 import type { OperationId } from "./operations.js";
 
 export const successValidatorContractSha256 =
-  "5d6aa2c7327d9ea68c82e0d118e48f6157dabe681ede516e3b626caf51740a63";
+  "7b70d2d0f8a949814c099353c98dbc71d07f011c3c88e9168e84fdb82d162271";
 
 type ImplementedOperationId = {
   [Id in OperationId]: (typeof operationDefinitions)[Id]["runtimeStatus"] extends "implemented" ? Id : never;
 }[OperationId];
 
 const implementedSuccessSchemas = {
+  approvePersonalVaultDevicePairing: {
+    "200": z
+      .object({
+        authorizationManifest: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            devices: z
+              .array(
+                z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            recoveryAuthorization: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                formatVersion: z.literal(2),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                ownerBinding: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                revokedAt: z.union([
+                  z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  z.null(),
+                ]),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commit: z
+          .object({
+            author: z
+              .object({
+                deviceId: z.union([
+                  z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  z.null(),
+                ]),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                kind: z.enum(["DEVICE", "RECOVERY"]),
+              })
+              .strict(),
+            authorizationManifestHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            keyringHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            operationId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            parentCommitHash: z.union([
+              z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              z.null(),
+            ]),
+            payloadHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            sequence: z.number().int().min(1).max(9007199254740991),
+            signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+            stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        formatVersion: z.literal(2),
+        keyring: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceEnvelopes: z
+              .array(
+                z
+                  .object({
+                    cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    ephemeralPublicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    formatVersion: z.literal(1),
+                    nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                    recipientDeviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientPublicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    vaultId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    vaultKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    wrappedKey: z
+                      .string()
+                      .min(107)
+                      .max(107)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            devicePublicKeys: z
+              .array(
+                z
+                  .object({
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    deviceKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    formatVersion: z.literal(1),
+                    keyAlgorithm: z.literal("X25519"),
+                    publicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    publicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32)
+              .optional(),
+            formatVersion: z.literal(1),
+            recoveryEnvelope: z
+              .object({
+                aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                formatVersion: z.literal(1),
+                kdf: z
+                  .object({
+                    algorithm: z.literal("ARGON2ID13"),
+                    memLimitBytes: z.number().int().min(67108864).max(268435456),
+                    opsLimit: z.number().int().min(2).max(4),
+                    outputBytes: z.literal(32),
+                    salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                  })
+                  .strict(),
+                nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                vaultKeyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        payload: z
+          .object({
+            aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+            cipherSuite: z.literal("XCHACHA20_POLY1305"),
+            ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            contentSchemaVersion: z.literal(1),
+            contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            formatVersion: z.literal(2),
+            nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            padding: z
+              .object({
+                algorithm: z.literal("SODIUM_PAD"),
+                blockSize: z.literal(4096),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
+  bootstrapPersonalVault: {
+    "200": z
+      .object({
+        formatVersion: z.literal(2),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        vault: z.union([
+          z
+            .object({
+              exists: z.literal(false),
+            })
+            .strict(),
+          z
+            .object({
+              etag: z.string().min(3).max(128).regex(new RegExp('^"[\\x21\\x23-\\x7e]+"$')),
+              exists: z.literal(true),
+              recoveryAuthorization: z
+                .object({
+                  algorithm: z.literal("ED25519"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  formatVersion: z.literal(2),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  revokedAt: z.union([
+                    z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    z.null(),
+                  ]),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+        ]),
+      })
+      .strict(),
+  },
+  cancelPersonalVaultDevicePairing: {
+    "200": z
+      .object({
+        createdAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        expiresAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        id: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        requestingDevice: z
+          .object({
+            authorizationKey: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              })
+              .strict(),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            encryptionKey: z
+              .object({
+                algorithm: z.literal("X25519"),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              })
+              .strict(),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            revokedAt: z.union([
+              z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              z.null(),
+            ]),
+          })
+          .strict(),
+        state: z.enum(["pending", "approved", "consumed", "expired", "cancelled"]),
+        updatedAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
+  createPersonalVault: {
+    "201": z
+      .object({
+        authorizationManifest: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            devices: z
+              .array(
+                z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            recoveryAuthorization: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                formatVersion: z.literal(2),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                ownerBinding: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                revokedAt: z.union([
+                  z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  z.null(),
+                ]),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commit: z
+          .object({
+            author: z
+              .object({
+                deviceId: z.union([
+                  z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  z.null(),
+                ]),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                kind: z.enum(["DEVICE", "RECOVERY"]),
+              })
+              .strict(),
+            authorizationManifestHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            keyringHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            operationId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            parentCommitHash: z.union([
+              z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              z.null(),
+            ]),
+            payloadHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            sequence: z.number().int().min(1).max(9007199254740991),
+            signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+            stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        formatVersion: z.literal(2),
+        keyring: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceEnvelopes: z
+              .array(
+                z
+                  .object({
+                    cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    ephemeralPublicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    formatVersion: z.literal(1),
+                    nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                    recipientDeviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientPublicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    vaultId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    vaultKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    wrappedKey: z
+                      .string()
+                      .min(107)
+                      .max(107)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            devicePublicKeys: z
+              .array(
+                z
+                  .object({
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    deviceKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    formatVersion: z.literal(1),
+                    keyAlgorithm: z.literal("X25519"),
+                    publicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    publicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32)
+              .optional(),
+            formatVersion: z.literal(1),
+            recoveryEnvelope: z
+              .object({
+                aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                formatVersion: z.literal(1),
+                kdf: z
+                  .object({
+                    algorithm: z.literal("ARGON2ID13"),
+                    memLimitBytes: z.number().int().min(67108864).max(268435456),
+                    opsLimit: z.number().int().min(2).max(4),
+                    outputBytes: z.literal(32),
+                    salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                  })
+                  .strict(),
+                nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                vaultKeyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        payload: z
+          .object({
+            aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+            cipherSuite: z.literal("XCHACHA20_POLY1305"),
+            ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            contentSchemaVersion: z.literal(1),
+            contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            formatVersion: z.literal(2),
+            nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            padding: z
+              .object({
+                algorithm: z.literal("SODIUM_PAD"),
+                blockSize: z.literal(4096),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
+  createPersonalVaultDevicePairing: {
+    "201": z
+      .object({
+        createdAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        expiresAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        id: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        requestingDevice: z
+          .object({
+            authorizationKey: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              })
+              .strict(),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            encryptionKey: z
+              .object({
+                algorithm: z.literal("X25519"),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              })
+              .strict(),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            revokedAt: z.union([
+              z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              z.null(),
+            ]),
+          })
+          .strict(),
+        state: z.enum(["pending", "approved", "consumed", "expired", "cancelled"]),
+        updatedAt: z.iso
+          .datetime({ offset: true })
+          .min(24)
+          .max(24)
+          .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
   getHealth: {
     "200": z
       .object({
@@ -370,6 +1610,134 @@ const implementedSuccessSchemas = {
       })
       .strict(),
   },
+  listPersonalVaultDevicePairings: {
+    "200": z
+      .object({
+        items: z
+          .array(
+            z
+              .object({
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                expiresAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                id: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                requestingDevice: z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+                state: z.enum(["pending", "approved", "consumed", "expired", "cancelled"]),
+                updatedAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+          )
+          .max(100),
+      })
+      .strict(),
+  },
   listSources: {
     "200": z
       .object({
@@ -543,6 +1911,7 @@ const implementedSuccessSchemas = {
                 campusId: z.enum(["tc", "duluth", "crookston", "morris", "rochester"]),
                 category: z.enum(["library", "student-services", "safety", "transportation", "dining"]),
                 contentSha256: z.string().regex(new RegExp("^[a-f0-9]{64}$")),
+                documentId: z.string().regex(new RegExp("^[a-z0-9][a-z0-9-]{2,127}$")),
                 excerpt: z
                   .string()
                   .min(1)
@@ -561,16 +1930,30 @@ const implementedSuccessSchemas = {
                       !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value),
                     { message: "Evidence text cannot contain HTML or encoded HTML" },
                   ),
-                freshnessState: z.enum(["FRESH", "STALE", "EXPIRED", "UNKNOWN"]),
                 id: z.string().regex(new RegExp("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")),
-                sourceId: z.string().regex(new RegExp("^[a-z0-9][a-z0-9-]{2,127}$")),
-                sourceUrl: z
-                  .url()
-                  .regex(
-                    new RegExp(
-                      "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^?#]*)?$",
-                    ),
-                  ),
+                summaryFreshnessState: z.enum(["FRESH", "STALE", "EXPIRED"]),
+                summarySource: z
+                  .object({
+                    corpusSha256: z.string().regex(new RegExp("^[a-f0-9]{64}$")),
+                    kind: z.literal("project-authored-summary"),
+                    license: z
+                      .object({
+                        evidenceUrl: z.literal("https://www.apache.org/licenses/LICENSE-2.0"),
+                        spdxId: z.literal("Apache-2.0"),
+                        status: z.literal("OPEN_REUSE"),
+                      })
+                      .strict(),
+                    sourceId: z.string().regex(new RegExp("^[a-z0-9][a-z0-9-]{2,127}$")),
+                    sourceUrl: z
+                      .url()
+                      .regex(
+                        new RegExp(
+                          "^[Hh][Tt][Tt][Pp][Ss]://[Gg][Ii][Tt][Hh][Uu][Bb]\\.[Cc][Oo][Mm](?::443)?/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus\\.json$",
+                        ),
+                      ),
+                  })
+                  .strict(),
+                summaryVerificationState: z.literal("schematic"),
                 title: z
                   .object({
                     en: z
@@ -612,13 +1995,22 @@ const implementedSuccessSchemas = {
                   })
                   .strict(),
                 updatedAt: z.iso.datetime({ offset: true }),
-                verificationState: z.enum([
-                  "schematic",
-                  "surveyed",
-                  "campus-reviewed",
-                  "verified",
-                  "retired",
-                ]),
+                verificationLink: z
+                  .object({
+                    contentRetrieved: z.literal(false),
+                    kind: z.literal("official-verification-link"),
+                    licenseStatus: z.literal("DEEPLINK_ONLY"),
+                    sourceId: z.string().regex(new RegExp("^[a-z0-9][a-z0-9-]{2,127}$")),
+                    sourceUrl: z
+                      .url()
+                      .regex(
+                        new RegExp(
+                          "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^@?#]*)?$",
+                        ),
+                      ),
+                    sourceUse: z.literal("verification-link-only"),
+                  })
+                  .strict(),
               })
               .strict(),
           )
@@ -719,6 +2111,13 @@ const implementedSuccessSchemas = {
               path: ["citations", citationIndex, "campusId"],
             });
           }
+          if (citation.summarySource.sourceId === citation.verificationLink.sourceId) {
+            refinement.addIssue({
+              code: "custom",
+              message: "summary and official verification sources must be distinct",
+              path: ["citations", citationIndex, "verificationLink", "sourceId"],
+            });
+          }
           if (!referencedCitationIds.has(citation.id)) {
             refinement.addIssue({
               code: "custom",
@@ -726,21 +2125,14 @@ const implementedSuccessSchemas = {
               path: ["citations", citationIndex, "id"],
             });
           }
-          if (citation.verificationState === "retired") {
-            refinement.addIssue({
-              code: "custom",
-              message: "retired evidence cannot be cited",
-              path: ["citations", citationIndex, "verificationState"],
-            });
-          }
-          if (citation.freshnessState === "UNKNOWN") {
-            refinement.addIssue({
-              code: "custom",
-              message: "evidence with unknown freshness cannot be cited",
-              path: ["citations", citationIndex, "freshnessState"],
-            });
-          }
         });
+        if (new Set(value.citations.map((citation) => citation.summarySource.corpusSha256)).size > 1) {
+          refinement.addIssue({
+            code: "custom",
+            message: "all citations must come from one atomic authored-summary corpus snapshot",
+            path: ["citations"],
+          });
+        }
         if (value.state === "no-results") {
           if (value.paragraphs.length !== 0)
             refinement.addIssue({
@@ -770,21 +2162,21 @@ const implementedSuccessSchemas = {
           });
         if (value.state === "answered") {
           value.citations.forEach((citation, citationIndex) => {
-            if (citation.freshnessState !== "FRESH")
+            if (citation.summaryFreshnessState !== "FRESH")
               refinement.addIssue({
                 code: "custom",
-                message: "answered responses may cite only FRESH evidence",
-                path: ["citations", citationIndex, "freshnessState"],
+                message: "answered responses may cite only FRESH authored summaries",
+                path: ["citations", citationIndex, "summaryFreshnessState"],
               });
           });
         }
         if (value.state === "stale") {
           value.citations.forEach((citation, citationIndex) => {
-            if (citation.freshnessState !== "STALE" && citation.freshnessState !== "EXPIRED")
+            if (citation.summaryFreshnessState !== "STALE" && citation.summaryFreshnessState !== "EXPIRED")
               refinement.addIssue({
                 code: "custom",
-                message: "stale responses may cite only STALE or EXPIRED evidence",
-                path: ["citations", citationIndex, "freshnessState"],
+                message: "stale responses may cite only STALE or EXPIRED authored summaries",
+                path: ["citations", citationIndex, "summaryFreshnessState"],
               });
           });
         }
@@ -795,10 +2187,16 @@ const implementedSuccessSchemas = {
               message: "conflict responses require at least two citations",
               path: ["citations"],
             });
-          if (new Set(value.citations.map((citation) => citation.sourceId)).size < 2)
+          if (new Set(value.citations.map((citation) => citation.documentId)).size < 2)
             refinement.addIssue({
               code: "custom",
-              message: "conflict responses require at least two distinct sources",
+              message: "conflict responses require at least two distinct authored documents",
+              path: ["citations"],
+            });
+          if (new Set(value.citations.map((citation) => citation.verificationLink.sourceId)).size < 2)
+            refinement.addIssue({
+              code: "custom",
+              message: "conflict responses require at least two distinct official verification links",
               path: ["citations"],
             });
           if (new Set(value.citations.map((citation) => citation.contentSha256)).size < 2)
@@ -810,9 +2208,2814 @@ const implementedSuccessSchemas = {
         }
       }),
   },
+  readPersonalVault: {
+    "200": z
+      .object({
+        authorizationManifest: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            devices: z
+              .array(
+                z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            recoveryAuthorization: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                formatVersion: z.literal(2),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                ownerBinding: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                revokedAt: z.union([
+                  z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  z.null(),
+                ]),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commit: z
+          .object({
+            author: z
+              .object({
+                deviceId: z.union([
+                  z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  z.null(),
+                ]),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                kind: z.enum(["DEVICE", "RECOVERY"]),
+              })
+              .strict(),
+            authorizationManifestHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            keyringHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            operationId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            parentCommitHash: z.union([
+              z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              z.null(),
+            ]),
+            payloadHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            sequence: z.number().int().min(1).max(9007199254740991),
+            signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+            stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        formatVersion: z.literal(2),
+        keyring: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceEnvelopes: z
+              .array(
+                z
+                  .object({
+                    cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    ephemeralPublicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    formatVersion: z.literal(1),
+                    nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                    recipientDeviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientPublicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    vaultId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    vaultKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    wrappedKey: z
+                      .string()
+                      .min(107)
+                      .max(107)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            devicePublicKeys: z
+              .array(
+                z
+                  .object({
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    deviceKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    formatVersion: z.literal(1),
+                    keyAlgorithm: z.literal("X25519"),
+                    publicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    publicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32)
+              .optional(),
+            formatVersion: z.literal(1),
+            recoveryEnvelope: z
+              .object({
+                aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                formatVersion: z.literal(1),
+                kdf: z
+                  .object({
+                    algorithm: z.literal("ARGON2ID13"),
+                    memLimitBytes: z.number().int().min(67108864).max(268435456),
+                    opsLimit: z.number().int().min(2).max(4),
+                    outputBytes: z.literal(32),
+                    salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                  })
+                  .strict(),
+                nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                vaultKeyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        payload: z
+          .object({
+            aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+            cipherSuite: z.literal("XCHACHA20_POLY1305"),
+            ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            contentSchemaVersion: z.literal(1),
+            contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            formatVersion: z.literal(2),
+            nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            padding: z
+              .object({
+                algorithm: z.literal("SODIUM_PAD"),
+                blockSize: z.literal(4096),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
+  rotatePersonalVaultKey: {
+    "200": z
+      .object({
+        authorizationManifest: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            devices: z
+              .array(
+                z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            recoveryAuthorization: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                formatVersion: z.literal(2),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                ownerBinding: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                revokedAt: z.union([
+                  z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  z.null(),
+                ]),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commit: z
+          .object({
+            author: z
+              .object({
+                deviceId: z.union([
+                  z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  z.null(),
+                ]),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                kind: z.enum(["DEVICE", "RECOVERY"]),
+              })
+              .strict(),
+            authorizationManifestHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            keyringHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            operationId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            parentCommitHash: z.union([
+              z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              z.null(),
+            ]),
+            payloadHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            sequence: z.number().int().min(1).max(9007199254740991),
+            signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+            stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        formatVersion: z.literal(2),
+        keyring: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceEnvelopes: z
+              .array(
+                z
+                  .object({
+                    cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    ephemeralPublicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    formatVersion: z.literal(1),
+                    nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                    recipientDeviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientPublicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    vaultId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    vaultKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    wrappedKey: z
+                      .string()
+                      .min(107)
+                      .max(107)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            devicePublicKeys: z
+              .array(
+                z
+                  .object({
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    deviceKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    formatVersion: z.literal(1),
+                    keyAlgorithm: z.literal("X25519"),
+                    publicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    publicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32)
+              .optional(),
+            formatVersion: z.literal(1),
+            recoveryEnvelope: z
+              .object({
+                aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                formatVersion: z.literal(1),
+                kdf: z
+                  .object({
+                    algorithm: z.literal("ARGON2ID13"),
+                    memLimitBytes: z.number().int().min(67108864).max(268435456),
+                    opsLimit: z.number().int().min(2).max(4),
+                    outputBytes: z.literal(32),
+                    salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                  })
+                  .strict(),
+                nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                vaultKeyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        payload: z
+          .object({
+            aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+            cipherSuite: z.literal("XCHACHA20_POLY1305"),
+            ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            contentSchemaVersion: z.literal(1),
+            contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            formatVersion: z.literal(2),
+            nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            padding: z
+              .object({
+                algorithm: z.literal("SODIUM_PAD"),
+                blockSize: z.literal(4096),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
+  updatePersonalVaultPayload: {
+    "200": z
+      .object({
+        authorizationManifest: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            devices: z
+              .array(
+                z
+                  .object({
+                    authorizationKey: z
+                      .object({
+                        algorithm: z.literal("ED25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    encryptionKey: z
+                      .object({
+                        algorithm: z.literal("X25519"),
+                        fingerprint: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        keyId: z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        publicKey: z
+                          .string()
+                          .min(43)
+                          .max(43)
+                          .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      })
+                      .strict(),
+                    formatVersion: z.literal(2),
+                    ownerBinding: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            recoveryAuthorization: z
+              .object({
+                algorithm: z.literal("ED25519"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                fingerprint: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                formatVersion: z.literal(2),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                ownerBinding: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                publicKey: z
+                  .string()
+                  .min(43)
+                  .max(43)
+                  .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                revokedAt: z.union([
+                  z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  z.null(),
+                ]),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commit: z
+          .object({
+            author: z
+              .object({
+                deviceId: z.union([
+                  z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  z.null(),
+                ]),
+                keyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                kind: z.enum(["DEVICE", "RECOVERY"]),
+              })
+              .strict(),
+            authorizationManifestHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            epoch: z.number().int().min(1).max(9007199254740991),
+            formatVersion: z.literal(2),
+            keyringHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            operationId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            parentCommitHash: z.union([
+              z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              z.null(),
+            ]),
+            payloadHash: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            sequence: z.number().int().min(1).max(9007199254740991),
+            signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+            stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        formatVersion: z.literal(2),
+        keyring: z
+          .object({
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            deviceEnvelopes: z
+              .array(
+                z
+                  .object({
+                    cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    ephemeralPublicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    formatVersion: z.literal(1),
+                    nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                    recipientDeviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    recipientPublicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    vaultId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    vaultKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    wrappedKey: z
+                      .string()
+                      .min(107)
+                      .max(107)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32),
+            devicePublicKeys: z
+              .array(
+                z
+                  .object({
+                    createdAt: z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    deviceId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    deviceKeyId: z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    formatVersion: z.literal(1),
+                    keyAlgorithm: z.literal("X25519"),
+                    publicKey: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    publicKeyFingerprint: z
+                      .string()
+                      .min(43)
+                      .max(43)
+                      .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    revokedAt: z.union([
+                      z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      z.null(),
+                    ]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(32)
+              .optional(),
+            formatVersion: z.literal(1),
+            recoveryEnvelope: z
+              .object({
+                aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                createdAt: z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                formatVersion: z.literal(1),
+                kdf: z
+                  .object({
+                    algorithm: z.literal("ARGON2ID13"),
+                    memLimitBytes: z.number().int().min(67108864).max(268435456),
+                    opsLimit: z.number().int().min(2).max(4),
+                    outputBytes: z.literal(32),
+                    salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                  })
+                  .strict(),
+                nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                vaultId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                vaultKeyId: z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            updatedAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+        payload: z
+          .object({
+            aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+            cipherSuite: z.literal("XCHACHA20_POLY1305"),
+            ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+            contentSchemaVersion: z.literal(1),
+            contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+            createdAt: z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            formatVersion: z.literal(2),
+            nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+            ownerBinding: z
+              .string()
+              .min(43)
+              .max(43)
+              .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            padding: z
+              .object({
+                algorithm: z.literal("SODIUM_PAD"),
+                blockSize: z.literal(4096),
+              })
+              .strict(),
+            revision: z.number().int().min(1).max(9007199254740991),
+            vaultId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+            vaultKeyId: z
+              .string()
+              .min(36)
+              .max(36)
+              .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          })
+          .strict(),
+        vaultId: z
+          .string()
+          .min(36)
+          .max(36)
+          .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      })
+      .strict(),
+  },
 } satisfies Record<ImplementedOperationId, Readonly<Record<number, z.ZodType>>>;
 
 const implementedRequestBodySchemas = {
+  approvePersonalVaultDevicePairing: z
+    .object({
+      command: z
+        .object({
+          commandType: z.literal("PAIR_DEVICE"),
+          expectedParentCommitHash: z
+            .string()
+            .min(43)
+            .max(43)
+            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          formatVersion: z.literal(2),
+          nextSnapshot: z
+            .object({
+              authorizationManifest: z
+                .object({
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  devices: z
+                    .array(
+                      z
+                        .object({
+                          authorizationKey: z
+                            .object({
+                              algorithm: z.literal("ED25519"),
+                              fingerprint: z
+                                .string()
+                                .min(43)
+                                .max(43)
+                                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                              keyId: z
+                                .string()
+                                .min(36)
+                                .max(36)
+                                .regex(
+                                  new RegExp(
+                                    "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                  ),
+                                ),
+                              publicKey: z
+                                .string()
+                                .min(43)
+                                .max(43)
+                                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                            })
+                            .strict(),
+                          createdAt: z.iso
+                            .datetime({ offset: true })
+                            .min(24)
+                            .max(24)
+                            .regex(
+                              new RegExp(
+                                "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+                              ),
+                            ),
+                          deviceId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          encryptionKey: z
+                            .object({
+                              algorithm: z.literal("X25519"),
+                              fingerprint: z
+                                .string()
+                                .min(43)
+                                .max(43)
+                                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                              keyId: z
+                                .string()
+                                .min(36)
+                                .max(36)
+                                .regex(
+                                  new RegExp(
+                                    "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                                  ),
+                                ),
+                              publicKey: z
+                                .string()
+                                .min(43)
+                                .max(43)
+                                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                            })
+                            .strict(),
+                          formatVersion: z.literal(2),
+                          ownerBinding: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          revokedAt: z.union([
+                            z.iso
+                              .datetime({ offset: true })
+                              .min(24)
+                              .max(24)
+                              .regex(
+                                new RegExp(
+                                  "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+                                ),
+                              ),
+                            z.null(),
+                          ]),
+                        })
+                        .strict(),
+                    )
+                    .min(1)
+                    .max(32),
+                  epoch: z.number().int().min(1).max(9007199254740991),
+                  formatVersion: z.literal(2),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  recoveryAuthorization: z
+                    .object({
+                      algorithm: z.literal("ED25519"),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      fingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      formatVersion: z.literal(2),
+                      keyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      ownerBinding: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      publicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                      vaultId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                    })
+                    .strict(),
+                  revision: z.number().int().min(1).max(9007199254740991),
+                  updatedAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              commit: z
+                .object({
+                  author: z
+                    .object({
+                      deviceId: z.union([
+                        z
+                          .string()
+                          .min(36)
+                          .max(36)
+                          .regex(
+                            new RegExp(
+                              "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                            ),
+                          ),
+                        z.null(),
+                      ]),
+                      keyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      kind: z.enum(["DEVICE", "RECOVERY"]),
+                    })
+                    .strict(),
+                  authorizationManifestHash: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  epoch: z.number().int().min(1).max(9007199254740991),
+                  formatVersion: z.literal(2),
+                  keyringHash: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  operationId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  parentCommitHash: z.union([
+                    z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                    z.null(),
+                  ]),
+                  payloadHash: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  sequence: z.number().int().min(1).max(9007199254740991),
+                  signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+                  stateMac: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              commitHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              formatVersion: z.literal(2),
+              keyring: z
+                .object({
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  deviceEnvelopes: z
+                    .array(
+                      z
+                        .object({
+                          cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                          createdAt: z.iso
+                            .datetime({ offset: true })
+                            .min(24)
+                            .max(24)
+                            .regex(
+                              new RegExp(
+                                "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+                              ),
+                            ),
+                          ephemeralPublicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          formatVersion: z.literal(1),
+                          nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                          recipientDeviceId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          recipientKeyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          recipientPublicKeyFingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          vaultId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          vaultKeyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          wrappedKey: z
+                            .string()
+                            .min(107)
+                            .max(107)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                    )
+                    .min(1)
+                    .max(32),
+                  devicePublicKeys: z
+                    .array(
+                      z
+                        .object({
+                          createdAt: z.iso
+                            .datetime({ offset: true })
+                            .min(24)
+                            .max(24)
+                            .regex(
+                              new RegExp(
+                                "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+                              ),
+                            ),
+                          deviceId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          deviceKeyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          formatVersion: z.literal(1),
+                          keyAlgorithm: z.literal("X25519"),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          publicKeyFingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          revokedAt: z.union([
+                            z.iso
+                              .datetime({ offset: true })
+                              .min(24)
+                              .max(24)
+                              .regex(
+                                new RegExp(
+                                  "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$",
+                                ),
+                              ),
+                            z.null(),
+                          ]),
+                        })
+                        .strict(),
+                    )
+                    .min(1)
+                    .max(32)
+                    .optional(),
+                  formatVersion: z.literal(1),
+                  recoveryEnvelope: z
+                    .object({
+                      aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                      cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      formatVersion: z.literal(1),
+                      kdf: z
+                        .object({
+                          algorithm: z.literal("ARGON2ID13"),
+                          memLimitBytes: z.number().int().min(67108864).max(268435456),
+                          opsLimit: z.number().int().min(2).max(4),
+                          outputBytes: z.literal(32),
+                          salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                        })
+                        .strict(),
+                      nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                      vaultId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      vaultKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+                    })
+                    .strict(),
+                  revision: z.number().int().min(1).max(9007199254740991),
+                  updatedAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  vaultKeyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              payload: z
+                .object({
+                  aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                  baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+                  cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                  ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                  contentSchemaVersion: z.literal(1),
+                  contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  formatVersion: z.literal(2),
+                  nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  padding: z
+                    .object({
+                      algorithm: z.literal("SODIUM_PAD"),
+                      blockSize: z.literal(4096),
+                    })
+                    .strict(),
+                  revision: z.number().int().min(1).max(9007199254740991),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  vaultKeyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          operationId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          pairedDevice: z
+            .object({
+              authorizationKey: z
+                .object({
+                  algorithm: z.literal("ED25519"),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                })
+                .strict(),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              deviceId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              encryptionKey: z
+                .object({
+                  algorithm: z.literal("X25519"),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                })
+                .strict(),
+              formatVersion: z.literal(2),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              revokedAt: z.union([
+                z.iso
+                  .datetime({ offset: true })
+                  .min(24)
+                  .max(24)
+                  .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                z.null(),
+              ]),
+            })
+            .strict(),
+          proof: z
+            .object({
+              commandType: z.enum(["CREATE_VAULT", "UPDATE_PAYLOAD", "PAIR_DEVICE", "ROTATE_KEY"]),
+              expectedParentCommitHash: z.union([
+                z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                z.null(),
+              ]),
+              expiresAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              formatVersion: z.literal(2),
+              issuedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              nextCommitHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              operationId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+              signer: z
+                .object({
+                  deviceId: z.union([
+                    z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    z.null(),
+                  ]),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  kind: z.enum(["DEVICE", "RECOVERY"]),
+                })
+                .strict(),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      pairingCodeCommitment: z
+        .string()
+        .min(43)
+        .max(43)
+        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+    })
+    .strict(),
+  createPersonalVault: z
+    .object({
+      commandType: z.literal("CREATE_VAULT"),
+      formatVersion: z.literal(2),
+      operationId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      proof: z
+        .object({
+          commandType: z.enum(["CREATE_VAULT", "UPDATE_PAYLOAD", "PAIR_DEVICE", "ROTATE_KEY"]),
+          expectedParentCommitHash: z.union([
+            z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            z.null(),
+          ]),
+          expiresAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          formatVersion: z.literal(2),
+          issuedAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          nextCommitHash: z
+            .string()
+            .min(43)
+            .max(43)
+            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          operationId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+          signer: z
+            .object({
+              deviceId: z.union([
+                z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                z.null(),
+              ]),
+              keyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              kind: z.enum(["DEVICE", "RECOVERY"]),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      snapshot: z
+        .object({
+          authorizationManifest: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              devices: z
+                .array(
+                  z
+                    .object({
+                      authorizationKey: z
+                        .object({
+                          algorithm: z.literal("ED25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      encryptionKey: z
+                        .object({
+                          algorithm: z.literal("X25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      formatVersion: z.literal(2),
+                      ownerBinding: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              recoveryAuthorization: z
+                .object({
+                  algorithm: z.literal("ED25519"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  formatVersion: z.literal(2),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  revokedAt: z.union([
+                    z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    z.null(),
+                  ]),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commit: z
+            .object({
+              author: z
+                .object({
+                  deviceId: z.union([
+                    z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    z.null(),
+                  ]),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  kind: z.enum(["DEVICE", "RECOVERY"]),
+                })
+                .strict(),
+              authorizationManifestHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              keyringHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              operationId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              parentCommitHash: z.union([
+                z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                z.null(),
+              ]),
+              payloadHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              sequence: z.number().int().min(1).max(9007199254740991),
+              signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+              stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          formatVersion: z.literal(2),
+          keyring: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              deviceEnvelopes: z
+                .array(
+                  z
+                    .object({
+                      cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      ephemeralPublicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      formatVersion: z.literal(1),
+                      nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                      recipientDeviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientPublicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      vaultId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      vaultKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      wrappedKey: z
+                        .string()
+                        .min(107)
+                        .max(107)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              devicePublicKeys: z
+                .array(
+                  z
+                    .object({
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      deviceKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      formatVersion: z.literal(1),
+                      keyAlgorithm: z.literal("X25519"),
+                      publicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      publicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32)
+                .optional(),
+              formatVersion: z.literal(1),
+              recoveryEnvelope: z
+                .object({
+                  aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                  cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  formatVersion: z.literal(1),
+                  kdf: z
+                    .object({
+                      algorithm: z.literal("ARGON2ID13"),
+                      memLimitBytes: z.number().int().min(67108864).max(268435456),
+                      opsLimit: z.number().int().min(2).max(4),
+                      outputBytes: z.literal(32),
+                      salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                    })
+                    .strict(),
+                  nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  vaultKeyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          payload: z
+            .object({
+              aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+              cipherSuite: z.literal("XCHACHA20_POLY1305"),
+              ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              contentSchemaVersion: z.literal(1),
+              contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              formatVersion: z.literal(2),
+              nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              padding: z
+                .object({
+                  algorithm: z.literal("SODIUM_PAD"),
+                  blockSize: z.literal(4096),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      vaultId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+    })
+    .strict(),
+  createPersonalVaultDevicePairing: z
+    .object({
+      expiresAt: z.iso
+        .datetime({ offset: true })
+        .min(24)
+        .max(24)
+        .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+      formatVersion: z.literal(2),
+      issuedAt: z.iso
+        .datetime({ offset: true })
+        .min(24)
+        .max(24)
+        .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+      operationId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      pairingCodeCommitment: z
+        .string()
+        .min(43)
+        .max(43)
+        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      requestingDevice: z
+        .object({
+          authorizationKey: z
+            .object({
+              algorithm: z.literal("ED25519"),
+              fingerprint: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              keyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              publicKey: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            })
+            .strict(),
+          createdAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          deviceId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          encryptionKey: z
+            .object({
+              algorithm: z.literal("X25519"),
+              fingerprint: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              keyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              publicKey: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            })
+            .strict(),
+          formatVersion: z.literal(2),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          revokedAt: z.union([
+            z.iso
+              .datetime({ offset: true })
+              .min(24)
+              .max(24)
+              .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+            z.null(),
+          ]),
+        })
+        .strict(),
+      signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+      vaultId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+    })
+    .strict(),
   queryCampusAssistant: z
     .object({
       campusId: z.enum(["tc", "duluth", "crookston", "morris", "rochester"]),
@@ -832,6 +5035,1155 @@ const implementedRequestBodySchemas = {
         .refine((value) => !/[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u.test(value), {
           message: "Query cannot contain HTML or encoded HTML",
         }),
+    })
+    .strict(),
+  rotatePersonalVaultKey: z
+    .object({
+      commandType: z.literal("ROTATE_KEY"),
+      expectedParentCommitHash: z
+        .string()
+        .min(43)
+        .max(43)
+        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      formatVersion: z.literal(2),
+      nextSnapshot: z
+        .object({
+          authorizationManifest: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              devices: z
+                .array(
+                  z
+                    .object({
+                      authorizationKey: z
+                        .object({
+                          algorithm: z.literal("ED25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      encryptionKey: z
+                        .object({
+                          algorithm: z.literal("X25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      formatVersion: z.literal(2),
+                      ownerBinding: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              recoveryAuthorization: z
+                .object({
+                  algorithm: z.literal("ED25519"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  formatVersion: z.literal(2),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  revokedAt: z.union([
+                    z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    z.null(),
+                  ]),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commit: z
+            .object({
+              author: z
+                .object({
+                  deviceId: z.union([
+                    z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    z.null(),
+                  ]),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  kind: z.enum(["DEVICE", "RECOVERY"]),
+                })
+                .strict(),
+              authorizationManifestHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              keyringHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              operationId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              parentCommitHash: z.union([
+                z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                z.null(),
+              ]),
+              payloadHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              sequence: z.number().int().min(1).max(9007199254740991),
+              signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+              stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          formatVersion: z.literal(2),
+          keyring: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              deviceEnvelopes: z
+                .array(
+                  z
+                    .object({
+                      cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      ephemeralPublicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      formatVersion: z.literal(1),
+                      nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                      recipientDeviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientPublicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      vaultId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      vaultKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      wrappedKey: z
+                        .string()
+                        .min(107)
+                        .max(107)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              devicePublicKeys: z
+                .array(
+                  z
+                    .object({
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      deviceKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      formatVersion: z.literal(1),
+                      keyAlgorithm: z.literal("X25519"),
+                      publicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      publicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32)
+                .optional(),
+              formatVersion: z.literal(1),
+              recoveryEnvelope: z
+                .object({
+                  aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                  cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  formatVersion: z.literal(1),
+                  kdf: z
+                    .object({
+                      algorithm: z.literal("ARGON2ID13"),
+                      memLimitBytes: z.number().int().min(67108864).max(268435456),
+                      opsLimit: z.number().int().min(2).max(4),
+                      outputBytes: z.literal(32),
+                      salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                    })
+                    .strict(),
+                  nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  vaultKeyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          payload: z
+            .object({
+              aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+              cipherSuite: z.literal("XCHACHA20_POLY1305"),
+              ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              contentSchemaVersion: z.literal(1),
+              contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              formatVersion: z.literal(2),
+              nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              padding: z
+                .object({
+                  algorithm: z.literal("SODIUM_PAD"),
+                  blockSize: z.literal(4096),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      operationId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      proof: z
+        .object({
+          commandType: z.enum(["CREATE_VAULT", "UPDATE_PAYLOAD", "PAIR_DEVICE", "ROTATE_KEY"]),
+          expectedParentCommitHash: z.union([
+            z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            z.null(),
+          ]),
+          expiresAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          formatVersion: z.literal(2),
+          issuedAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          nextCommitHash: z
+            .string()
+            .min(43)
+            .max(43)
+            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          operationId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+          signer: z
+            .object({
+              deviceId: z.union([
+                z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                z.null(),
+              ]),
+              keyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              kind: z.enum(["DEVICE", "RECOVERY"]),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      reason: z.enum(["DEVICE_REVOKED", "RECOVERY_ROTATED", "SCHEDULED", "COMPROMISE"]),
+      vaultId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+    })
+    .strict(),
+  updatePersonalVaultPayload: z
+    .object({
+      commandType: z.literal("UPDATE_PAYLOAD"),
+      expectedParentCommitHash: z
+        .string()
+        .min(43)
+        .max(43)
+        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      formatVersion: z.literal(2),
+      nextSnapshot: z
+        .object({
+          authorizationManifest: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              devices: z
+                .array(
+                  z
+                    .object({
+                      authorizationKey: z
+                        .object({
+                          algorithm: z.literal("ED25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      encryptionKey: z
+                        .object({
+                          algorithm: z.literal("X25519"),
+                          fingerprint: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                          keyId: z
+                            .string()
+                            .min(36)
+                            .max(36)
+                            .regex(
+                              new RegExp(
+                                "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                              ),
+                            ),
+                          publicKey: z
+                            .string()
+                            .min(43)
+                            .max(43)
+                            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                        })
+                        .strict(),
+                      formatVersion: z.literal(2),
+                      ownerBinding: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              recoveryAuthorization: z
+                .object({
+                  algorithm: z.literal("ED25519"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  fingerprint: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  formatVersion: z.literal(2),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  ownerBinding: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  publicKey: z
+                    .string()
+                    .min(43)
+                    .max(43)
+                    .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                  revokedAt: z.union([
+                    z.iso
+                      .datetime({ offset: true })
+                      .min(24)
+                      .max(24)
+                      .regex(
+                        new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                      ),
+                    z.null(),
+                  ]),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commit: z
+            .object({
+              author: z
+                .object({
+                  deviceId: z.union([
+                    z
+                      .string()
+                      .min(36)
+                      .max(36)
+                      .regex(
+                        new RegExp(
+                          "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                        ),
+                      ),
+                    z.null(),
+                  ]),
+                  keyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  kind: z.enum(["DEVICE", "RECOVERY"]),
+                })
+                .strict(),
+              authorizationManifestHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              epoch: z.number().int().min(1).max(9007199254740991),
+              formatVersion: z.literal(2),
+              keyringHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              operationId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              parentCommitHash: z.union([
+                z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                z.null(),
+              ]),
+              payloadHash: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              sequence: z.number().int().min(1).max(9007199254740991),
+              signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+              stateMac: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          commitHash: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          formatVersion: z.literal(2),
+          keyring: z
+            .object({
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              deviceEnvelopes: z
+                .array(
+                  z
+                    .object({
+                      cipherSuite: z.literal("X25519_XCHACHA20_POLY1305"),
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      ephemeralPublicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      formatVersion: z.literal(1),
+                      nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                      recipientDeviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      recipientPublicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      vaultId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      vaultKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      wrappedKey: z
+                        .string()
+                        .min(107)
+                        .max(107)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$")),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32),
+              devicePublicKeys: z
+                .array(
+                  z
+                    .object({
+                      createdAt: z.iso
+                        .datetime({ offset: true })
+                        .min(24)
+                        .max(24)
+                        .regex(
+                          new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                        ),
+                      deviceId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      deviceKeyId: z
+                        .string()
+                        .min(36)
+                        .max(36)
+                        .regex(
+                          new RegExp(
+                            "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+                          ),
+                        ),
+                      formatVersion: z.literal(1),
+                      keyAlgorithm: z.literal("X25519"),
+                      publicKey: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      publicKeyFingerprint: z
+                        .string()
+                        .min(43)
+                        .max(43)
+                        .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+                      revokedAt: z.union([
+                        z.iso
+                          .datetime({ offset: true })
+                          .min(24)
+                          .max(24)
+                          .regex(
+                            new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"),
+                          ),
+                        z.null(),
+                      ]),
+                    })
+                    .strict(),
+                )
+                .min(1)
+                .max(32)
+                .optional(),
+              formatVersion: z.literal(1),
+              recoveryEnvelope: z
+                .object({
+                  aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+                  cipherSuite: z.literal("XCHACHA20_POLY1305"),
+                  createdAt: z.iso
+                    .datetime({ offset: true })
+                    .min(24)
+                    .max(24)
+                    .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+                  formatVersion: z.literal(1),
+                  kdf: z
+                    .object({
+                      algorithm: z.literal("ARGON2ID13"),
+                      memLimitBytes: z.number().int().min(67108864).max(268435456),
+                      opsLimit: z.number().int().min(2).max(4),
+                      outputBytes: z.literal(32),
+                      salt: z.string().min(22).max(22).regex(new RegExp("^[A-Za-z0-9_-]{21}[AQgw]$")),
+                    })
+                    .strict(),
+                  nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+                  vaultId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  vaultKeyId: z
+                    .string()
+                    .min(36)
+                    .max(36)
+                    .regex(
+                      new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                    ),
+                  wrappedKey: z.string().min(64).max(64).regex(new RegExp("^[A-Za-z0-9_-]{64}$")),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              updatedAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          payload: z
+            .object({
+              aad: z.string().min(2).max(5462).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              baseRevision: z.union([z.number().int().min(1).max(9007199254740991), z.null()]),
+              cipherSuite: z.literal("XCHACHA20_POLY1305"),
+              ciphertext: z.string().min(5483).max(11184832).regex(new RegExp("^[A-Za-z0-9_-]+$")),
+              contentSchemaVersion: z.literal(1),
+              contentType: z.literal("application/vnd.umn-gopher-assistant.personal-vault+json"),
+              createdAt: z.iso
+                .datetime({ offset: true })
+                .min(24)
+                .max(24)
+                .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+              formatVersion: z.literal(2),
+              nonce: z.string().min(32).max(32).regex(new RegExp("^[A-Za-z0-9_-]{32}$")),
+              ownerBinding: z
+                .string()
+                .min(43)
+                .max(43)
+                .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+              padding: z
+                .object({
+                  algorithm: z.literal("SODIUM_PAD"),
+                  blockSize: z.literal(4096),
+                })
+                .strict(),
+              revision: z.number().int().min(1).max(9007199254740991),
+              vaultId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              vaultKeyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      operationId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+      ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+      proof: z
+        .object({
+          commandType: z.enum(["CREATE_VAULT", "UPDATE_PAYLOAD", "PAIR_DEVICE", "ROTATE_KEY"]),
+          expectedParentCommitHash: z.union([
+            z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+            z.null(),
+          ]),
+          expiresAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          formatVersion: z.literal(2),
+          issuedAt: z.iso
+            .datetime({ offset: true })
+            .min(24)
+            .max(24)
+            .regex(new RegExp("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$")),
+          nextCommitHash: z
+            .string()
+            .min(43)
+            .max(43)
+            .regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          operationId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+          ownerBinding: z.string().min(43).max(43).regex(new RegExp("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")),
+          signature: z.string().min(86).max(86).regex(new RegExp("^[A-Za-z0-9_-]{85}[AQgw]$")),
+          signer: z
+            .object({
+              deviceId: z.union([
+                z
+                  .string()
+                  .min(36)
+                  .max(36)
+                  .regex(
+                    new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                  ),
+                z.null(),
+              ]),
+              keyId: z
+                .string()
+                .min(36)
+                .max(36)
+                .regex(
+                  new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"),
+                ),
+              kind: z.enum(["DEVICE", "RECOVERY"]),
+            })
+            .strict(),
+          vaultId: z
+            .string()
+            .min(36)
+            .max(36)
+            .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
+        })
+        .strict(),
+      vaultId: z
+        .string()
+        .min(36)
+        .max(36)
+        .regex(new RegExp("^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")),
     })
     .strict(),
 } satisfies Partial<Record<ImplementedOperationId, z.ZodType>>;

@@ -13,6 +13,11 @@ const cursorHmacKey = Buffer.alloc(32, 1).toString("base64url");
 const rateLimitHmacKey = Buffer.alloc(32, 2).toString("base64url");
 const bffProofHmacKey = Buffer.alloc(32, 3).toString("base64url");
 const knowledgeServiceHmacKey = Buffer.alloc(32, 4).toString("base64url");
+const accountSubjectHmacKey = Buffer.alloc(32, 5).toString("base64url");
+const productionDpop = {
+  API_DPOP_REDIS_URL: "rediss://:dpop-password@redis.internal.example.edu:6379",
+  API_PUBLIC_ORIGIN: "https://api.example.edu",
+} as const;
 
 describe("runtime configuration", () => {
   it("accepts only complete decimal ports in the TCP range", () => {
@@ -45,8 +50,18 @@ describe("runtime configuration", () => {
       },
       nodeEnv: "test",
       oidc: {
-        allowedClientIds: ["gopher-web", "gopher-cli", "gopher-mcp"],
+        allowedClientIds: ["gopher-web", "gopher-cli"],
         audience: "gopher-api",
+        dpop: {
+          nonceTtlSeconds: 300,
+          operationTimeoutMs: 1_000,
+          proofLimit: 600,
+          proofMaxAgeSeconds: 60,
+          proofWindowSeconds: 60,
+          publicOrigin: new URL("http://127.0.0.1:4000"),
+          redisUrl: new URL("redis://:local-redis-password-only@127.0.0.1:6379"),
+          replayTtlSeconds: 120,
+        },
         issuer: "http://127.0.0.1:8080/realms/gopher-assistant-dev",
         jwksUrl: new URL("http://127.0.0.1:8080/realms/gopher-assistant-dev/protocol/openid-connect/certs"),
         maxTokenLifetimeSeconds: 300,
@@ -79,6 +94,7 @@ describe("runtime configuration", () => {
         API_OIDC_AUDIENCE: "gopher-api",
         API_OIDC_ISSUER: "http://127.0.0.1:8080/realms/gopher",
         API_OIDC_JWKS_URL: "http://127.0.0.1:8080/realms/gopher/protocol/openid-connect/certs",
+        ...productionDpop,
         NODE_ENV: "production",
       }),
     ).toThrow("API OIDC endpoints must use HTTPS in production");
@@ -86,6 +102,8 @@ describe("runtime configuration", () => {
 
   it("requires explicit client and HTTPS CORS allowlists in production", () => {
     const productionOidc = {
+      API_ACCOUNT_HMAC_KEY_VERSION: "1",
+      API_ACCOUNT_SUBJECT_HMAC_KEY: accountSubjectHmacKey,
       API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
       API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
       API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
@@ -95,6 +113,7 @@ describe("runtime configuration", () => {
       API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
       API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
       INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
+      ...productionDpop,
       NODE_ENV: "production",
     } as const;
 
@@ -131,6 +150,8 @@ describe("runtime configuration", () => {
 
   it("requires canonical 32-to-64-byte cursor HMAC material in production", () => {
     const validProduction = {
+      API_ACCOUNT_HMAC_KEY_VERSION: "1",
+      API_ACCOUNT_SUBJECT_HMAC_KEY: accountSubjectHmacKey,
       API_AI_KNOWLEDGE_URL: "https://ai.internal.example.edu",
       API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
       API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
@@ -141,6 +162,7 @@ describe("runtime configuration", () => {
       API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
       API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
       INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
+      ...productionDpop,
       NODE_ENV: "production",
     } as const;
     expect(() => loadApiRuntimeConfig(validProduction)).toThrow(
@@ -159,6 +181,8 @@ describe("runtime configuration", () => {
 
   it("requires secure explicit AI service settings in production", () => {
     const production = {
+      API_ACCOUNT_HMAC_KEY_VERSION: "1",
+      API_ACCOUNT_SUBJECT_HMAC_KEY: accountSubjectHmacKey,
       API_AI_KNOWLEDGE_HMAC_KEY: knowledgeServiceHmacKey,
       API_CATALOG_CURSOR_HMAC_KEY: cursorHmacKey,
       API_AI_RATE_LIMIT_HMAC_KEY: rateLimitHmacKey,
@@ -168,6 +192,7 @@ describe("runtime configuration", () => {
       API_OIDC_ISSUER: "https://identity.example.edu/realms/gopher",
       API_OIDC_JWKS_URL: "https://identity.example.edu/realms/gopher/protocol/openid-connect/certs",
       INTERNAL_AI_BFF_PROOF_HMAC_KEY: bffProofHmacKey,
+      ...productionDpop,
       NODE_ENV: "production",
     } as const;
     expect(() => loadApiRuntimeConfig(production)).toThrow("API_AI_KNOWLEDGE_URL is required");

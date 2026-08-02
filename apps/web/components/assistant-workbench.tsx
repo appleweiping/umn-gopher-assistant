@@ -1,13 +1,6 @@
 "use client";
 
-import type {
-  AiCitation,
-  AiQueryResponse,
-  AiQueryState,
-  CampusId,
-  FreshnessState,
-  VerificationState,
-} from "@umn-gopher-assistant/contracts";
+import type { AiCitation, AiQueryResponse, AiQueryState, CampusId } from "@umn-gopher-assistant/contracts";
 import { useTranslations } from "next-intl";
 import {
   useEffect,
@@ -40,7 +33,7 @@ function formattedDate(value: string, locale: Locale): string {
 }
 
 function stateClassName(state: AiQueryState): string {
-  return `ai-state ai-state-${state}`;
+  return state === "answered" ? "ai-state ai-state-schematic" : `ai-state ai-state-${state}`;
 }
 
 type QueryErrorKind = "input" | "rate-limit" | "unavailable";
@@ -85,7 +78,7 @@ function CitationCard(props: {
         </p>
         <dl className="citation-metadata">
           <div>
-            <dt>{t("updated")}</dt>
+            <dt>{t("summaryUpdated")}</dt>
             <dd>
               <time dateTime={props.citation.updatedAt}>
                 {formattedDate(props.citation.updatedAt, props.locale)}
@@ -93,31 +86,46 @@ function CitationCard(props: {
             </dd>
           </div>
           <div>
-            <dt>{t("freshness")}</dt>
+            <dt>{t("summaryAge")}</dt>
             <dd>
               {t(
-                `freshnessState.${props.citation.freshnessState}` satisfies `freshnessState.${FreshnessState}`,
+                `summaryFreshnessState.${props.citation.summaryFreshnessState}` satisfies `summaryFreshnessState.${AiCitation["summaryFreshnessState"]}`,
               )}
             </dd>
           </div>
           <div>
-            <dt>{t("verification")}</dt>
+            <dt>{t("summaryVerification")}</dt>
+            <dd>{t("summaryVerificationState.schematic")}</dd>
+          </div>
+          <div>
+            <dt>{t("summaryOrigin")}</dt>
             <dd>
-              {t(
-                `verificationState.${props.citation.verificationState}` satisfies `verificationState.${VerificationState}`,
-              )}
+              {t("independentProjectSource", {
+                license: props.citation.summarySource.license.spdxId,
+              })}
             </dd>
           </div>
         </dl>
-        <a
-          aria-label={`${t("openOfficial", { title })} ${t("opensNewTab")}`}
-          className="button button-quiet citation-link"
-          href={props.citation.sourceUrl}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          {t("openOfficial", { title })}
-        </a>
+        <div className="citation-actions">
+          <a
+            aria-label={`${t("openSummarySource", { title })} ${t("opensNewTab")}`}
+            className="button button-quiet citation-link"
+            href={props.citation.summarySource.sourceUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {t("openSummarySource", { title })}
+          </a>
+          <a
+            aria-label={`${t("openOfficial", { title })} ${t("opensNewTab")}`}
+            className="button button-quiet citation-link"
+            href={props.citation.verificationLink.sourceUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            {t("openOfficial", { title })}
+          </a>
+        </div>
       </article>
     </li>
   );
@@ -133,16 +141,27 @@ function EvidenceAnswer(props: {
     () => new Map(props.response.citations.map((citation, index) => [citation.id, index] as const)),
     [props.response.citations],
   );
-  const hasOutdatedEvidence = props.response.citations.some(
-    (citation) => citation.freshnessState === "STALE" || citation.freshnessState === "EXPIRED",
+  const hasOutdatedSummaries = props.response.citations.some(
+    (citation) => citation.summaryFreshnessState === "STALE" || citation.summaryFreshnessState === "EXPIRED",
   );
+  const hasAdvisory =
+    props.response.state === "stale" || props.response.state === "conflict" || hasOutdatedSummaries;
 
   return (
-    <section className="answer-panel" aria-labelledby="ai-answer-title">
+    <section
+      aria-describedby="ai-answer-disclosure"
+      aria-labelledby="ai-answer-title"
+      className="answer-panel answer-panel-schematic"
+    >
       <div className="answer-heading">
         <div>
           <p className="section-kicker">{t("evidenceAnswer")}</p>
-          <h3 id="ai-answer-title" ref={props.headingRef} tabIndex={-1}>
+          <h3
+            aria-describedby="ai-answer-disclosure"
+            id="ai-answer-title"
+            ref={props.headingRef}
+            tabIndex={-1}
+          >
             {t(`stateTitle.${props.response.state}`)}
           </h3>
         </div>
@@ -150,15 +169,17 @@ function EvidenceAnswer(props: {
           {t(`stateLabel.${props.response.state}`)}
         </span>
       </div>
-      {props.response.state === "stale" || (props.response.state === "conflict" && hasOutdatedEvidence) ? (
-        <p className="notice notice-warning" role="status">
-          {t("staleWarning")}
-        </p>
-      ) : null}
-      {props.response.state === "conflict" ? (
-        <p className="notice notice-danger" role="status">
-          {t("conflictWarning")}
-        </p>
+      <p className="notice notice-warning schematic-disclosure" id="ai-answer-disclosure" role="note">
+        {t("schematicDisclosure")}
+      </p>
+      {hasAdvisory ? (
+        <div
+          className={`notice ${props.response.state === "conflict" ? "notice-danger" : "notice-warning"}`}
+          role="status"
+        >
+          {props.response.state === "stale" || hasOutdatedSummaries ? <p>{t("staleWarning")}</p> : null}
+          {props.response.state === "conflict" ? <p>{t("conflictWarning")}</p> : null}
+        </div>
       ) : null}
       <div className="answer-copy">
         {props.response.paragraphs.map((paragraph) => (

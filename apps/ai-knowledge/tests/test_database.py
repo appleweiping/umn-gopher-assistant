@@ -7,21 +7,56 @@ from typing import Any
 
 import psycopg
 import pytest
-from conftest import read_corpus
+from conftest import CORPUS_PATH, FIXED_NOW, read_corpus
 
-from ai_knowledge.corpus import CorpusIntegrityError
+from ai_knowledge.corpus import CorpusIntegrityError, CorpusSnapshot, KnowledgeRepository
 from ai_knowledge.database import (
     ACTIVE_CHUNKS_SQL,
     ACTIVE_CITATIONS_SQL,
     ACTIVE_DOCUMENTS_SQL,
+    ACTIVE_SOURCES_SQL,
     DATABASE_CAPABILITIES_SQL,
     LATEST_INGESTION_SQL,
     PostgreSQLKnowledgeRepository,
-    _build_snapshot,
     verify_database_capabilities,
 )
-from ai_knowledge.models import KnowledgeDocument
+from ai_knowledge.database import (
+    _build_snapshot as _build_snapshot_from_rows,
+)
+from ai_knowledge.models import KnowledgeDocument, QueryRequest
 from ai_knowledge.projection import PROJECTION_METADATA_SQL
+from ai_knowledge.retrieval import HybridRetriever
+
+
+def database_source_rows() -> list[dict[str, Any]]:
+    manifest = read_corpus()
+    document = manifest["documents"][0]
+    source_ids = {document["summarySourceId"], document["verificationSourceId"]}
+    rows: list[dict[str, Any]] = []
+    for source in manifest["sourceRegistry"]:
+        if source["id"] not in source_ids:
+            continue
+        rows.append(
+            {
+                "external_id": source["id"],
+                "campus_ids": source["campusIds"],
+                "role": (
+                    "PROJECT_SUMMARY"
+                    if source["resourceKinds"] == ["AI_KNOWLEDGE_SUMMARY"]
+                    else "OFFICIAL_VERIFICATION"
+                ),
+                "source_url": source["sourceUrl"],
+                "license_status": source["licenseStatus"],
+                "license_evidence_url": source["licenseEvidenceUrl"],
+                "enabled": source["killSwitch"]["defaultState"] == "ENABLED",
+            }
+        )
+    return rows
+
+
+def _build_snapshot(**kwargs: Any) -> CorpusSnapshot:
+    kwargs.setdefault("source_rows", database_source_rows())
+    return _build_snapshot_from_rows(**kwargs)
 
 
 def database_rows() -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -116,6 +151,26 @@ def test_database_rows_rebuild_the_existing_deterministic_corpus_model() -> None
     )
 
 
+def test_file_and_postgres_snapshots_emit_identical_citation_provenance() -> None:
+    local_snapshot = KnowledgeRepository(CORPUS_PATH).snapshot()
+    documents, chunks, citations = database_rows()
+    database_snapshot = _build_snapshot(
+        corpus_version=local_snapshot.corpus_sha256,
+        document_rows=documents,
+        chunk_rows=chunks,
+        citation_rows=citations,
+    )
+    request = QueryRequest(campusId="tc", locale="en", query="library research catalog")
+    retriever = HybridRetriever(clock=lambda: FIXED_NOW)
+
+    local = retriever.query(request, local_snapshot)
+    projected = retriever.query(request, database_snapshot)
+
+    assert projected.state == local.state
+    assert projected.paragraphs == local.paragraphs
+    assert projected.citations == local.citations
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -133,6 +188,80 @@ def test_loader_rejects_any_nonpublishable_row_that_escapes_sql_filtering(
     with pytest.raises(CorpusIntegrityError, match="escaped database filtering"):
         _build_snapshot(
             corpus_version="a" * 64,
+            document_rows=documents,
+            chunk_rows=chunks,
+            citation_rows=citations,
+        )
+
+
+@pytest.mark.parametrize("verification_state", ["surveyed", "campus-reviewed", "verified"])
+def test_loader_rejects_active_review_claims_without_evidence(
+    verification_state: str,
+) -> None:
+    documents, chunks, citations = database_rows()
+    documents[0]["verification_state"] = verification_state
+    with pytest.raises(CorpusIntegrityError, match="lack supported review evidence"):
+        _build_snapshot(
+            corpus_version="a" * 64,
+            document_rows=documents,
+            chunk_rows=chunks,
+            citation_rows=citations,
+        )
+
+
+@pytest.mark.parametrize(
+    ("source_index", "field", "value", "message"),
+    [
+        (
+            0,
+            "license_evidence_url",
+            "https://www.apache.org/licenses/LICENSE-1.0",
+            "summary source governance",
+        ),
+        (0, "enabled", False, "summary source governance"),
+        (1, "source_url", "https://safe-campus.umn.edu/", "verification source governance"),
+        (
+            1,
+            "license_evidence_url",
+            "https://www.apache.org/licenses/LICENSE-2.0",
+            "source validation",
+        ),
+        (1, "enabled", False, "verification source governance"),
+    ],
+)
+def test_loader_binds_active_source_rows_exactly(
+    source_index: int, field: str, value: object, message: str
+) -> None:
+    documents, chunks, citations = database_rows()
+    sources = database_source_rows()
+    sources[source_index][field] = value
+    with pytest.raises(CorpusIntegrityError, match=message):
+        _build_snapshot(
+            corpus_version="a" * 64,
+            source_rows=sources,
+            document_rows=documents,
+            chunk_rows=chunks,
+            citation_rows=citations,
+        )
+
+
+def test_loader_requires_exact_active_source_registry() -> None:
+    documents, chunks, citations = database_rows()
+    sources = database_source_rows()
+    with pytest.raises(CorpusIntegrityError, match="exactly match"):
+        _build_snapshot(
+            corpus_version="a" * 64,
+            source_rows=sources[:1],
+            document_rows=documents,
+            chunk_rows=chunks,
+            citation_rows=citations,
+        )
+
+    orphan = {**sources[1], "external_id": "official-tc-orphan"}
+    with pytest.raises(CorpusIntegrityError, match="exactly match"):
+        _build_snapshot(
+            corpus_version="a" * 64,
+            source_rows=[*sources, orphan],
             document_rows=documents,
             chunk_rows=chunks,
             citation_rows=citations,
@@ -386,6 +515,7 @@ class FakeReadConnection:
         expected_projection_payload: str | None = None,
     ) -> None:
         documents, chunks, citations = database_rows()
+        sources = database_source_rows()
         expected_payload = expected_projection_payload or projection_payload
         projection_sha256 = hashlib.sha256(expected_payload.encode("utf-8")).hexdigest()
         self.responses = {
@@ -423,6 +553,7 @@ class FakeReadConnection:
                     "projection_citations": 2,
                 }
             ],
+            ACTIVE_SOURCES_SQL: sources,
             ACTIVE_DOCUMENTS_SQL: documents,
             ACTIVE_CHUNKS_SQL: chunks,
             ACTIVE_CITATIONS_SQL: citations,

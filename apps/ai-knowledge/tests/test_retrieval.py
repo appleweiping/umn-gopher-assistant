@@ -7,7 +7,7 @@ import pytest
 from conftest import clone_document, fixture_manifest, write_manifest
 
 from ai_knowledge.corpus import KnowledgeRepository
-from ai_knowledge.models import QueryRequest
+from ai_knowledge.models import Locale, QueryRequest
 from ai_knowledge.retrieval import HybridRetriever, _dice, character_ngrams, search_terms
 
 GOLDEN_SOURCES = {
@@ -78,7 +78,7 @@ def test_english_golden_retrieval(
         repository.snapshot(),
     )
     assert result.state == "answered"
-    assert result.citations[0].source_id == GOLDEN_SOURCES[campus_id][category]
+    assert result.citations[0].verification_link.source_id == GOLDEN_SOURCES[campus_id][category]
     assert result.citations[0].category == category
     assert {citation.campus_id for citation in result.citations} == {campus_id}
     assert result.retrieval.documents_considered == 5
@@ -97,7 +97,7 @@ def test_chinese_golden_retrieval(
         repository.snapshot(),
     )
     assert result.state == "answered"
-    assert result.citations[0].source_id == GOLDEN_SOURCES[campus_id][category]
+    assert result.citations[0].verification_link.source_id == GOLDEN_SOURCES[campus_id][category]
     assert result.citations[0].category == category
     assert {citation.campus_id for citation in result.citations} == {campus_id}
     assert all(
@@ -117,7 +117,7 @@ def test_cross_campus_content_is_filtered_before_scoring(
     )
     assert result.citations
     assert {citation.campus_id for citation in result.citations} == {"rochester"}
-    assert all("tc-" not in citation.source_id for citation in result.citations)
+    assert all("tc-" not in citation.verification_link.source_id for citation in result.citations)
 
 
 def test_prompt_injection_style_query_is_treated_as_untrusted_search_text(
@@ -143,7 +143,7 @@ def test_prompt_injection_with_a_real_topic_can_only_retrieve_local_evidence(
         repository.snapshot(),
     )
     assert result.state == "answered"
-    assert result.citations[0].source_id == "official-tc-library"
+    assert result.citations[0].verification_link.source_id == "official-tc-library"
     assert query not in result.model_dump_json()
     assert all("secret" not in paragraph.text.casefold() for paragraph in result.paragraphs)
 
@@ -158,6 +158,55 @@ def test_no_results_has_no_uncited_answer(
     assert result.state == "no-results"
     assert result.paragraphs == []
     assert result.citations == []
+
+
+@pytest.mark.parametrize(
+    ("campus_id", "locale", "query"),
+    [
+        ("crookston", "en", "How can I get disability accommodations?"),
+        ("tc", "en", "Where can I find an accessible bathroom?"),
+        ("tc", "en", "Can I bring food to my apartment?"),
+        ("tc", "en", "How do I drop a class?"),
+        ("tc", "en", "I need counseling for depression"),
+        ("tc", "zh-CN", "校园里哪里有无障碍卫生间\uff1f"),
+        ("morris", "zh-CN", "研究生申请的截止日期是什么时候\uff1f"),
+    ],
+)
+def test_weak_or_incidental_overlap_abstains_without_evidence(
+    campus_id: str,
+    locale: Locale,
+    query: str,
+    repository: KnowledgeRepository,
+    retriever: HybridRetriever,
+) -> None:
+    result = retriever.query(
+        QueryRequest(campusId=campus_id, locale=locale, query=query),
+        repository.snapshot(),
+    )
+
+    assert result.state == "no-results"
+    assert result.paragraphs == []
+    assert result.citations == []
+    assert result.retrieval.documents_considered == 5
+
+
+@pytest.mark.parametrize(
+    ("query", "source_id"),
+    [
+        ("I need food", "official-tc-dining"),
+        ("What are the library hours?", "official-tc-library"),
+    ],
+)
+def test_evidence_gate_preserves_supported_request_workflows(
+    query: str, source_id: str, repository: KnowledgeRepository, retriever: HybridRetriever
+) -> None:
+    result = retriever.query(
+        QueryRequest(campusId="tc", locale="en", query=query),
+        repository.snapshot(),
+    )
+
+    assert result.state == "answered"
+    assert result.citations[0].verification_link.source_id == source_id
 
 
 def test_every_answer_paragraph_has_a_resolvable_citation(
@@ -187,7 +236,7 @@ def test_stale_state_is_derived_from_local_metadata(tmp_path: Path) -> None:
         KnowledgeRepository(path).snapshot(),
     )
     assert result.state == "stale"
-    assert result.citations[0].freshness_state == "EXPIRED"
+    assert result.citations[0].summary_freshness_state == "EXPIRED"
 
 
 def test_fresh_evidence_suppresses_stale_duplicate_evidence(tmp_path: Path) -> None:
@@ -207,8 +256,10 @@ def test_fresh_evidence_suppresses_stale_duplicate_evidence(tmp_path: Path) -> N
         KnowledgeRepository(path).snapshot(),
     )
     assert result.state == "answered"
-    assert [citation.source_id for citation in result.citations] == ["official-tc-library"]
-    assert {citation.freshness_state for citation in result.citations} == {"FRESH"}
+    assert [citation.verification_link.source_id for citation in result.citations] == [
+        "official-tc-library"
+    ]
+    assert {citation.summary_freshness_state for citation in result.citations} == {"FRESH"}
 
 
 def test_unknown_future_dated_evidence_fails_closed_as_no_results(tmp_path: Path) -> None:
@@ -273,7 +324,7 @@ def test_conflict_preserves_explicit_outdated_evidence_state(tmp_path: Path) -> 
         KnowledgeRepository(path).snapshot(),
     )
     assert result.state == "conflict"
-    assert {citation.freshness_state for citation in result.citations} == {
+    assert {citation.summary_freshness_state for citation in result.citations} == {
         "FRESH",
         "EXPIRED",
     }
@@ -322,3 +373,31 @@ def test_ranking_and_citations_are_stable_apart_from_query_id(
     assert first.citations == second.citations
     assert first.paragraphs == second.paragraphs
     assert first.retrieval == second.retrieval
+
+
+def test_citation_separates_authored_summary_from_unfetched_verification_link(
+    repository: KnowledgeRepository, retriever: HybridRetriever
+) -> None:
+    snapshot = repository.snapshot()
+    result = retriever.query(
+        QueryRequest(campusId="tc", locale="en", query="library research catalog"),
+        snapshot,
+    )
+    citation = result.citations[0]
+
+    assert citation.document_id == "tc-library-overview"
+    assert citation.summary_source.kind == "project-authored-summary"
+    assert citation.summary_source.source_id == "uga-ai-summary-corpus-v1"
+    assert citation.summary_source.corpus_sha256 == snapshot.corpus_sha256
+    assert citation.summary_source.license.status == "OPEN_REUSE"
+    assert citation.summary_source.license.spdx_id == "Apache-2.0"
+    assert (
+        str(citation.summary_source.license.evidence_url)
+        == "https://www.apache.org/licenses/LICENSE-2.0"
+    )
+    assert citation.verification_link.kind == "official-verification-link"
+    assert citation.verification_link.source_id == "official-tc-library"
+    assert str(citation.verification_link.source_url) == "https://www.lib.umn.edu/"
+    assert citation.verification_link.license_status == "DEEPLINK_ONLY"
+    assert citation.verification_link.source_use == "verification-link-only"
+    assert citation.verification_link.content_retrieved is False

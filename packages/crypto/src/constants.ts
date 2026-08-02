@@ -1,5 +1,8 @@
 export const VAULT_KEY_BYTES = 32;
 export const DEVICE_KEY_BYTES = 32;
+export const AUTHORIZATION_PUBLIC_KEY_BYTES = 32;
+export const AUTHORIZATION_PRIVATE_KEY_BYTES = 64;
+export const AUTHORIZATION_SIGNATURE_BYTES = 64;
 export const XCHACHA_NONCE_BYTES = 24;
 export const XCHACHA_TAG_BYTES = 16;
 export const DEVICE_BINDING_TAG_BYTES = 32;

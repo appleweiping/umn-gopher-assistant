@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode, type SubmitEventHandler } from "react";
 
 import { getCampus } from "../lib/data/registry";
+import { AuthStatusControl } from "./auth-status-control";
 import { Icon, type IconName } from "./icon";
 import { PreferenceControls, usePreferences } from "./preferences";
 import { ServiceWorkerRegistration } from "./service-worker-registration";
@@ -221,6 +222,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
         </div>
         <GlobalSearch />
         <ConnectivityStatus />
+        <AuthStatusControl />
         <PreferenceControls />
       </header>
 

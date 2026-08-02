@@ -22,25 +22,30 @@ function renderWorkbench(campus: "tc" | "duluth" = "tc", locale: "en" | "zh-CN" 
 
 async function submitQuestion(question = "When is the library open?") {
   const user = userEvent.setup();
-  await user.type(screen.getByRole("textbox", { name: "Ask the campus knowledge index" }), question);
-  await user.click(screen.getByRole("button", { name: "Search reviewed sources" }));
+  await user.type(screen.getByRole("textbox", { name: "Ask the campus project-summary index" }), question);
+  await user.click(screen.getByRole("button", { name: "Search project summaries" }));
 }
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("AI retrieval workbench", () => {
-  it("shows visible citation markers and complete official evidence cards for every paragraph", async () => {
+  it("shows project-summary provenance separately from the official verification link", async () => {
+    const firstCitation = aiCitation();
     const secondCitation = aiCitation({
       contentSha256: "b".repeat(64),
+      documentId: "tc-library-spaces-overview",
       id: "tc-library-calendar",
-      sourceId: "tc-library-calendar",
-      sourceUrl: "https://www.lib.umn.edu/spaces",
-      title: { en: "University Libraries spaces", "zh-CN": "大学图书馆空间" },
+      title: { en: "Twin Cities library spaces starting point", "zh-CN": "双城校区图书馆空间入口" },
+      verificationLink: {
+        ...firstCitation.verificationLink,
+        sourceId: "official-tc-library-spaces",
+        sourceUrl: "https://www.lib.umn.edu/spaces",
+      },
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json(
         aiResponse({
-          citations: [aiCitation(), secondCitation],
+          citations: [firstCitation, secondCitation],
           paragraphs: [
             {
               citationIds: ["tc-library-hours"],
@@ -63,18 +68,38 @@ describe("AI retrieval workbench", () => {
     expect(paragraphs).toHaveLength(2);
     expect(paragraphs[0]).toHaveTextContent("[1]");
     expect(paragraphs[1]).toHaveTextContent("[2]");
-    const firstMarker = screen.getByRole("link", { name: "Citation 1: University Libraries hours" });
+    const firstMarker = screen.getByRole("link", {
+      name: "Project summary 1: Twin Cities library starting point",
+    });
     expect(firstMarker).toHaveAttribute("href", "#ai-citation-tc-library-hours");
+    const summaryLink = screen.getByRole("link", {
+      name: "Open summary provenance: Twin Cities library starting point Opens in a new tab.",
+    });
+    expect(summaryLink).toHaveAttribute(
+      "href",
+      "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+    );
+    expect(summaryLink).toHaveAttribute("rel", "noopener noreferrer");
     const officialLink = screen.getByRole("link", {
-      name: "Open official source: University Libraries hours Opens in a new tab.",
+      name: "Open official page to verify: Twin Cities library starting point Opens in a new tab.",
     });
     expect(officialLink).toHaveAttribute("href", "https://www.lib.umn.edu/services/hours");
     expect(officialLink).toHaveAttribute("rel", "noopener noreferrer");
-    expect(screen.getAllByText("Campus reviewed")).toHaveLength(2);
-    expect(screen.getAllByText("Evidence summary:")).toHaveLength(2);
-    expect(screen.getByText("5 reviewed documents considered")).toBeInTheDocument();
+    expect(screen.getAllByText("Project-authored; not independently verified")).toHaveLength(2);
+    expect(screen.getAllByText("Project summary excerpt:")).toHaveLength(2);
+    expect(screen.getByText("5 project summaries searched")).toBeInTheDocument();
+    expect(screen.getByText(/written by the independent project, not UMN/iu)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Relevant project summary found" })).toHaveAttribute(
+      "aria-describedby",
+      "ai-answer-disclosure",
+    );
+    expect(screen.getByText("Schematic summary")).toHaveClass("ai-state-schematic");
+    expect(document.body).not.toHaveTextContent(
+      /reviewed evidence|reviewed sources|evidence-backed response/iu,
+    );
+    expect(document.body).not.toHaveTextContent(/\banswered\b/iu);
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: "Answer supported by reviewed evidence" })).toHaveFocus(),
+      expect(screen.getByRole("heading", { name: "Relevant project summary found" })).toHaveFocus(),
     );
     firstMarker.click();
     expect(document.getElementById("ai-citation-tc-library-hours")).toHaveFocus();
@@ -87,34 +112,41 @@ describe("AI retrieval workbench", () => {
     renderWorkbench();
     await submitQuestion("quantum dragon parking");
 
-    expect(await screen.findByRole("region", { name: "No reviewed answer found" })).toHaveTextContent(
-      "did not generate an answer",
-    );
-    expect(screen.getByRole("heading", { name: "No reviewed answer found" })).toHaveFocus();
+    expect(
+      await screen.findByRole("region", { name: "No matching project summary found" }),
+    ).toHaveTextContent("no answer is shown");
+    expect(screen.getByRole("heading", { name: "No matching project summary found" })).toHaveFocus();
     expect(screen.queryByTestId("answer-paragraph")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Reviewed sources" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Summary provenance and verification links" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps stale and conflict uncertainty visible instead of silently resolving it", async () => {
     const stale = aiResponse({
-      citations: [aiCitation({ freshnessState: "STALE" })],
+      citations: [aiCitation({ summaryFreshnessState: "STALE" })],
       state: "stale",
     });
+    const firstCitation = aiCitation();
     const conflictingCitation = aiCitation({
       contentSha256: "b".repeat(64),
-      freshnessState: "EXPIRED",
+      documentId: "tc-library-conflicting-overview",
       id: "tc-library-conflict",
-      sourceId: "tc-library-conflict",
-      sourceUrl: "https://www.lib.umn.edu/about",
-      title: { en: "University Libraries notice", "zh-CN": "大学图书馆通知" },
+      summaryFreshnessState: "EXPIRED",
+      title: { en: "Twin Cities library notice summary", "zh-CN": "双城校区图书馆通知摘要" },
+      verificationLink: {
+        ...firstCitation.verificationLink,
+        sourceId: "official-tc-library-about",
+        sourceUrl: "https://www.lib.umn.edu/about",
+      },
     });
     const conflict = aiResponse({
-      citations: [aiCitation(), conflictingCitation],
+      citations: [firstCitation, conflictingCitation],
       paragraphs: [
         {
           citationIds: ["tc-library-hours", "tc-library-conflict"],
           id: "paragraph-conflict",
-          text: "The reviewed notices report different schedules.",
+          text: "The project-authored summaries report different schedules.",
         },
       ],
       state: "conflict",
@@ -125,14 +157,15 @@ describe("AI retrieval workbench", () => {
       .mockResolvedValueOnce(Response.json(conflict));
     const view = renderWorkbench();
     await submitQuestion();
-    expect(await screen.findByText(/historical context/iu)).toBeInTheDocument();
+    expect(await screen.findByText(/historical orientation/iu)).toBeInTheDocument();
 
     view.unmount();
     renderWorkbench();
     await submitQuestion();
-    expect(await screen.findByText(/reviewed sources disagree/iu)).toBeInTheDocument();
-    expect(screen.getByText(/historical context/iu)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /citation/iu })).toHaveLength(2);
+    expect(await screen.findByText(/project-authored summaries disagree/iu)).toBeInTheDocument();
+    expect(screen.getByText(/historical orientation/iu)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /project summary \d/iu })).toHaveLength(2);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(upstream).toHaveBeenCalledTimes(2);
   });
 
@@ -147,7 +180,7 @@ describe("AI retrieval workbench", () => {
     renderWorkbench();
     await submitQuestion();
 
-    expect(screen.getByRole("status")).toHaveTextContent("Searching reviewed campus evidence");
+    expect(screen.getByRole("status")).toHaveTextContent("Searching project-authored campus summaries");
     expect(screen.getByRole("button", { name: "Searching…" })).toBeDisabled();
     resolveResponse?.(
       Response.json(
@@ -155,18 +188,18 @@ describe("AI retrieval workbench", () => {
         { status: 503 },
       ),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("No answer was generated");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No answer is shown");
     expect(screen.getByRole("alert")).not.toHaveTextContent("redis://");
-    expect(screen.getByRole("heading", { name: "The campus index is unavailable" })).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "The project-summary index is unavailable" })).toHaveFocus();
   });
 
   it("identifies invalid input, describes the correction, and returns focus to the query", async () => {
     const upstream = vi.spyOn(globalThis, "fetch");
     const user = userEvent.setup();
     renderWorkbench();
-    const query = screen.getByRole("textbox", { name: "Ask the campus knowledge index" });
+    const query = screen.getByRole("textbox", { name: "Ask the campus project-summary index" });
     fireEvent.change(query, { target: { value: "<library>" } });
-    await user.click(screen.getByRole("button", { name: "Search reviewed sources" }));
+    await user.click(screen.getByRole("button", { name: "Search project summaries" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Use plain text between 2 and 500 characters");
     expect(query).toHaveAttribute("aria-invalid", "true");
@@ -184,7 +217,7 @@ describe("AI retrieval workbench", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Wait briefly before searching again");
     expect(screen.getByRole("heading", { name: "Search limit reached" })).toHaveFocus();
-    expect(screen.getByRole("textbox", { name: "Ask the campus knowledge index" })).not.toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Ask the campus project-summary index" })).not.toHaveAttribute(
       "aria-invalid",
     );
   });
@@ -201,7 +234,7 @@ describe("AI retrieval workbench", () => {
     expect(screen.getByText("Campus:").parentElement).toHaveTextContent("Duluth");
   });
 
-  it("renders the Chinese query, state, citation metadata, and official link without English fallbacks", async () => {
+  it("renders the Chinese schematic disclosure, provenance, and verification link without English fallbacks", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       Response.json(
         aiResponse({
@@ -219,14 +252,19 @@ describe("AI retrieval workbench", () => {
     );
     const user = userEvent.setup();
     renderWorkbench("tc", "zh-CN");
-    await user.type(screen.getByRole("textbox", { name: "询问校园知识索引" }), "图书馆什么时候开放？");
-    await user.click(screen.getByRole("button", { name: "检索已审阅来源" }));
+    await user.type(screen.getByRole("textbox", { name: "查询校园项目摘要索引" }), "图书馆什么时候开放？");
+    await user.click(screen.getByRole("button", { name: "检索项目摘要" }));
 
-    expect(await screen.findByRole("heading", { name: "答案已有审阅证据支持" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "找到相关的项目编写摘要" })).toBeInTheDocument();
+    expect(screen.getByText(/本独立项目编写、并非明尼苏达大学发布/u)).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "打开官方来源：大学图书馆开放时间 将在新标签页打开。" }),
+      screen.getByRole("link", { name: "打开官方页面核验：双城校区图书馆入口 将在新标签页打开。" }),
     ).toHaveAttribute("href", "https://www.lib.umn.edu/services/hours");
-    expect(screen.getByText("校方已审阅")).toBeInTheDocument();
-    expect(screen.getByText("已检查 5 份审阅文档")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "查看摘要出处：双城校区图书馆入口 将在新标签页打开。" }),
+    ).toHaveAttribute("href", expect.stringContaining("github.com/appleweiping/umn-gopher-assistant"));
+    expect(screen.getByText("项目编写；尚未独立核验")).toBeInTheDocument();
+    expect(screen.getByText("已检索 5 份项目摘要")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/已审阅来源|审阅证据|答案已有/u);
   });
 });

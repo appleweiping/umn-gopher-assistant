@@ -54,7 +54,7 @@ function formatRecoveryCode(body: string): string {
   return `UGA1-${chunks.join("-")}`;
 }
 
-interface NormalizedRecoveryCode {
+export interface NormalizedRecoveryCode {
   readonly display: string;
   readonly entropy: Uint8Array;
 }
@@ -89,7 +89,10 @@ function decodeCrockford(body: string): Uint8Array {
   return decoded;
 }
 
-function normalizeRecoveryCode(code: unknown, mode: "input" | "authentication"): NormalizedRecoveryCode {
+export function normalizeRecoveryCodeForInternalUse(
+  code: unknown,
+  mode: "input" | "authentication",
+): NormalizedRecoveryCode {
   const fail = (): never => {
     throw mode === "authentication"
       ? authenticationFailed()
@@ -232,7 +235,7 @@ export function createRecoveryEnvelope(
       recoveryEntropy = sodium.randombytes_buf(RECOVERY_ENTROPY_BYTES);
       recoveryCode = formatRecoveryCode(encodeCrockford(recoveryEntropy));
     } else {
-      const normalized = normalizeRecoveryCode(recoveryCodeInput, "input");
+      const normalized = normalizeRecoveryCodeForInternalUse(recoveryCodeInput, "input");
       recoveryEntropy = normalized.entropy;
       recoveryCode = normalized.display;
     }
@@ -299,7 +302,7 @@ export function recoverVaultKey(
   let recoveryEntropy: Uint8Array | undefined;
   try {
     const metadata = authenticateRecoveryMetadata(envelope);
-    const recoveryCode = normalizeRecoveryCode(recoveryCodeInput, "authentication");
+    const recoveryCode = normalizeRecoveryCodeForInternalUse(recoveryCodeInput, "authentication");
     recoveryEntropy = recoveryCode.entropy;
     salt = decodeBase64UrlExact(sodium, metadata.kdf.salt, RECOVERY_SALT_BYTES);
     nonce = decodeBase64UrlExact(sodium, envelope.nonce, XCHACHA_NONCE_BYTES);
@@ -335,5 +338,5 @@ export function recoverVaultKey(
 
 /** Internal vector hook; not exported by the package root. */
 export function normalizeRecoveryCodeForTesting(code: string): NormalizedRecoveryCode {
-  return normalizeRecoveryCode(code, "input");
+  return normalizeRecoveryCodeForInternalUse(code, "input");
 }

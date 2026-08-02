@@ -80,6 +80,8 @@ function isVaultRequest(request, url) {
 function isExcludedPath(pathname) {
   return (
     isReservedVaultPath(pathname) ||
+    pathname === "/auth" ||
+    pathname.startsWith("/auth/") ||
     pathname === "/api" ||
     pathname.startsWith("/api/") ||
     pathname === "/v1" ||

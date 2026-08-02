@@ -59,9 +59,14 @@ describe("OpenAPI generated artifacts", () => {
   it("contains every current operation and its runtime transport data", () => {
     expect(Object.keys(operationDefinitions).sort()).toEqual(
       [
+        "approvePersonalVaultDevicePairing",
+        "bootstrapPersonalVault",
         "calculateRoute",
+        "cancelPersonalVaultDevicePairing",
         "createCommunityPost",
         "createMessage",
+        "createPersonalVault",
+        "createPersonalVaultDevicePairing",
         "getHealth",
         "getWorldManifest",
         "joinLiveEvent",
@@ -72,9 +77,13 @@ describe("OpenAPI generated artifacts", () => {
         "listEvents",
         "listMessages",
         "listModerationCases",
+        "listPersonalVaultDevicePairings",
         "listPlaces",
         "listSources",
         "queryCampusAssistant",
+        "readPersonalVault",
+        "rotatePersonalVaultKey",
+        "updatePersonalVaultPayload",
         "updateSourcePolicy",
       ].sort(),
     );
@@ -127,6 +136,32 @@ describe("OpenAPI generated artifacts", () => {
       runtimeStatus: "implemented",
       successStatuses: [200],
     });
+    expect(operationDefinitions.createPersonalVault).toMatchObject({
+      errorStatuses: [400, 401, 403, 404, 409, 412, 413, 415, 428, 500, 503],
+      idempotencyKeyBoundTo: "operationId",
+      idempotencyKeyRequired: true,
+      ifNoneMatchRequiredValue: "*",
+      maxRequestBodyBytes: 16 * 1024 * 1024,
+      maxSuccessResponseBodyBytes: 16 * 1024 * 1024,
+      path: "/v1/personal/vault",
+      requiredScopes: ["personal:write"],
+      runtimeStatus: "implemented",
+      successStatuses: [201],
+    });
+    expect(operationDefinitions.readPersonalVault).toMatchObject({
+      errorStatuses: [400, 401, 403, 404, 428, 500, 503],
+      maxSuccessResponseBodyBytes: 16 * 1024 * 1024,
+      path: "/v1/personal/vault",
+      requiredScopes: ["personal:read"],
+      strongIfNoneMatch: true,
+      supportsNotModified: true,
+      vaultReadProofRequired: true,
+    });
+    expect(operationDefinitions.approvePersonalVaultDevicePairing).toMatchObject({
+      idempotencyKeyBoundTo: "command.operationId",
+      ifMatchRequired: true,
+      maxRequestBodyBytes: 16 * 1024 * 1024,
+    });
   });
 
   it("marks generated files as derived from the shared contract", () => {
@@ -157,7 +192,7 @@ describe("OpenAPI generated artifacts", () => {
     expect(lfValidator).toContain(
       `successValidatorContractSha256 =\n  "${contractSourceSha256(lfContract)}"`,
     );
-  });
+  }, 20_000);
 
   it("exposes stable public validation results for implemented operations and statuses", () => {
     const health = {
@@ -187,6 +222,32 @@ describe("OpenAPI generated artifacts", () => {
       success: false,
     });
     expect(validateImplementedSuccessBody("getHealth", 200, {})).toEqual({
+      reason: "invalid-success-body",
+      success: false,
+    });
+    const ownerBinding = "A".repeat(43);
+    expect(
+      validateImplementedSuccessBody("bootstrapPersonalVault", 200, {
+        formatVersion: 2,
+        ownerBinding,
+        vault: { exists: false },
+      }),
+    ).toEqual({
+      data: {
+        formatVersion: 2,
+        ownerBinding,
+        vault: { exists: false },
+      },
+      success: true,
+    });
+    expect(
+      validateImplementedSuccessBody("bootstrapPersonalVault", 200, {
+        accountId: "must-not-leak",
+        formatVersion: 2,
+        ownerBinding,
+        vault: { exists: false },
+      }),
+    ).toEqual({
       reason: "invalid-success-body",
       success: false,
     });

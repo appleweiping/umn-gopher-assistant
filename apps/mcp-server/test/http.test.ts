@@ -5,6 +5,7 @@ import type { AddressInfo, Socket } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { AccessTokenVerifier } from "../src/auth.js";
+import { DpopVerificationError, type DpopProofVerifier } from "../src/dpop.js";
 import { loadMcpServerConfig } from "../src/config.js";
 import type { McpServerConfig } from "../src/config.js";
 import { createMcpHttpServer } from "../src/http.js";
@@ -75,10 +76,16 @@ const openServers: StartedServer[] = [];
 
 async function startServer(options: {
   readonly config: McpServerConfig;
+  readonly dpopVerifier?: DpopProofVerifier;
   readonly fetch?: typeof fetch;
   readonly tokenVerifier?: AccessTokenVerifier;
 }): Promise<StartedServer> {
-  const created = createMcpHttpServer(options);
+  const created = createMcpHttpServer({
+    ...options,
+    ...(options.config.auth.mode === "oauth" && options.dpopVerifier === undefined
+      ? { dpopVerifier: { verify: () => Promise.resolve() } }
+      : {}),
+  });
   await new Promise<void>((resolve, reject) => {
     created.server.once("error", reject);
     created.server.listen(0, "127.0.0.1", () => resolve());
@@ -192,6 +199,25 @@ describe("MCP HTTP boundary", () => {
       service: "gopher-mcp-server",
       status: "ready",
       tools: 3,
+    });
+  });
+
+  it("keeps liveness up but fails readiness when DPoP replay protection is unavailable", async () => {
+    const server = await startServer({
+      config: oauthConfig(),
+      dpopVerifier: {
+        ready: () => Promise.resolve(false),
+        verify: () => Promise.resolve(),
+      },
+    });
+
+    expect((await server.request({ path: "/healthz" })).status).toBe(200);
+    const readiness = await server.request({ path: "/readyz" });
+    expect(readiness.status).toBe(503);
+    expect(JSON.parse(readiness.body)).toEqual({
+      dependency: "dpop_replay_store",
+      service: "gopher-mcp-server",
+      status: "not_ready",
     });
   });
 
@@ -318,7 +344,7 @@ describe("MCP HTTP boundary", () => {
     expect(metadata.status).toBe(200);
     expect(JSON.parse(metadata.body)).toMatchObject({
       authorization_servers: ["http://127.0.0.1:8080/realms/gopher-assistant-dev"],
-      bearer_methods_supported: ["header"],
+      bearer_methods_supported: [],
       resource: "http://127.0.0.1:4100/mcp",
       scopes_supported: ["campus:read"],
     });
@@ -330,7 +356,7 @@ describe("MCP HTTP boundary", () => {
     expect(unauthorized.body).not.toContain("secret verifier detail");
   });
 
-  it("rejects forged bearer credentials at the HTTP boundary", async () => {
+  it("rejects forged DPoP access tokens at the HTTP boundary", async () => {
     const verifier: AccessTokenVerifier = {
       verify: async () => {
         throw new Error("signature invalid: never expose this");
@@ -339,7 +365,7 @@ describe("MCP HTTP boundary", () => {
     const server = await startServer({ config: oauthConfig(), tokenVerifier: verifier });
     const response = await server.request({
       body: initializeBody(),
-      headers: { ...mcpHeaders, Authorization: `Bearer ${"a".repeat(64)}` },
+      headers: { ...mcpHeaders, Authorization: `DPoP ${"a".repeat(64)}`, DPoP: "proof" },
       method: "POST",
       path: "/mcp",
     });
@@ -348,6 +374,52 @@ describe("MCP HTTP boundary", () => {
     expect(response.headers["www-authenticate"]).toContain('error="invalid_token"');
     expect(response.body).not.toContain("signature invalid");
     expect(server.application.diagnostics.activeRequests).toBe(0);
+  });
+
+  it("requires a DPoP proof and exposes a bounded nonce challenge for one retry", async () => {
+    const tokenVerifier: AccessTokenVerifier = {
+      verify: () =>
+        Promise.resolve({
+          clientId: "gopher-mcp",
+          dpopJkt: "A".repeat(43),
+          expiresAt: Math.floor(Date.now() / 1_000) + 300,
+          scopes: new Set(["campus:read"]),
+          subject: "test-user",
+        }),
+    };
+    const missingProofServer = await startServer({
+      config: oauthConfig(),
+      tokenVerifier,
+    });
+    const missingProof = await missingProofServer.request({
+      body: initializeBody(),
+      headers: { ...mcpHeaders, Authorization: `DPoP ${"a".repeat(64)}` },
+      method: "POST",
+      path: "/mcp",
+    });
+    expect(missingProof.status).toBe(401);
+    expect(missingProof.headers["www-authenticate"]).toContain('error="invalid_dpop_proof"');
+
+    const nonceServer = await startServer({
+      config: oauthConfig(),
+      dpopVerifier: {
+        verify: () => Promise.reject(new DpopVerificationError("nonce", "!")),
+      },
+      tokenVerifier,
+    });
+    const challenged = await nonceServer.request({
+      body: initializeBody(),
+      headers: {
+        ...mcpHeaders,
+        Authorization: `DPoP ${"a".repeat(64)}`,
+        DPoP: "fresh-proof",
+      },
+      method: "POST",
+      path: "/mcp",
+    });
+    expect(challenged.status).toBe(401);
+    expect(challenged.headers["dpop-nonce"]).toBe("!");
+    expect(challenged.headers["www-authenticate"]).toContain('error="use_dpop_nonce"');
   });
 
   it("enforces Host, Origin, media negotiation, method, and body-size boundaries", async () => {
@@ -476,6 +548,8 @@ describe("MCP HTTP boundary", () => {
         verify: async (token) => {
           verifiedToken = token;
           return {
+            clientId: "gopher-mcp",
+            dpopJkt: "A".repeat(43),
             expiresAt: Math.floor(Date.now() / 1000) + 300,
             scopes: new Set(["campus:read"]),
             subject: "test-user",
@@ -492,7 +566,8 @@ describe("MCP HTTP boundary", () => {
       }),
       headers: {
         ...mcpHeaders,
-        Authorization: `Bearer ${inboundToken}`,
+        Authorization: `DPoP ${inboundToken}`,
+        DPoP: "proof",
         "MCP-Protocol-Version": "2025-03-26",
       },
       method: "POST",
@@ -592,6 +667,7 @@ describe("MCP HTTP boundary", () => {
           await verificationHold;
           return {
             clientId: "client-a",
+            dpopJkt: "A".repeat(43),
             expiresAt: Math.floor(Date.now() / 1_000) + 300,
             scopes: new Set(["campus:read"]),
             subject: "subject-a",
@@ -601,7 +677,7 @@ describe("MCP HTTP boundary", () => {
     });
     const first = server.request({
       body: initializeBody(),
-      headers: { ...mcpHeaders, Authorization: `Bearer ${"a".repeat(64)}` },
+      headers: { ...mcpHeaders, Authorization: `DPoP ${"a".repeat(64)}`, DPoP: "proof" },
       method: "POST",
       path: "/mcp",
     });
@@ -609,7 +685,7 @@ describe("MCP HTTP boundary", () => {
 
     const rejected = await server.request({
       body: "{this body must not be parsed",
-      headers: { ...mcpHeaders, Authorization: `Bearer ${"b".repeat(64)}` },
+      headers: { ...mcpHeaders, Authorization: `DPoP ${"b".repeat(64)}`, DPoP: "proof" },
       method: "POST",
       path: "/mcp",
     });
@@ -667,6 +743,7 @@ describe("MCP HTTP boundary", () => {
       tokenVerifier: {
         verify: async (token) => ({
           clientId: "shared-client",
+          dpopJkt: "A".repeat(43),
           expiresAt: Math.floor(Date.now() / 1_000) + 300,
           scopes: new Set(["campus:read"]),
           subject: token.startsWith("a") ? "subject-a" : "subject-b",
@@ -675,7 +752,8 @@ describe("MCP HTTP boundary", () => {
     });
     const authorization = (value: string) => ({
       ...mcpHeaders,
-      Authorization: `Bearer ${value.repeat(64)}`,
+      Authorization: `DPoP ${value.repeat(64)}`,
+      DPoP: "proof",
     });
 
     expect(
@@ -717,6 +795,7 @@ describe("MCP HTTP boundary", () => {
       tokenVerifier: {
         verify: async (token) => ({
           clientId: token.startsWith("c") ? "other-client" : "shared-client",
+          dpopJkt: "A".repeat(43),
           expiresAt: Math.floor(Date.now() / 1_000) + 300,
           scopes: new Set(["campus:read"]),
           subject: `subject-${token[0]}`,
@@ -726,7 +805,11 @@ describe("MCP HTTP boundary", () => {
     const invoke = (token: string) =>
       server.request({
         body: initializeBody(),
-        headers: { ...mcpHeaders, Authorization: `Bearer ${token.repeat(64)}` },
+        headers: {
+          ...mcpHeaders,
+          Authorization: `DPoP ${token.repeat(64)}`,
+          DPoP: "proof",
+        },
         method: "POST",
         path: "/mcp",
       });

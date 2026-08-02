@@ -1,8 +1,17 @@
+import { randomUUID } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthManager } from "../src/auth.js";
 import { OidcClient } from "../src/oidc.js";
 import { MemorySecretStore, type SecretStore } from "../src/secret-store.js";
+import { SocketCredentialRefreshLock } from "../src/refresh-lock.js";
+import {
+  TEST_DPOP_CREDENTIAL,
+  TEST_DPOP_PRIVATE_JWK,
+  testAccessToken,
+  tokenResponse,
+} from "./dpop-fixture.js";
 import { jsonResponse, oidcDiscovery, takeResponse } from "./helpers.js";
 
 describe("credential lifecycle", () => {
@@ -16,13 +25,7 @@ describe("credential lifecycle", () => {
         user_code: "USER-CODE",
         verification_uri: "https://identity.example/verify",
       }),
-      jsonResponse({
-        access_token: "access-secret",
-        expires_in: 300,
-        refresh_token: "refresh-secret",
-        scope: "openid campus:read",
-        token_type: "Bearer",
-      }),
+      jsonResponse(tokenResponse("unavailable-store")),
     ];
     const store = new MemorySecretStore(false);
     const oidc = new OidcClient({
@@ -31,7 +34,13 @@ describe("credential lifecycle", () => {
       sleep: async () => undefined,
       timeoutMs: 1000,
     });
-    const manager = new AuthManager({ environment: {}, now: () => 100, oidc, secretStore: store });
+    const manager = new AuthManager({
+      environment: {},
+      generateDpopPrivateJwk: () => Promise.resolve(TEST_DPOP_PRIVATE_JWK),
+      now: () => 100,
+      oidc,
+      secretStore: store,
+    });
     await expect(
       manager.login("local", new URL("https://identity.example/realms/gopher/"), {
         verification: () => undefined,
@@ -51,13 +60,7 @@ describe("credential lifecycle", () => {
         user_code: "USER-CODE",
         verification_uri: "https://identity.example/verify",
       }),
-      jsonResponse({
-        access_token: "access-secret",
-        expires_in: 300,
-        refresh_token: "refresh-secret",
-        scope: "openid campus:read",
-        token_type: "Bearer",
-      }),
+      jsonResponse(tokenResponse("refused-store")),
     ];
     let deleteCalled = false;
     const store: SecretStore = {
@@ -71,6 +74,7 @@ describe("credential lifecycle", () => {
     };
     const manager = new AuthManager({
       environment: {},
+      generateDpopPrivateJwk: () => Promise.resolve(TEST_DPOP_PRIVATE_JWK),
       now: () => 100,
       oidc: new OidcClient({
         fetch: vi.fn<typeof fetch>(async () => takeResponse(responses)),
@@ -99,13 +103,7 @@ describe("credential lifecycle", () => {
         user_code: "USER-CODE",
         verification_uri: "https://identity.example/verify",
       }),
-      jsonResponse({
-        access_token: "access-secret",
-        expires_in: 300,
-        refresh_token: "refresh-secret",
-        scope: "openid campus:read",
-        token_type: "Bearer",
-      }),
+      jsonResponse(tokenResponse("throwing-store")),
     ];
     const store: SecretStore = {
       availability: () => Promise.resolve({ available: true }),
@@ -115,6 +113,7 @@ describe("credential lifecycle", () => {
     };
     const manager = new AuthManager({
       environment: {},
+      generateDpopPrivateJwk: () => Promise.resolve(TEST_DPOP_PRIVATE_JWK),
       now: () => 100,
       oidc: new OidcClient({
         fetch: vi.fn<typeof fetch>(async () => takeResponse(responses)),
@@ -141,26 +140,18 @@ describe("credential lifecycle", () => {
       "profile:local",
       JSON.stringify({
         issuer: "https://identity.example/realms/gopher",
+        dpopPrivateJwk: TEST_DPOP_PRIVATE_JWK,
         token: {
-          accessToken: "expired-access-secret",
+          accessToken: testAccessToken(undefined, "expired"),
           expiresAt: 1,
           refreshToken: "old-refresh-secret",
           scope: ["openid", "campus:read"],
         },
-        version: 1,
+        version: 2,
       }),
     );
     const requests: Request[] = [];
-    const responses = [
-      jsonResponse(oidcDiscovery()),
-      jsonResponse({
-        access_token: "rotated-access-secret",
-        expires_in: 300,
-        refresh_token: "rotated-refresh-secret",
-        scope: "openid campus:read",
-        token_type: "Bearer",
-      }),
-    ];
+    const responses = [jsonResponse(oidcDiscovery()), jsonResponse(tokenResponse("rotated"))];
     const oidc = new OidcClient({
       fetch: vi.fn<typeof fetch>(async (request) => {
         if (!(request instanceof Request)) throw new TypeError("expected a Request");
@@ -173,16 +164,162 @@ describe("credential lifecycle", () => {
     });
     const manager = new AuthManager({ environment: {}, now: () => 100_000, oidc, secretStore: store });
     await expect(
-      manager.getAccessToken("local", new URL("https://identity.example/realms/gopher/")),
-    ).resolves.toBe("rotated-access-secret");
+      manager.getDpopCredential("local", new URL("https://identity.example/realms/gopher/")),
+    ).resolves.toMatchObject({ accessToken: testAccessToken(undefined, "rotated") });
     expect(requests).toHaveLength(2);
     const safeStatus = JSON.stringify(await manager.status("local"));
     expect(safeStatus).not.toContain("access-secret");
     expect(safeStatus).not.toContain("refresh-secret");
-    expect(await store.get("profile:local")).toContain("rotated-refresh-secret");
+    expect(await store.get("profile:local")).toContain("refresh-secret-rotated");
   });
 
-  it("uses an environment access token without copying it into the keychain", async () => {
+  it("serializes simulated CLI processes and re-reads the rotated token after the OS lease", async () => {
+    const lockNamespace = `test:${randomUUID()}`;
+    const store = new MemorySecretStore();
+    await store.set(
+      "profile:local",
+      JSON.stringify({
+        issuer: "https://identity.example/realms/gopher",
+        dpopPrivateJwk: TEST_DPOP_PRIVATE_JWK,
+        token: {
+          accessToken: testAccessToken(undefined, "expired-concurrent"),
+          expiresAt: 1,
+          refreshToken: "single-use-refresh-token",
+          scope: ["openid", "campus:read"],
+        },
+        version: 2,
+      }),
+    );
+    let releaseTokenRequest!: () => void;
+    let markTokenRequestStarted!: () => void;
+    const tokenRequestCanFinish = new Promise<void>((resolve) => {
+      releaseTokenRequest = resolve;
+    });
+    const tokenRequestStarted = new Promise<void>((resolve) => {
+      markTokenRequestStarted = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      if (fetchMock.mock.calls.length === 1) return jsonResponse(oidcDiscovery());
+      markTokenRequestStarted();
+      await tokenRequestCanFinish;
+      return jsonResponse(tokenResponse("rotated-concurrent"));
+    });
+    const firstManager = new AuthManager({
+      environment: {},
+      now: () => 100_000,
+      oidc: new OidcClient({
+        fetch: fetchMock,
+        now: () => 100_000,
+        sleep: async () => undefined,
+        timeoutMs: 1_000,
+      }),
+      refreshLock: new SocketCredentialRefreshLock(lockNamespace),
+      secretStore: store,
+    });
+    const secondManager = new AuthManager({
+      environment: {},
+      now: () => 100_000,
+      oidc: new OidcClient({
+        fetch: fetchMock,
+        now: () => 100_000,
+        sleep: async () => undefined,
+        timeoutMs: 1_000,
+      }),
+      refreshLock: new SocketCredentialRefreshLock(lockNamespace),
+      secretStore: store,
+    });
+
+    try {
+      const first = firstManager.getDpopCredential(
+        "local",
+        new URL("https://identity.example/realms/gopher/"),
+      );
+      await tokenRequestStarted;
+      const second = secondManager.getDpopCredential(
+        "local",
+        new URL("https://identity.example/realms/gopher/"),
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, 75));
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      releaseTokenRequest();
+
+      const [firstCredential, secondCredential] = await Promise.all([first, second]);
+      expect(firstCredential.accessToken).toBe(testAccessToken(undefined, "rotated-concurrent"));
+      expect(secondCredential.accessToken).toBe(firstCredential.accessToken);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(await store.get("profile:local")).toContain("refresh-secret-rotated-concurrent");
+    } finally {
+      releaseTokenRequest();
+    }
+  });
+
+  it("does not resurrect credentials when logout races an in-flight refresh", async () => {
+    const lockNamespace = `test:${randomUUID()}`;
+    const store = new MemorySecretStore();
+    await store.set(
+      "profile:local",
+      JSON.stringify({
+        issuer: "https://identity.example/realms/gopher",
+        dpopPrivateJwk: TEST_DPOP_PRIVATE_JWK,
+        token: {
+          accessToken: testAccessToken(undefined, "expired-logout-race"),
+          expiresAt: 1,
+          refreshToken: "single-use-refresh-token",
+          scope: ["openid", "campus:read"],
+        },
+        version: 2,
+      }),
+    );
+    let releaseRefresh!: () => void;
+    let markRefreshStarted!: () => void;
+    const refreshCanFinish = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    const refreshStarted = new Promise<void>((resolve) => {
+      markRefreshStarted = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      if (fetchMock.mock.calls.length === 1) return jsonResponse(oidcDiscovery());
+      markRefreshStarted();
+      await refreshCanFinish;
+      return jsonResponse(tokenResponse("logout-race"));
+    });
+    const options = () => ({
+      environment: {},
+      now: () => 100_000,
+      oidc: new OidcClient({
+        fetch: fetchMock,
+        now: () => 100_000,
+        sleep: async () => undefined,
+        timeoutMs: 1_000,
+      }),
+      refreshLock: new SocketCredentialRefreshLock(lockNamespace),
+      secretStore: store,
+    });
+    const refreshingManager = new AuthManager(options());
+    const logoutManager = new AuthManager(options());
+
+    try {
+      const refresh = refreshingManager.getDpopCredential(
+        "local",
+        new URL("https://identity.example/realms/gopher/"),
+      );
+      await refreshStarted;
+      const logout = logoutManager.logout("local");
+      await new Promise<void>((resolve) => setTimeout(resolve, 75));
+      expect(await store.get("profile:local")).toContain("single-use-refresh-token");
+      releaseRefresh();
+      await expect(refresh).resolves.toMatchObject({
+        accessToken: testAccessToken(undefined, "logout-race"),
+      });
+      await expect(logout).resolves.toMatchObject({ deletion: "deleted", removed: true });
+      expect(await store.get("profile:local")).toBeUndefined();
+    } finally {
+      releaseRefresh();
+    }
+  });
+
+  it("uses a complete environment DPoP credential without copying it into the keychain", async () => {
     const store = new MemorySecretStore();
     const oidc = new OidcClient({
       fetch: vi.fn<typeof fetch>(),
@@ -191,16 +328,66 @@ describe("credential lifecycle", () => {
       timeoutMs: 1000,
     });
     const manager = new AuthManager({
-      environment: { UGA_ACCESS_TOKEN: "environment-secret" },
+      environment: {
+        UGA_ACCESS_TOKEN: TEST_DPOP_CREDENTIAL.accessToken,
+        UGA_DPOP_PRIVATE_JWK: JSON.stringify(TEST_DPOP_PRIVATE_JWK),
+      },
       now: () => 0,
       oidc,
       secretStore: store,
     });
     await expect(
-      manager.getAccessToken("local", new URL("https://identity.example/realms/gopher/")),
-    ).resolves.toBe("environment-secret");
+      manager.getDpopCredential("local", new URL("https://identity.example/realms/gopher/")),
+    ).resolves.toEqual(TEST_DPOP_CREDENTIAL);
     expect(await store.get("profile:local")).toBeUndefined();
     expect(await manager.status("local")).toMatchObject({ source: "environment" });
+  });
+
+  it("rejects a lone environment access token instead of falling back to Bearer", async () => {
+    const manager = new AuthManager({
+      environment: { UGA_ACCESS_TOKEN: TEST_DPOP_CREDENTIAL.accessToken },
+      now: () => 0,
+      oidc: new OidcClient({
+        fetch: vi.fn<typeof fetch>(),
+        now: () => 0,
+        sleep: async () => undefined,
+        timeoutMs: 1000,
+      }),
+      secretStore: new MemorySecretStore(),
+    });
+    await expect(
+      manager.getDpopCredential("local", new URL("https://identity.example/realms/gopher/")),
+    ).rejects.toMatchObject({ code: "environment-dpop-credential-incomplete", exitCode: 4 });
+  });
+
+  it("fails closed on a legacy keychain entry that has no DPoP private key", async () => {
+    const store = new MemorySecretStore();
+    await store.set(
+      "profile:local",
+      JSON.stringify({
+        issuer: "https://identity.example/realms/gopher",
+        token: { accessToken: "legacy", expiresAt: 1, scope: [] },
+        version: 1,
+      }),
+    );
+    const manager = new AuthManager({
+      environment: {},
+      now: () => 0,
+      oidc: new OidcClient({
+        fetch: vi.fn<typeof fetch>(),
+        now: () => 0,
+        sleep: async () => undefined,
+        timeoutMs: 1000,
+      }),
+      secretStore: store,
+    });
+    await expect(
+      manager.getDpopCredential("local", new URL("https://identity.example/realms/gopher/")),
+    ).rejects.toMatchObject({ code: "dpop-key-missing", exitCode: 4 });
+    await expect(manager.status("local")).resolves.toMatchObject({
+      available: false,
+      source: "legacy-keychain",
+    });
   });
 
   it("maps cancellation during an identity-provider request to authentication exit 4", async () => {
