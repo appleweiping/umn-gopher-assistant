@@ -122,6 +122,16 @@ function sendJsonBeforeBody(
   sendJson(response, status, body);
 }
 
+function rejectJsonBeforeBody(
+  request: IncomingMessage,
+  response: ServerResponse,
+  status: number,
+  body: unknown,
+): Promise<void> {
+  sendJsonBeforeBody(request, response, status, body);
+  return Promise.resolve();
+}
+
 function sendEmptyBeforeBody(request: IncomingMessage, response: ServerResponse, status: number): void {
   if (requestMayHaveUnreadBody(request)) closeConnectionAfterResponse(request, response);
   sendEmpty(response, status);
@@ -394,16 +404,14 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             requestTarget.startsWith("//") ||
             requestTarget.includes("\\")
           ) {
-            sendJsonBeforeBody(request, response, 400, { error: "invalid_request_target" });
-            return;
-          }
-          const url = new URL(requestTarget, config.resourceUrl.origin);
-          if (url.search || url.hash) {
-            sendJsonBeforeBody(request, response, 404, { error: "not_found" });
-            return;
+            // The helper writes synchronously and returns an already-resolved promise.
+            // eslint-disable-next-line @typescript-eslint/return-await
+            return rejectJsonBeforeBody(request, response, 400, { error: "invalid_request_target" });
           }
 
-          if (url.pathname === "/healthz") {
+          // Route on the raw target so dot segments, query strings, fragments,
+          // percent-encoded aliases, and other normalized spellings stay rejected.
+          if (requestTarget === "/healthz") {
             if (request.method !== "GET") {
               response.setHeader("Allow", "GET");
               sendEmptyBeforeBody(request, response, 405);
@@ -416,7 +424,7 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             });
             return;
           }
-          if (url.pathname === "/readyz") {
+          if (requestTarget === "/readyz") {
             if (request.method !== "GET") {
               response.setHeader("Allow", "GET");
               sendEmptyBeforeBody(request, response, 405);
@@ -444,7 +452,7 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             });
             return;
           }
-          if (url.pathname === config.resourceMetadataUrl.pathname) {
+          if (requestTarget === config.resourceMetadataUrl.pathname) {
             if (request.method !== "GET") {
               response.setHeader("Allow", "GET");
               sendEmptyBeforeBody(request, response, 405);
@@ -453,9 +461,10 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             sendJsonBeforeBody(request, response, 200, protectedResourceMetadata(config));
             return;
           }
-          if (url.pathname !== config.resourceUrl.pathname) {
-            sendJsonBeforeBody(request, response, 404, { error: "not_found" });
-            return;
+          if (requestTarget !== config.resourceUrl.pathname) {
+            // The helper writes synchronously and returns an already-resolved promise.
+            // eslint-disable-next-line @typescript-eslint/return-await
+            return rejectJsonBeforeBody(request, response, 404, { error: "not_found" });
           }
 
           if (request.method === "OPTIONS") {
@@ -482,8 +491,9 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             return;
           }
           if (!isJsonContentType(request) || request.headers["content-encoding"] !== undefined) {
-            sendJsonBeforeBody(request, response, 415, { error: "unsupported_media_type" });
-            return;
+            // The helper writes synchronously and returns an already-resolved promise.
+            // eslint-disable-next-line @typescript-eslint/return-await
+            return rejectJsonBeforeBody(request, response, 415, { error: "unsupported_media_type" });
           }
           if (singleHeader(request, "mcp-session-id") !== undefined) {
             sendJsonBeforeBody(request, response, 400, {

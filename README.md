@@ -465,7 +465,7 @@ pnpm `10.34.5`:
 | Fresh workspace lint                  |                                                                                              15/15 tasks passed |
 | Fresh workspace typecheck             |                                                                                              15/15 tasks passed |
 | Production build                      |                                                                                     11/11 build packages passed |
-| Node unit/contract/smoke assertions   |                                                                                         1,052 passed, 3 skipped |
+| Node unit/contract/smoke assertions   |                                                                                         1,058 passed, 3 skipped |
 | Python tests                          |                                                                       381 passed, 1 deselected, 96.32% coverage |
 | Bilingual retrieval release cases     |                                                        152/152 passed; all scored metrics 1.0; campus leakage 0 |
 | Accessibility browser matrix          |                                                                         32/32 passed across Chromium and WebKit |
@@ -474,8 +474,8 @@ pnpm `10.34.5`:
 | Compose configuration                 |                                                                                                           Valid |
 | Offline retained-realm reconciliation |                                                       First run converged 11 changes; second run made 0 changes |
 
-The 1,052 Node assertions include API (342), Web (254), contracts (95), SDK
-(80), CLI (80), MCP (77), config (11), crypto (30), database (38), edge gateway
+The 1,058 Node assertions include API (347), Web (254), contracts (95), SDK
+(80), CLI (80), MCP (78), config (11), crypto (30), database (38), edge gateway
 (20), shared testing (2), foundation verification (5), and root smoke/unit
 (18). API and MCP each retain one intentional skip in their applicable
 environment, and the API retains one additional intentional skip.

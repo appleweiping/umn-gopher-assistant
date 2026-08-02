@@ -121,7 +121,10 @@ function accountFor(profile: string): string {
 }
 
 function issuerKey(issuer: URL): string {
-  return issuer.toString().replace(/\/+$/u, "");
+  const serialized = issuer.toString();
+  let end = serialized.length;
+  while (end > 0 && serialized.charCodeAt(end - 1) === 47) end -= 1;
+  return serialized.slice(0, end);
 }
 
 export class AuthManager {

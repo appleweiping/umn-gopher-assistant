@@ -207,7 +207,7 @@ COMMENT ON TABLE "personal_vault_manifests" IS 'owner: core-api; immutable authe
 --> statement-breakpoint
 COMMENT ON TABLE "personal_vault_commits" IS 'owner: core-api; immutable authenticated commit chain joining payload, keyring, and manifest revisions';
 --> statement-breakpoint
-COMMENT ON TABLE "personal_vault_devices" IS 'owner: core-api; public device key descriptors and 32-byte SHA-256 descriptor digests only';
+COMMENT ON TABLE "personal_vault_devices" IS 'owner: core-api; public device key descriptors and verified 32-byte signing-key fingerprints only';
 --> statement-breakpoint
 COMMENT ON TABLE "personal_vault_pairings" IS 'owner: core-api; short-lived encrypted device-pairing state keyed by a client SHA-256 commitment digest';
 --> statement-breakpoint

@@ -42,6 +42,12 @@ function endpointError(label: string, message: string): CliError {
   return new CliError(ExitCode.config, code, `${label} ${message}`);
 }
 
+function withoutTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
 export function normalizeEndpoint(value: string, label: "API base URL" | "OIDC issuer"): URL {
   let url: URL;
   try {
@@ -58,7 +64,7 @@ export function normalizeEndpoint(value: string, label: "API base URL" | "OIDC i
   if (url.search || url.hash) {
     throw endpointError(label, "must not contain a query string or fragment.");
   }
-  url.pathname = `${url.pathname.replace(/\/+$/u, "")}/`;
+  url.pathname = `${withoutTrailingSlashes(url.pathname)}/`;
   return url;
 }
 
