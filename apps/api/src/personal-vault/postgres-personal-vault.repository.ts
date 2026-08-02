@@ -1,11 +1,10 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 
 import { Injectable } from "@nestjs/common";
 import {
   DevicePairingRequestV2Schema,
   DevicePairingViewV2Schema,
   VaultSyncSnapshotV2Schema,
-  type DeviceDescriptorV2,
   type DevicePairingViewV2,
   type VaultSyncSnapshotV2,
 } from "@umn-gopher-assistant/contracts";
@@ -25,6 +24,7 @@ import {
   type VaultSnapshotRecord,
   type VaultWriteResult,
 } from "./personal-vault.repository.js";
+import { signingKeyFingerprintBytes } from "./signing-key-fingerprint.js";
 import { assertSnapshotIntegrity, decodedBase64UrlLength, hashBase64UrlToHex } from "./vault-integrity.js";
 
 type Transaction = TransactionSql<Record<string, never>>;
@@ -85,14 +85,6 @@ function etagFor(snapshot: VaultSyncSnapshotV2): string {
 
 function jsonByteLength(value: unknown): number {
   return Buffer.byteLength(JSON.stringify(value), "utf8");
-}
-
-function keyDigest(device: DeviceDescriptorV2): Buffer {
-  return createHash("sha256")
-    .update(device.authorizationKey.keyId)
-    .update("\0")
-    .update(device.authorizationKey.publicKey)
-    .digest();
 }
 
 function postgresErrorCode(error: unknown): string | undefined {
@@ -452,7 +444,7 @@ export class PostgresPersonalVaultRepository implements PersonalVaultRepository 
         snapshot.commit.author.kind === "DEVICE" &&
         snapshot.commit.author.deviceId === device.deviceId &&
         snapshot.commit.author.keyId === device.authorizationKey.keyId;
-      const digest = keyDigest(device);
+      const fingerprint = signingKeyFingerprintBytes(device.authorizationKey.fingerprint);
       try {
         const rows = await transaction<readonly { readonly id: string }[]>`
           insert into personal_vault_devices (
@@ -465,7 +457,7 @@ export class PostgresPersonalVaultRepository implements PersonalVaultRepository 
             ${device.authorizationKey.keyId},
             ${transaction.json(device.encryptionKey as never)},
             ${transaction.json(device.authorizationKey as never)},
-            ${digest},
+            ${fingerprint},
             ${device.revokedAt === null ? "active" : "revoked"},
             case
               when ${authoredCurrentCommit}
@@ -498,7 +490,7 @@ export class PostgresPersonalVaultRepository implements PersonalVaultRepository 
           throw new Error("Device row upsert did not affect the authenticated account");
         }
       } finally {
-        digest.fill(0);
+        fingerprint.fill(0);
       }
     }
   }

@@ -2,7 +2,7 @@ import { request as httpRequest } from "node:http";
 import { createConnection } from "node:net";
 import type { AddressInfo, Socket } from "node:net";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AccessTokenVerifier } from "../src/auth.js";
 import { DpopVerificationError, type DpopProofVerifier } from "../src/dpop.js";
@@ -451,6 +451,50 @@ describe("MCP HTTP boundary", () => {
     expect(wrongAccept.status).toBe(406);
     expect(wrongMethod.status).toBe(405);
     expect(tooLarge.status).toBe(413);
+  });
+
+  it("rejects non-canonical targets and media metadata before OAuth or upstream access", async () => {
+    const verifyToken = vi.fn<AccessTokenVerifier["verify"]>();
+    const verifyProof = vi.fn<DpopProofVerifier["verify"]>();
+    const upstream = vi.fn<typeof fetch>();
+    const server = await startServer({
+      config: oauthConfig(),
+      dpopVerifier: { verify: verifyProof },
+      fetch: upstream,
+      tokenVerifier: { verify: verifyToken },
+    });
+    const cases = [
+      { error: "not_found", headers: mcpHeaders, path: "/mcp?transport=other", status: 404 },
+      { error: "not_found", headers: mcpHeaders, path: "/mcp#fragment", status: 404 },
+      { error: "not_found", headers: mcpHeaders, path: "/routes/../mcp", status: 404 },
+      {
+        error: "unsupported_media_type",
+        headers: { ...mcpHeaders, "Content-Type": "text/plain" },
+        path: "/mcp",
+        status: 415,
+      },
+      {
+        error: "unsupported_media_type",
+        headers: { ...mcpHeaders, "Content-Encoding": "gzip" },
+        path: "/mcp",
+        status: 415,
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const response = await server.request({
+        body: initializeBody(),
+        headers: testCase.headers,
+        method: "POST",
+        path: testCase.path,
+      });
+      expect(response.status).toBe(testCase.status);
+      expect(JSON.parse(response.body)).toEqual({ error: testCase.error });
+    }
+    expect(verifyToken).not.toHaveBeenCalled();
+    expect(verifyProof).not.toHaveBeenCalled();
+    expect(upstream).not.toHaveBeenCalled();
+    expect(server.application.diagnostics.activeTransports).toBe(0);
   });
 
   it("rejects newer protocol claims until RFC 8707 capability is reviewed", async () => {

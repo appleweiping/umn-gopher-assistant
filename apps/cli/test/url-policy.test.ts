@@ -8,6 +8,9 @@ describe("endpoint and raw request policy", () => {
     expect(normalizeApiBaseUrl("https://api.example/v1-root").toString()).toBe(
       "https://api.example/v1-root/",
     );
+    expect(normalizeApiBaseUrl("https://api.example/v1-root////").toString()).toBe(
+      "https://api.example/v1-root/",
+    );
     expect(normalizeApiBaseUrl("http://127.0.0.1:3001").toString()).toBe("http://127.0.0.1:3001/");
     expect(() => normalizeApiBaseUrl("http://192.168.1.10:3001")).toThrow(CliError);
     expect(() => normalizeApiBaseUrl("https://user:pass@api.example")).toThrow(CliError);
