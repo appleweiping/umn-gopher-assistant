@@ -6,6 +6,19 @@ import {
   createStrictReadwriteTransaction,
   planDeviceRecipientRotation,
   type TrustedDeviceRecordV1,
+  writePairedVaultCompletionRecords,
+  writeExistingVaultSyncDraftRecord,
+  writePendingPairingCancellationRecord,
+  writeRemoteRecoveryHardeningRecords,
+  writeRemoteRecoveryPairingAbandonRecord,
+  writeRemoteRecoveryPairingIntentRecord,
+  writeRemoteRecoveryRotationCommitRecords,
+  writeRemoteRecoveryRotationRebaseRecords,
+  writeRemoteRecoveryRotationRenewalRecord,
+  writeRemoteRecoveryRotationStageRecords,
+  writeSyncAndPayloadRecords,
+  writeVaultSyncProofRenewalRecord,
+  writeVaultGenesisAndSyncRecords,
   writeVaultRotationRecords,
 } from "../lib/personal-vault/idb";
 
@@ -119,6 +132,256 @@ describe("personal vault IndexedDB durability boundary", () => {
       }
     },
   );
+
+  it.each(["trusted-device", "meta", "payload", "keyring", "sync-v2", "pairing-v2"])(
+    "aborts paired-device completion when the %s write fails, leaving no committed half-state",
+    (failingStoreName) => {
+      const failure = new DOMException("Pair completion write failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        delete: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() =>
+        writePairedVaultCompletionRecords(
+          transaction,
+          {
+            meta: {} as never,
+            keyring: {} as never,
+            payload: {} as never,
+            trustedDevice: {} as never,
+          },
+          {} as never,
+        ),
+      ).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["payload", "sync-v2"])(
+    "aborts remote-head adoption when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Atomic adoption failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() => writeSyncAndPayloadRecords(transaction, {} as never, {} as never)).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["trusted-device", "meta", "payload", "keyring", "sync-v2"])(
+    "aborts signed-in genesis when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Genesis write failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() =>
+        writeVaultGenesisAndSyncRecords(
+          transaction,
+          {
+            meta: {} as never,
+            keyring: {} as never,
+            payload: {} as never,
+            trustedDevice: {} as never,
+          },
+          {} as never,
+        ),
+      ).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each([
+    ["local-only account-sync draft", writeExistingVaultSyncDraftRecord, "sync-v2"],
+    ["pairing cancellation intent", writePendingPairingCancellationRecord, "pairing-v2"],
+  ] as const)(
+    "aborts a failed %s write before a replayable intent can be half-committed",
+    (_label, write, storeName) => {
+      const failure = new DOMException("Intent write failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn(() => ({
+        put: vi.fn(() => {
+          throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() => write(transaction, {} as never)).toThrow(failure);
+      expect(objectStore).toHaveBeenCalledWith(storeName);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["trusted-device", "meta", "payload", "keyring", "sync-v2", "recovery-v2"])(
+    "aborts remote recovery approval promotion when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Recovery promotion failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() =>
+        writeRemoteRecoveryHardeningRecords(
+          transaction,
+          {
+            meta: {} as never,
+            keyring: {} as never,
+            payload: {} as never,
+            trustedDevice: {} as never,
+          },
+          {} as never,
+          {} as never,
+        ),
+      ).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["trusted-device", "payload", "keyring", "recovery-v2"])(
+    "aborts confirmed recovery rotation staging when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Recovery rotation staging failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() =>
+        writeRemoteRecoveryRotationStageRecords(
+          transaction,
+          {} as never,
+          {} as never,
+          {} as never,
+          {} as never,
+        ),
+      ).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["payload", "sync-v2", "recovery-v2"])(
+    "aborts recovery rotation rebase when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Recovery rotation rebase failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() =>
+        writeRemoteRecoveryRotationRebaseRecords(transaction, {} as never, {} as never, {} as never),
+      ).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("aborts before a renewed rotation proof can replace its durable intent", () => {
+    const failure = new DOMException("Recovery proof renewal failed", "DataCloneError");
+    const abort = vi.fn();
+    const objectStore = vi.fn(() => ({
+      put: vi.fn(() => {
+        throw failure;
+      }),
+    }));
+    const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+    expect(() => writeRemoteRecoveryRotationRenewalRecord(transaction, {} as never)).toThrow(failure);
+    expect(objectStore).toHaveBeenCalledWith("recovery-v2");
+    expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it("aborts before a renewed ordinary sync proof can replace its durable intent", () => {
+    const failure = new DOMException("Ordinary sync proof renewal failed", "DataCloneError");
+    const abort = vi.fn();
+    const objectStore = vi.fn(() => ({
+      put: vi.fn(() => {
+        throw failure;
+      }),
+    }));
+    const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+    expect(() => writeVaultSyncProofRenewalRecord(transaction, {} as never)).toThrow(failure);
+    expect(objectStore).toHaveBeenCalledWith("sync-v2");
+    expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it.each(["sync-v2", "recovery-v2"])(
+    "aborts recovery rotation finalization when the %s write fails",
+    (failingStoreName) => {
+      const failure = new DOMException("Recovery rotation finalization failed", "DataCloneError");
+      const abort = vi.fn();
+      const objectStore = vi.fn((storeName: string) => ({
+        delete: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+        put: vi.fn(() => {
+          if (storeName === failingStoreName) throw failure;
+        }),
+      }));
+      const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+      expect(() => writeRemoteRecoveryRotationCommitRecords(transaction, {} as never)).toThrow(failure);
+      expect(abort).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("aborts before a remote recovery pairing intent can be half-written", () => {
+    const failure = new DOMException("Recovery intent failed", "DataCloneError");
+    const abort = vi.fn();
+    const objectStore = vi.fn(() => ({
+      put: vi.fn(() => {
+        throw failure;
+      }),
+    }));
+    const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+    expect(() => writeRemoteRecoveryPairingIntentRecord(transaction, {} as never)).toThrow(failure);
+    expect(objectStore).toHaveBeenCalledWith("recovery-v2");
+    expect(abort).toHaveBeenCalledOnce();
+  });
+
+  it("aborts when deleting an explicitly abandoned recovery pairing fails", () => {
+    const failure = new DOMException("Recovery pairing delete failed", "UnknownError");
+    const abort = vi.fn();
+    const objectStore = vi.fn(() => ({
+      delete: vi.fn(() => {
+        throw failure;
+      }),
+    }));
+    const transaction = { abort, objectStore } as unknown as IDBTransaction;
+
+    expect(() => writeRemoteRecoveryPairingAbandonRecord(transaction)).toThrow(failure);
+    expect(objectStore).toHaveBeenCalledWith("recovery-v2");
+    expect(abort).toHaveBeenCalledOnce();
+  });
 });
 
 describe("personal vault root-key recipient planning", () => {

@@ -12,13 +12,41 @@ This runbook operates the implemented public, no-key campus retrieval path. It i
 
 Production configuration fails at startup if it would fall back to the file backend, if `AI_KNOWLEDGE_SERVICE_HMAC_KEY` is absent or malformed, or if PostgreSQL `sslmode` is absent/`disable`/`allow`/`prefer`. Use `require`, `verify-ca`, or preferably `verify-full`. Do not put a database URL on a command line, in Git, or in a support transcript. Local Compose is explicitly `NODE_ENV=development` with the PostgreSQL backend; it does not impersonate production to bypass TLS policy.
 
+## Retrieval quality gate
+
+Every corpus or retrieval release must pass the corpus-bound bilingual quality
+gate before synchronization:
+
+```powershell
+Push-Location apps/ai-knowledge
+python -m ai_knowledge.evaluation
+Pop-Location
+```
+
+The versioned dataset contains at least 150 cases and enforces coverage across
+all five campuses, both locales, and all five implemented categories. It reports
+answer precision, supported recall, top-1 category accuracy, mean reciprocal
+rank, abstention recall, campus leakage, and evidence integrity globally and by
+campus/locale. Shipped thresholds require perfect results, zero leakage, and
+zero answered hard-negative or reproduced false-positive cases. Reports expose
+case identifiers but never raw query text.
+
+The dataset records the exact corpus SHA-256. Treat a mismatch as a required
+joint review, not a value to update mechanically: confirm every affected
+expectation, expand the cases for new user language and failure modes, then
+review the new dataset version. CI and `pnpm verify:python` enforce the same
+gate. Supported-case relevance is keyed by authored `documentId`, never by the
+official verification-link source ID; the gate checks the two source roles
+independently.
+
 ## Release a corpus revision
 
 1. Review every changed summary, bilingual title and keyword set, official verification link, campus, lifecycle field, and content SHA-256.
-2. Confirm the artifact remains `provenance: project-authored-summaries`, `summaryContentLicense: Apache-2.0`, and `sourcePolicy: official-links-are-verification-only`.
+2. Confirm the artifact remains `provenance: project-authored-summaries`, `summaryContentLicense: Apache-2.0`, and `sourcePolicy: official-links-are-verification-only`. Active records must remain `schematic`; campus-review or verification labels require a future governed review-evidence model and must fail this release path.
 3. Compare `sourceRegistry` with the AI subset of `packages/config/data/sources.json`: the project summary must be enabled `OPEN_REUSE`; every UMN link must be a separately enabled `DEEPLINK_ONLY` descriptor with no reuse-license evidence.
-4. Apply database migrations and verify PostgreSQL 17 plus pgvector.
-5. Run the transactional importer:
+4. Run the retrieval quality gate above and require a passing global and segmented report with zero critical-safety failures.
+5. Apply database migrations and verify PostgreSQL 17 plus pgvector.
+6. Run the transactional importer:
 
    ```powershell
    $env:NODE_ENV = "production"
@@ -28,8 +56,8 @@ Production configuration fails at startup if it would fall back to the file back
    python -m ai_knowledge.sync
    ```
 
-6. Accept only the bounded JSON summary containing the corpus hash, seen/indexed/retired counts, and `vectorSearchEnabled: false`.
-7. Check `/healthz`; then query one English and one Chinese record for every campus. Verify the visible campus, freshness, verification state, official link, and paragraph citation.
+7. Accept only the bounded JSON summary containing the corpus hash, seen/indexed/retired counts, and `vectorSearchEnabled: false`.
+8. Check `/healthz`; then query one English and one Chinese record for every campus. Verify the visible campus, authored `documentId`, project `summarySource`, summary freshness and review state, link-only official `verificationLink`, and paragraph citation. Reject any response that attributes the excerpt or content hash to the official page.
 
 The importer validates the entire artifact before connecting, acquires a transaction-scoped advisory lock, and preserves unchanged document, chunk, and citation identities. A changed citation is deleted and inserted because the database rejects citation updates. A missing or deleted document is physically removed with cascading evidence deletion.
 
@@ -51,7 +79,7 @@ Core signs every private query with `API_AI_KNOWLEDGE_HMAC_KEY`; retrieval verif
 
 If artifact prevalidation fails, the importer does not trust a document count or mutate knowledge content. It records a failed ingestion with zero documents and a SHA-256 audit key (or a fixed non-sensitive sentinel hash when the artifact cannot safely be read). Never delete that failed run to make the previous release appear current; fix or roll back the artifact and synchronize a new successful revision.
 
-The service does not return the connection string, SQL, driver exception, corpus path, or query text. Preserve the public `traceId`, a timestamp, deployment revision, stable operational event codes, and infrastructure metrics when escalating an incident.
+The service does not return the connection string, SQL, driver exception, corpus path, or query text. It also never claims to have retrieved a link-only official page. Preserve the public `traceId`, a timestamp, deployment revision, stable operational event codes, and infrastructure metrics when escalating an incident.
 
 ## Rollback
 
@@ -98,6 +126,7 @@ python -m pip install --require-hashes --requirement apps/ai-knowledge/requireme
 python -m ruff check apps/ai-knowledge
 python -m ruff format --check apps/ai-knowledge
 Push-Location apps/ai-knowledge
+python -m ai_knowledge.evaluation
 python -m pytest
 Pop-Location
 pnpm --filter @umn-gopher-assistant/contracts test

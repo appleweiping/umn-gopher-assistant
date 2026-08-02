@@ -15,6 +15,12 @@ const routes = [
   "/offline",
 ] as const;
 const wcagTags = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"];
+const aiTest = test.extend({});
+
+// Network interception must reach the AI BFF in every engine. A previously
+// installed service worker can otherwise answer before page.route sees the
+// request, making the accessibility fixture exercise runtime configuration.
+aiTest.use({ serviceWorkers: "block" });
 
 async function expectNoViolations(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page }).withTags(wcagTags).analyze();
@@ -99,20 +105,20 @@ test("legacy deletion confirmation dialog has no detectable WCAG A or AA violati
   await expectNoViolations(page);
 });
 
-test("AI evidence reflows at 320 CSS pixels and preserves keyboard focus", async ({ page }) => {
+aiTest("AI schematic summaries reflow at 320 CSS pixels and preserve keyboard focus", async ({ page }) => {
   const longToken = "campus".repeat(80);
   const response = aiResponse({
     citations: [
       aiCitation({
-        excerpt: `Reviewed evidence ${longToken}`,
-        title: { en: `University Libraries ${longToken}`, "zh-CN": `大学图书馆${longToken}` },
+        excerpt: `Project-authored summary ${longToken}`,
+        title: { en: `Library summary ${longToken}`, "zh-CN": `图书馆项目摘要${longToken}` },
       }),
     ],
     paragraphs: [
       {
         citationIds: ["tc-library-hours"],
-        id: "paragraph-long-evidence",
-        text: `The reviewed record contains a deliberately long token: ${longToken}`,
+        id: "paragraph-long-summary",
+        text: `The project-authored summary contains a deliberately long token: ${longToken}`,
       },
     ],
   });
@@ -122,22 +128,27 @@ test("AI evidence reflows at 320 CSS pixels and preserves keyboard focus", async
     await route.fulfill({ body: JSON.stringify(response), contentType: "application/json", status: 200 });
   });
   await page.goto("/ai");
-  await page.getByRole("textbox", { name: "Ask the campus knowledge index" }).fill("library research help");
-  await page.getByRole("button", { name: "Search reviewed sources" }).click();
+  const query = page.getByRole("textbox", { name: "Ask the campus project-summary index" });
+  await page.getByRole("button", { name: "When is the library open?" }).click();
+  await expect(query).toHaveValue("When is the library open?");
+  await query.fill("library research help");
+  await page.getByRole("button", { name: "Search project summaries" }).click();
 
-  await expect(page.getByRole("heading", { name: "Answer supported by reviewed evidence" })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Relevant project summary found" })).toBeFocused();
+  await expect(page.getByText(/written by the independent project, not UMN/iu)).toBeVisible();
+  await expect(page.getByText("Schematic summary")).toHaveClass(/ai-state-schematic/u);
   await expectNoViolations(page);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
   ).toBe(true);
 
-  await page.getByRole("link", { name: /Citation 1:/u }).click();
+  await page.getByRole("link", { name: /Project summary 1:/u }).click();
   await expect(page.locator("#ai-citation-tc-library-hours")).toBeFocused();
   await page.getByRole("tab", { name: "Bring your own key (BYOK)" }).click();
   await expectNoViolations(page);
 });
 
-test("AI no-result and input-error states expose names, guidance, and focus", async ({ page }) => {
+aiTest("AI no-result and input-error states expose names, guidance, and focus", async ({ page }) => {
   await page.route("**/api/ai/query", async (route) => {
     await route.fulfill({
       body: JSON.stringify(aiResponse({ citations: [], paragraphs: [], state: "no-results" })),
@@ -146,18 +157,45 @@ test("AI no-result and input-error states expose names, guidance, and focus", as
     });
   });
   await page.goto("/ai");
-  const query = page.getByRole("textbox", { name: "Ask the campus knowledge index" });
+  const query = page.getByRole("textbox", { name: "Ask the campus project-summary index" });
   await query.fill("quantum dragon parking");
-  await page.getByRole("button", { name: "Search reviewed sources" }).click();
-  await expect(page.getByRole("heading", { name: "No reviewed answer found" })).toBeFocused();
+  await page.getByRole("button", { name: "Search project summaries" }).click();
+  await expect(page.getByRole("heading", { name: "No matching project summary found" })).toBeFocused();
   await expectNoViolations(page);
 
   await query.fill("<library>");
-  await page.getByRole("button", { name: "Search reviewed sources" }).click();
+  await page.getByRole("button", { name: "Search project summaries" }).click();
   await expect(query).toBeFocused();
   await expect(query).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByRole("alert", { name: "Revise the question" })).toContainText(
     "Use plain text between 2 and 500 characters",
   );
+  await expectNoViolations(page);
+});
+
+aiTest("Chinese AI schematic provenance and verification links are accessible", async ({ page }) => {
+  const response = aiResponse({
+    citations: [aiCitation({ excerpt: "此项目摘要提供图书馆入口；当前信息请通过官方页面核验。" })],
+    locale: "zh-CN",
+    paragraphs: [
+      {
+        citationIds: ["tc-library-hours"],
+        id: "paragraph-zh-summary",
+        text: "此项目摘要提供双城校区图书馆入口。",
+      },
+    ],
+  });
+  await page.route("**/api/ai/query", async (route) => {
+    await route.fulfill({ body: JSON.stringify(response), contentType: "application/json", status: 200 });
+  });
+  await page.goto("/ai");
+  await page.getByRole("button", { name: "中文" }).click();
+  await page.getByRole("textbox", { name: "查询校园项目摘要索引" }).fill("图书馆在哪里？");
+  await page.getByRole("button", { name: "检索项目摘要" }).click();
+
+  await expect(page.getByRole("heading", { name: "找到相关的项目编写摘要" })).toBeFocused();
+  await expect(page.getByText(/本独立项目编写、并非明尼苏达大学发布/u)).toBeVisible();
+  await expect(page.getByRole("link", { name: /查看摘要出处/u })).toBeVisible();
+  await expect(page.getByRole("link", { name: /打开官方页面核验/u })).toBeVisible();
   await expectNoViolations(page);
 });

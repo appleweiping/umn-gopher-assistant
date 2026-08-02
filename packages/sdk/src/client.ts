@@ -2,8 +2,16 @@ import { operationDefinitions } from "./generated/operations.js";
 import type { OperationDefinition, OperationId } from "./generated/operations.js";
 import type { components, operations } from "./generated/schema.js";
 import { validateImplementedRequestBody, validateImplementedSuccessBody } from "./generated/validators.js";
+import {
+  createDpopProof,
+  dpopNonceChallenge,
+  dpopThumbprint,
+  parseDpopNonce,
+  validateDpopCredential,
+  type DpopCredential,
+  type DpopCredentialProvider,
+} from "./dpop.js";
 
-export type AccessTokenProvider = () => Promise<string | undefined> | string | undefined;
 export type ProblemDetails = components["schemas"]["Problem"];
 export type ProtocolErrorCode =
   | "invalid-success-body"
@@ -50,6 +58,22 @@ type ExtractIdempotencyKey<Header> = Header extends {
 
 type IdempotencyKeyFor<Id extends OperationId> = ExtractIdempotencyKey<HeaderFor<Id>>;
 
+type ExtractIfMatch<Header> = Header extends {
+  readonly "If-Match": infer EntityTag;
+}
+  ? EntityTag
+  : never;
+
+type IfMatchFor<Id extends OperationId> = ExtractIfMatch<HeaderFor<Id>>;
+
+type ExtractVaultReadProof<Header> = Header extends {
+  readonly "X-Vault-Read-Proof": infer Proof;
+}
+  ? Proof
+  : never;
+
+type VaultReadProofFor<Id extends OperationId> = ExtractVaultReadProof<HeaderFor<Id>>;
+
 type ExtractJsonBody<RequestBody> = RequestBody extends {
   readonly content: { readonly "application/json": infer Body };
 }
@@ -75,25 +99,49 @@ type BodyOption<Id extends OperationId> = [BodyFor<Id>] extends [never]
   : { readonly body: BodyFor<Id> };
 
 type IdempotencyOption<Id extends OperationId> = [IdempotencyKeyFor<Id>] extends [never]
-  ? { readonly idempotencyKey?: string }
+  ? { readonly idempotencyKey?: never }
   : { readonly idempotencyKey: IdempotencyKeyFor<Id> };
 
+type ExtractIfNoneMatch<Header> = "If-None-Match" extends keyof Header
+  ? Exclude<Header["If-None-Match"], undefined>
+  : never;
+
+type IfNoneMatchFor<Id extends OperationId> = ExtractIfNoneMatch<HeaderFor<Id>>;
+
+type ETagOption<Id extends OperationId> = [IfNoneMatchFor<Id>] extends [never]
+  ? { readonly etag?: never }
+  : [IfNoneMatchFor<Id>] extends ["*"]
+    ? { readonly etag?: never }
+    : {
+        /** A strong or weak ETag accepted by this operation's declared If-None-Match parameter. */
+        readonly etag?: IfNoneMatchFor<Id>;
+      };
+
+type IfMatchOption<Id extends OperationId> = [IfMatchFor<Id>] extends [never]
+  ? { readonly ifMatch?: never }
+  : { readonly ifMatch: IfMatchFor<Id> };
+
+type VaultReadProofOption<Id extends OperationId> = [VaultReadProofFor<Id>] extends [never]
+  ? { readonly vaultReadProof?: never }
+  : { readonly vaultReadProof: VaultReadProofFor<Id> };
+
 export type OperationRequest<Id extends OperationId> = {
-  /** An ETag from a previous response, sent as If-None-Match. */
-  readonly etag?: string;
   /** Additional headers. Authorization and protocol headers are controlled by the SDK. */
   readonly headers?: Readonly<Record<string, string>>;
   /** Client-generated correlation ID. */
   readonly requestId?: string;
   readonly signal?: AbortSignal;
 } & BodyOption<Id> &
+  ETagOption<Id> &
   IdempotencyOption<Id> &
+  IfMatchOption<Id> &
   PathOption<Id> &
-  QueryOption<Id>;
+  QueryOption<Id> &
+  VaultReadProofOption<Id>;
 
-type RequiresOptions<Id extends OperationId> = [BodyFor<Id> | IdempotencyKeyFor<Id> | PathFor<Id>] extends [
-  never,
-]
+type RequiresOptions<Id extends OperationId> = [
+  BodyFor<Id> | IdempotencyKeyFor<Id> | IfMatchFor<Id> | PathFor<Id> | VaultReadProofFor<Id>,
+] extends [never]
   ? false
   : true;
 
@@ -160,8 +208,16 @@ type NotModifiedFor<Id extends OperationId> =
 export type OperationResult<Id extends OperationId> = NotModifiedFor<Id> | SuccessResult<Id>;
 
 export interface GopherClientOptions {
-  readonly accessToken?: AccessTokenProvider | string;
   readonly baseUrl: string | URL;
+  /**
+   * Access token and matching private P-256 key. Protected operations fail
+   * closed when this is absent or the token's cnf.jkt does not match the key.
+   */
+  readonly dpopCredential?: DpopCredentialProvider;
+  /** Maximum origin/key nonce states retained by a long-lived client. Defaults to 128. */
+  readonly dpopNonceCacheMaxEntries?: number;
+  /** Idle lifetime for a resource-server nonce state. Defaults to five minutes. */
+  readonly dpopNonceTtlMilliseconds?: number;
   /** Native fetch-compatible implementation, primarily for runtimes and tests. */
   readonly fetch?: typeof fetch;
   /** Maximum decoded RFC 9457 error body size. Defaults to 64 KiB. */
@@ -172,12 +228,17 @@ export interface GopherClientOptions {
 
 export const DEFAULT_MAX_ERROR_RESPONSE_BODY_BYTES = 64 * 1024;
 export const DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES = 2 * 1024 * 1024;
-export const ABSOLUTE_MAX_RESPONSE_BODY_BYTES = 8 * 1024 * 1024;
+export const ABSOLUTE_MAX_RESPONSE_BODY_BYTES = 16 * 1024 * 1024;
+const DEFAULT_DPOP_NONCE_CACHE_MAX_ENTRIES = 128;
+const DEFAULT_DPOP_NONCE_TTL_MILLISECONDS = 5 * 60 * 1_000;
 
 // Additional headers are intentionally allowlisted. Authentication, routing,
 // method override, proxy, framing, cache validators, and correlation headers
 // all have dedicated SDK behavior or are reserved for the user agent.
 const allowedAdditionalHeaders = new Set(["accept-language"]);
+const strongEntityTagPattern = /^"[\x21\x23-\x7e]+"$/u;
+const visibleIdempotencyKeyPattern = /^[\x21-\x7e]{16,128}$/u;
+const vaultReadProofPattern = /^[A-Za-z0-9_-]{64,5462}$/u;
 
 function normalizeBaseUrl(value: string | URL): URL {
   const baseUrl = new URL(value);
@@ -304,6 +365,22 @@ function normalizeResponseBodyLimit(value: number | undefined, fallback: number,
     );
   }
   return limit;
+}
+
+function normalizeDpopNonceCacheMaxEntries(value: number | undefined): number {
+  const limit = value ?? DEFAULT_DPOP_NONCE_CACHE_MAX_ENTRIES;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 4_096) {
+    throw new RangeError("dpopNonceCacheMaxEntries must be an integer between 1 and 4096");
+  }
+  return limit;
+}
+
+function normalizeDpopNonceTtl(value: number | undefined): number {
+  const ttl = value ?? DEFAULT_DPOP_NONCE_TTL_MILLISECONDS;
+  if (!Number.isSafeInteger(ttl) || ttl < 1_000 || ttl > 60 * 60 * 1_000) {
+    throw new RangeError("dpopNonceTtlMilliseconds must be an integer between 1000 and 3600000");
+  }
+  return ttl;
 }
 
 function declaredBodyExceedsLimit(response: Response, limit: number): boolean {
@@ -468,33 +545,93 @@ interface RuntimeRequestOptions {
   readonly etag?: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
+  readonly ifMatch?: string;
   readonly path?: unknown;
   readonly query?: unknown;
   readonly requestId?: string;
   readonly signal?: AbortSignal;
+  readonly vaultReadProof?: string;
+}
+
+interface DpopNonceState {
+  readonly expiresAt: number;
+  readonly nonce: string;
+}
+
+function nestedRequestValue(value: unknown, path: string): unknown {
+  let current = value;
+  for (const segment of path.split(".")) {
+    if (current === null || typeof current !== "object" || !Object.hasOwn(current, segment)) {
+      return undefined;
+    }
+    current = (current as Readonly<Record<string, unknown>>)[segment];
+  }
+  return current;
 }
 
 export class GopherClient {
-  readonly #accessToken: AccessTokenProvider | string | undefined;
   readonly #baseUrl: URL;
+  readonly #dpopCredential: DpopCredentialProvider | undefined;
+  readonly #dpopNonceCacheMaxEntries: number;
+  readonly #dpopNonces = new Map<string, DpopNonceState>();
+  readonly #dpopNonceTtlMilliseconds: number;
   readonly #fetch: typeof fetch;
   readonly #maxErrorResponseBodyBytes: number;
-  readonly #maxSuccessResponseBodyBytes: number;
+  readonly #maxSuccessResponseBodyBytes: number | undefined;
 
   constructor(options: GopherClientOptions) {
     this.#baseUrl = normalizeBaseUrl(options.baseUrl);
-    this.#accessToken = options.accessToken;
+    this.#dpopCredential = options.dpopCredential;
+    this.#dpopNonceCacheMaxEntries = normalizeDpopNonceCacheMaxEntries(options.dpopNonceCacheMaxEntries);
+    this.#dpopNonceTtlMilliseconds = normalizeDpopNonceTtl(options.dpopNonceTtlMilliseconds);
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.#maxErrorResponseBodyBytes = normalizeResponseBodyLimit(
       options.maxErrorResponseBodyBytes,
       DEFAULT_MAX_ERROR_RESPONSE_BODY_BYTES,
       "maxErrorResponseBodyBytes",
     );
-    this.#maxSuccessResponseBodyBytes = normalizeResponseBodyLimit(
-      options.maxSuccessResponseBodyBytes,
-      DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES,
-      "maxSuccessResponseBodyBytes",
-    );
+    this.#maxSuccessResponseBodyBytes =
+      options.maxSuccessResponseBodyBytes === undefined
+        ? undefined
+        : normalizeResponseBodyLimit(
+            options.maxSuccessResponseBodyBytes,
+            DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES,
+            "maxSuccessResponseBodyBytes",
+          );
+  }
+
+  #dpopNonceSnapshot(key: string): DpopNonceState | undefined {
+    const state = this.#dpopNonces.get(key);
+    if (state !== undefined && state.expiresAt <= Date.now()) {
+      this.#dpopNonces.delete(key);
+      return undefined;
+    }
+    if (state !== undefined) {
+      // Map insertion order doubles as bounded LRU order.
+      this.#dpopNonces.delete(key);
+      this.#dpopNonces.set(key, state);
+    }
+    return state;
+  }
+
+  #compareAndSetDpopNonce(
+    key: string,
+    expected: DpopNonceState | undefined,
+    nonce: string,
+  ): DpopNonceState | undefined {
+    const current = this.#dpopNonceSnapshot(key);
+    if (current !== expected) return undefined;
+    const replacement = {
+      expiresAt: Date.now() + this.#dpopNonceTtlMilliseconds,
+      nonce,
+    };
+    this.#dpopNonces.set(key, replacement);
+    while (this.#dpopNonces.size > this.#dpopNonceCacheMaxEntries) {
+      const oldest = this.#dpopNonces.keys().next().value;
+      if (oldest === undefined) break;
+      this.#dpopNonces.delete(oldest);
+    }
+    return replacement;
   }
 
   async request<Id extends OperationId>(
@@ -508,6 +645,45 @@ export class GopherClient {
 
     if (definition.idempotencyKeyRequired && !options.idempotencyKey) {
       throw new TypeError(`${operationId} requires an idempotencyKey`);
+    }
+    if (!definition.idempotencyKeyRequired && options.idempotencyKey !== undefined) {
+      throw new TypeError(`${operationId} does not accept idempotencyKey`);
+    }
+    if (options.idempotencyKey !== undefined && !visibleIdempotencyKeyPattern.test(options.idempotencyKey)) {
+      throw new TypeError(
+        `${operationId} idempotencyKey must contain 16 through 128 visible ASCII characters`,
+      );
+    }
+    if (definition.ifMatchRequired && options.ifMatch === undefined) {
+      throw new TypeError(`${operationId} requires ifMatch`);
+    }
+    if (!definition.ifMatchRequired && options.ifMatch !== undefined) {
+      throw new TypeError(`${operationId} does not accept ifMatch`);
+    }
+    if (options.ifMatch !== undefined && !strongEntityTagPattern.test(options.ifMatch)) {
+      throw new TypeError(`${operationId} ifMatch must contain exactly one strong ETag`);
+    }
+    if (definition.vaultReadProofRequired && options.vaultReadProof === undefined) {
+      throw new TypeError(`${operationId} requires vaultReadProof`);
+    }
+    if (!definition.vaultReadProofRequired && options.vaultReadProof !== undefined) {
+      throw new TypeError(`${operationId} does not accept vaultReadProof`);
+    }
+    if (options.vaultReadProof !== undefined && !vaultReadProofPattern.test(options.vaultReadProof)) {
+      throw new TypeError(`${operationId} vaultReadProof is not canonical bounded base64url`);
+    }
+    if (options.etag !== undefined && definition.ifNoneMatchRequiredValue !== null) {
+      throw new TypeError(`${operationId} controls If-None-Match and does not accept etag`);
+    }
+    if (options.etag !== undefined && !definition.ifNoneMatchSupported) {
+      throw new TypeError(`${operationId} does not accept etag`);
+    }
+    if (
+      options.etag !== undefined &&
+      definition.strongIfNoneMatch &&
+      !strongEntityTagPattern.test(options.etag)
+    ) {
+      throw new TypeError(`${operationId} etag must contain exactly one strong ETag`);
     }
 
     const pathname = interpolatePath(definition.path, options.path).replace(/^\//u, "");
@@ -525,13 +701,15 @@ export class GopherClient {
       headers.set(name, value);
     }
     if (options.etag) headers.set("If-None-Match", options.etag);
+    if (definition.ifNoneMatchRequiredValue !== null) {
+      headers.set("If-None-Match", definition.ifNoneMatchRequiredValue);
+    }
+    if (options.ifMatch !== undefined) headers.set("If-Match", options.ifMatch);
+    if (options.vaultReadProof !== undefined) {
+      headers.set("X-Vault-Read-Proof", options.vaultReadProof);
+    }
     if (options.idempotencyKey) headers.set("Idempotency-Key", options.idempotencyKey);
     if (options.requestId) headers.set("X-Request-Id", options.requestId);
-
-    if (!definition.public) {
-      const token = typeof this.#accessToken === "function" ? await this.#accessToken() : this.#accessToken;
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-    }
 
     let requestBody = options.body;
     if (definition.runtimeStatus === "implemented" && requestBody !== undefined) {
@@ -541,23 +719,86 @@ export class GopherClient {
       }
       requestBody = validation.data;
     }
+    if (
+      definition.idempotencyKeyBoundTo !== null &&
+      nestedRequestValue(requestBody, definition.idempotencyKeyBoundTo) !== options.idempotencyKey
+    ) {
+      throw new TypeError(
+        `${operationId} idempotencyKey must equal body ${definition.idempotencyKeyBoundTo}`,
+      );
+    }
 
     let body: string | undefined;
     if (requestBody !== undefined) {
       headers.set("Content-Type", "application/json");
       body = JSON.stringify(requestBody);
+      if (
+        definition.maxRequestBodyBytes !== null &&
+        new TextEncoder().encode(body).byteLength > definition.maxRequestBodyBytes
+      ) {
+        throw new TypeError(
+          `${operationId} request body exceeds ${String(definition.maxRequestBodyBytes)} bytes`,
+        );
+      }
     }
 
-    const request = new Request(url, {
-      ...(body === undefined ? {} : { body }),
-      credentials: "omit",
-      headers,
-      method: definition.method,
-      // Following a redirect could move a bearer token or state-changing body to another origin.
-      redirect: "error",
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    });
-    const response = await this.#fetch(request);
+    let credential: DpopCredential | undefined;
+    if (!definition.public) {
+      const supplied =
+        typeof this.#dpopCredential === "function" ? await this.#dpopCredential() : this.#dpopCredential;
+      if (supplied === undefined) {
+        throw new TypeError(`${operationId} requires a DPoP-bound credential`);
+      }
+      credential = await validateDpopCredential(supplied);
+    }
+    const authenticatedRequest = async (nonce: string | undefined): Promise<Request> => {
+      const requestHeaders = new Headers(headers);
+      if (credential !== undefined) {
+        requestHeaders.set("Authorization", `DPoP ${credential.accessToken}`);
+        requestHeaders.set(
+          "DPoP",
+          await createDpopProof({
+            accessToken: credential.accessToken,
+            htm: definition.method,
+            htu: url,
+            ...(nonce === undefined ? {} : { nonce }),
+            privateJwk: credential.privateJwk,
+          }),
+        );
+      }
+      return new Request(url, {
+        ...(body === undefined ? {} : { body }),
+        credentials: "omit",
+        headers: requestHeaders,
+        method: definition.method,
+        // Following a redirect could move a credential or state-changing body to another origin.
+        redirect: "error",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      });
+    };
+    let response: Response;
+    if (credential === undefined) {
+      response = await this.#fetch(await authenticatedRequest(undefined));
+    } else {
+      const nonceKey = `${url.origin}\0${await dpopThumbprint(credential.privateJwk)}`;
+      const nonceState = this.#dpopNonceSnapshot(nonceKey);
+      response = await this.#fetch(await authenticatedRequest(nonceState?.nonce));
+      const challenge = dpopNonceChallenge(response);
+      if (challenge === undefined) {
+        const returnedNonce = parseDpopNonce(response.headers.get("dpop-nonce"));
+        if (returnedNonce !== undefined) {
+          this.#compareAndSetDpopNonce(nonceKey, nonceState, returnedNonce);
+        }
+      } else {
+        cancelUnlockedBody(response);
+        const challengedState = this.#compareAndSetDpopNonce(nonceKey, nonceState, challenge);
+        response = await this.#fetch(await authenticatedRequest(challenge));
+        const retryNonce = parseDpopNonce(response.headers.get("dpop-nonce"));
+        if (retryNonce !== undefined && challengedState !== undefined) {
+          this.#compareAndSetDpopNonce(nonceKey, challengedState, retryNonce);
+        }
+      }
+    }
     const etag = response.headers.get("etag") ?? undefined;
     const requestId = response.headers.get("x-request-id") ?? undefined;
     const metadata = responseMetadata(response, requestId);
@@ -583,7 +824,11 @@ export class GopherClient {
     }
 
     if (!response.ok) {
-      if (response.status < 400 || response.status > 599) {
+      if (
+        response.status < 400 ||
+        response.status > 599 ||
+        !definition.errorStatuses.includes(response.status)
+      ) {
         cancelUnlockedBody(response);
         throw new GopherProtocolError(
           "unexpected-error-status",
@@ -647,7 +892,12 @@ export class GopherClient {
         metadata,
       );
     }
-    const parsed = await parseJson(response, this.#maxSuccessResponseBodyBytes);
+    const parsed = await parseJson(
+      response,
+      this.#maxSuccessResponseBodyBytes ??
+        definition.maxSuccessResponseBodyBytes ??
+        DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES,
+    );
     if (parsed.tooLarge) {
       throw new GopherProtocolError(
         "response-body-too-large",

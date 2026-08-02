@@ -27,6 +27,7 @@ _CJK_RE = re.compile(r"^[\u3400-\u4dbf\u4e00-\u9fff]+$")
 _STOP_WORDS = frozenset(
     {
         "a",
+        "about",
         "all",
         "an",
         "and",
@@ -35,16 +36,30 @@ _STOP_WORDS = frozenset(
         "be",
         "campus",
         "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "find",
         "for",
         "from",
+        "get",
+        "had",
+        "has",
+        "have",
+        "how",
         "i",
         "in",
         "information",
         "ignore",
         "instruction",
         "is",
+        "may",
         "me",
+        "might",
+        "must",
         "my",
+        "need",
         "of",
         "official",
         "on",
@@ -54,15 +69,28 @@ _STOP_WORDS = frozenset(
         "previou",
         "previous",
         "prompt",
+        "reveal",
+        "secret",
         "service",
         "services",
+        "should",
         "system",
+        "tell",
         "the",
+        "then",
         "to",
         "umn",
         "university",
+        "want",
+        "was",
+        "what",
+        "when",
         "where",
+        "were",
+        "why",
+        "will",
         "with",
+        "would",
         "you",
         "your",
         "一个",
@@ -78,6 +106,17 @@ _STOP_WORDS = frozenset(
         "这个",
     }
 )
+
+# Evidence strength is intentionally absolute: a topical title/keyword/category
+# match contributes two points and a supporting body-only match contributes one.
+# Accepted multi-term evidence must include a topical anchor. Low-coverage
+# matches additionally need three topical terms so that one CJK phrase expanded
+# into two bigrams cannot dominate a longer, unrelated question.
+_TOPIC_MATCH_WEIGHT = 2
+_BODY_MATCH_WEIGHT = 1
+_MIN_EVIDENCE_STRENGTH = 3
+_MIN_QUERY_COVERAGE = 0.25
+_HIGH_CONFIDENCE_TOPIC_MATCHES = 3
 
 
 def _normalize_english_token(token: str) -> str:
@@ -127,6 +166,43 @@ def _document_text(document: KnowledgeDocument, locale: Locale) -> str:
     keywords = " ".join(document.keywords.for_locale(locale))
     category = document.category
     return f"{title} {title} {title} {category} {category} {keywords} {keywords} {content}"
+
+
+def _topic_terms(document: KnowledgeDocument, locale: Locale) -> set[str]:
+    return set(
+        search_terms(
+            " ".join(
+                [
+                    document.category,
+                    document.title.for_locale(locale),
+                    *document.keywords.for_locale(locale),
+                ]
+            )
+        )
+    )
+
+
+def _has_sufficient_evidence(
+    query_terms: set[str],
+    overlap: set[str],
+    topic_terms: set[str],
+) -> bool:
+    topic_overlap = overlap & topic_terms
+    if len(query_terms) == 1 and topic_overlap == query_terms:
+        return True
+
+    evidence_strength = (
+        len(topic_overlap) * _TOPIC_MATCH_WEIGHT + len(overlap - topic_overlap) * _BODY_MATCH_WEIGHT
+    )
+    query_coverage = len(overlap) / len(query_terms)
+    return (
+        bool(topic_overlap)
+        and evidence_strength >= _MIN_EVIDENCE_STRENGTH
+        and (
+            query_coverage >= _MIN_QUERY_COVERAGE
+            or len(topic_overlap) >= _HIGH_CONFIDENCE_TOPIC_MATCHES
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +262,8 @@ class HybridRetriever:
         paragraphs: list[AnswerParagraph] = []
         for rank, ranked_document in enumerate(selected, start=1):
             document = ranked_document.document
+            summary_source = snapshot.source(document.summary_source_id)
+            verification_source = snapshot.source(document.verification_source_id)
             citation_id = f"citation-{rank}"
             paragraph_id = f"paragraph-{rank}"
             text = document.content.for_locale(request.locale)
@@ -193,15 +271,33 @@ class HybridRetriever:
             citations.append(
                 Citation(
                     id=citation_id,
+                    documentId=document.id,
                     campusId=document.campus_id,
-                    sourceId=document.verification_source_id,
                     category=document.category,
                     title=document.title,
-                    sourceUrl=document.verification_url,
                     contentSha256=document.content_sha256,
                     updatedAt=document.updated_at,
-                    freshnessState=freshness_state,
-                    verificationState=document.verification_state,
+                    summaryFreshnessState=freshness_state,
+                    summaryVerificationState=document.verification_state.value,
+                    summarySource={
+                        "kind": "project-authored-summary",
+                        "sourceId": summary_source.id,
+                        "sourceUrl": summary_source.source_url,
+                        "corpusSha256": snapshot.corpus_sha256,
+                        "license": {
+                            "status": "OPEN_REUSE",
+                            "spdxId": document.summary_license,
+                            "evidenceUrl": summary_source.license_evidence_url,
+                        },
+                    },
+                    verificationLink={
+                        "kind": "official-verification-link",
+                        "sourceId": verification_source.id,
+                        "sourceUrl": verification_source.source_url,
+                        "licenseStatus": "DEEPLINK_ONLY",
+                        "sourceUse": document.source_use,
+                        "contentRetrieved": False,
+                    },
                     excerpt=text[:500],
                 )
             )
@@ -246,6 +342,7 @@ class HybridRetriever:
             return []
 
         query_counter = Counter(query_terms)
+        unique_query_terms = set(query_counter)
         document_terms = [search_terms(_document_text(document, locale)) for document in candidates]
         document_counters = [Counter(terms) for terms in document_terms]
         average_length = sum(len(terms) for terms in document_terms) / max(1, len(document_terms))
@@ -258,6 +355,12 @@ class HybridRetriever:
         ):
             overlap = set(query_counter) & set(frequencies)
             if not overlap:
+                continue
+            if not _has_sufficient_evidence(
+                unique_query_terms,
+                overlap,
+                _topic_terms(document, locale),
+            ):
                 continue
             bm25 = 0.0
             document_length = max(1, len(terms))

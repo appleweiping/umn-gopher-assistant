@@ -15,8 +15,11 @@ import type { Locale } from "../lib/data/registry";
 import {
   LEGACY_TASK_STORAGE_KEY,
   parseLegacyTasks,
+  type RemoteRecoveryStageView,
   type SetupSource,
   type VaultSnapshot,
+  type VaultPairingView,
+  type VaultSyncState,
   type VaultTaskView,
 } from "../lib/personal-vault/protocol";
 import { PersonalVaultClient, PersonalVaultClientError } from "../lib/personal-vault/client";
@@ -62,6 +65,7 @@ export type PersonalVaultStatus =
   | "unavailable"
   | "needs-setup"
   | "show-recovery-code"
+  | "show-remote-recovery-code"
   | "locked"
   | "unlocked"
   | "legacy-invalid"
@@ -79,6 +83,13 @@ interface PersonalVaultValue {
   readonly lastLockReason: PersonalVaultLockReason | null;
   readonly recoverySecretExpiry: PersonalVaultRecoverySecretExpiry | null;
   readonly legacyAvailable: boolean;
+  readonly syncState: VaultSyncState;
+  readonly hasPendingPairing: boolean;
+  readonly pairingCode: string | null;
+  readonly pairingId: string | null;
+  readonly pairingExpiresAt: string | null;
+  readonly pairings: readonly VaultPairingView[];
+  readonly remoteRecoveryStage: RemoteRecoveryStageView | null;
   readonly beginSetup: () => Promise<void>;
   readonly confirmRecoverySaved: () => Promise<void>;
   readonly cancelSetup: () => Promise<void>;
@@ -91,6 +102,19 @@ interface PersonalVaultValue {
   readonly retryLegacyImport: () => Promise<void>;
   readonly exportLegacy: () => boolean;
   readonly deleteLegacy: () => boolean;
+  readonly syncNow: () => Promise<void>;
+  readonly enableAccountSync: (recoveryCode: string) => Promise<void>;
+  readonly beginDevicePairing: () => Promise<void>;
+  readonly cancelDevicePairing: () => Promise<void>;
+  readonly regenerateDevicePairing: () => Promise<void>;
+  readonly pollDevicePairing: () => Promise<void>;
+  readonly listDevicePairings: () => Promise<void>;
+  readonly approveDevicePairing: (pairingId: string, pairingCode: string) => Promise<void>;
+  readonly beginRemoteRecovery: (recoveryCode: string) => Promise<void>;
+  readonly resumeRemoteRecovery: () => Promise<void>;
+  readonly abandonRemoteRecoveryPairing: () => Promise<void>;
+  readonly prepareRemoteRecoveryRotation: () => Promise<void>;
+  readonly confirmRemoteRecoveryRotation: () => Promise<void>;
 }
 
 interface LegacyState {
@@ -165,6 +189,19 @@ function clientErrorText(error: unknown, locale: Locale): string {
       ? "资料库已有更新；旧数据已保留，请明确导出或删除。"
       : "The vault has newer changes; legacy data was retained for explicit export or deletion.";
   }
+  if (
+    error instanceof PersonalVaultClientError &&
+    (error.code === "OWNER_MISMATCH" || error.code === "ROLLBACK_DETECTED" || error.code === "SYNC_CONFLICT")
+  ) {
+    return locale === "zh-CN"
+      ? "云端资料无法通过账户绑定或回滚校验。同步已锁定，本机加密数据仍保留。"
+      : "The cloud vault failed account-binding or rollback checks. Sync is locked; local encrypted data remains.";
+  }
+  if (error instanceof PersonalVaultClientError && error.code === "PAIRING_FAILED") {
+    return locale === "zh-CN"
+      ? "设备配对未完成。请核对配对请求、八位代码和有效期后重试。"
+      : "Device pairing did not complete. Check the selected request, eight-character code, and expiry.";
+  }
   return locale === "zh-CN"
     ? "私人资料库暂时不可用；旧数据未被删除。"
     : "The private vault is unavailable; legacy data was not deleted.";
@@ -202,6 +239,7 @@ export function PersonalVaultProvider({
   const clientRef = useRef<PersonalVaultClient | undefined>(undefined);
   const idleTimerRef = useRef<number | undefined>(undefined);
   const recoverySecretTimerRef = useRef<number | undefined>(undefined);
+  const pairingSecretTimerRef = useRef<number | undefined>(undefined);
   const sessionEpochRef = useRef(0);
   const pendingLegacyMigrationRef = useRef<string | null>(null);
   const statusRef = useRef<PersonalVaultStatus>("checking");
@@ -215,6 +253,13 @@ export function PersonalVaultProvider({
   const [recoverySecretExpiry, setRecoverySecretExpiry] = useState<PersonalVaultRecoverySecretExpiry | null>(
     null,
   );
+  const [syncState, setSyncState] = useState<VaultSyncState>("local-only");
+  const [hasPendingPairing, setHasPendingPairing] = useState(false);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingId, setPairingId] = useState<string | null>(null);
+  const [pairingExpiresAt, setPairingExpiresAt] = useState<string | null>(null);
+  const [pairings, setPairings] = useState<readonly VaultPairingView[]>([]);
+  const [remoteRecoveryStage, setRemoteRecoveryStage] = useState<RemoteRecoveryStageView | null>(null);
 
   const setVaultStatus = useCallback((next: PersonalVaultStatus) => {
     statusRef.current = next;
@@ -241,9 +286,17 @@ export function PersonalVaultProvider({
     }
   }, []);
 
+  const clearPairingSecretTimer = useCallback(() => {
+    if (pairingSecretTimerRef.current !== undefined) {
+      window.clearTimeout(pairingSecretTimerRef.current);
+      pairingSecretTimerRef.current = undefined;
+    }
+  }, []);
+
   const clearRenderedPlaintext = useCallback(() => {
     setTasks(noPlaintext());
     setRecoveryCode(null);
+    setPairingCode(null);
     pendingLegacyMigrationRef.current = null;
   }, []);
 
@@ -252,10 +305,11 @@ export function PersonalVaultProvider({
     sessionEpochRef.current += 1;
     clearIdleTimer();
     clearRecoverySecretTimer();
+    clearPairingSecretTimer();
     clearRenderedPlaintext();
     void clientRef.current?.terminateWhenSettled();
     clientRef.current = undefined;
-  }, [clearIdleTimer, clearRecoverySecretTimer, clearRenderedPlaintext]);
+  }, [clearIdleTimer, clearPairingSecretTimer, clearRecoverySecretTimer, clearRenderedPlaintext]);
 
   const markStorageUnavailable = useCallback(() => {
     terminateSession();
@@ -269,13 +323,15 @@ export function PersonalVaultProvider({
     clearRecoverySecretTimer();
     recoverySecretTimerRef.current = window.setTimeout(() => {
       recoverySecretTimerRef.current = undefined;
-      if (statusRef.current !== "show-recovery-code") return;
+      if (statusRef.current !== "show-recovery-code" && statusRef.current !== "show-remote-recovery-code")
+        return;
+      const wasRemoteRotation = statusRef.current === "show-remote-recovery-code";
       // Terminating the dedicated Worker destroys its pending root/device keys;
       // clearing React happens synchronously inside terminateSession first.
       terminateSession();
       setError(null);
       setRecoverySecretExpiry("display");
-      setVaultStatus("needs-setup");
+      setVaultStatus(wasRemoteRotation ? "locked" : "needs-setup");
     }, PERSONAL_VAULT_RECOVERY_SECRET_TIMEOUT_MS);
   }, [clearRecoverySecretTimer, setVaultStatus, terminateSession]);
 
@@ -311,7 +367,7 @@ export function PersonalVaultProvider({
   const isCurrentSession = useCallback((epoch: number) => sessionEpochRef.current === epoch, []);
 
   const applySnapshot = useCallback(
-    (epoch: number, snapshot: VaultSnapshot): boolean => {
+    (epoch: number, snapshot: VaultSnapshot, nextSyncState?: VaultSyncState): boolean => {
       if (!isCurrentSession(epoch)) return false;
       setTasks(snapshot.tasks);
       setRecoveryCode(null);
@@ -321,6 +377,7 @@ export function PersonalVaultProvider({
       setRecoverySecretExpiry(null);
       clearRecoverySecretTimer();
       setVaultStatus("unlocked");
+      if (nextSyncState !== undefined) setSyncState(nextSyncState);
       return true;
     },
     [clearRecoverySecretTimer, isCurrentSession, setVaultStatus],
@@ -344,6 +401,11 @@ export function PersonalVaultProvider({
         .inspect()
         .then((response) => {
           if (!isCurrentSession(epoch) || response.method !== "inspect") return;
+          setSyncState(response.syncState);
+          setHasPendingPairing(response.hasPendingPairing);
+          setPairingId(response.pairingId);
+          setPairingExpiresAt(response.pairingExpiresAt);
+          setRemoteRecoveryStage(response.remoteRecoveryStage);
           setVaultStatus(response.hasVault ? "locked" : "needs-setup");
         })
         .catch(() => {
@@ -376,9 +438,9 @@ export function PersonalVaultProvider({
         setError(null);
         setLastLockReason("visibility");
         setVaultStatus("locked");
-      } else if (priorStatus === "show-recovery-code") {
+      } else if (priorStatus === "show-recovery-code" || priorStatus === "show-remote-recovery-code") {
         setRecoverySecretExpiry(null);
-        setVaultStatus("needs-setup");
+        setVaultStatus(priorStatus === "show-remote-recovery-code" ? "locked" : "needs-setup");
       }
     };
     // `pagehide` is also dispatched for a bfcache transition, where the
@@ -391,9 +453,9 @@ export function PersonalVaultProvider({
         setError(null);
         setLastLockReason("visibility");
         setVaultStatus("locked");
-      } else if (priorStatus === "show-recovery-code") {
+      } else if (priorStatus === "show-recovery-code" || priorStatus === "show-remote-recovery-code") {
         setRecoverySecretExpiry(null);
-        setVaultStatus("needs-setup");
+        setVaultStatus(priorStatus === "show-remote-recovery-code" ? "locked" : "needs-setup");
       }
     };
     const events = ["keydown", "mousedown", "pointerdown", "scroll", "touchstart"] as const;
@@ -474,7 +536,7 @@ export function PersonalVaultProvider({
       if (expectedLegacy !== null) removeLegacyIfUnchanged(expectedLegacy);
       pendingLegacyMigrationRef.current = null;
       refreshLegacyState();
-      applySnapshot(epoch, response.snapshot);
+      applySnapshot(epoch, response.snapshot, response.syncState);
     } catch (cause) {
       pendingLegacyMigrationRef.current = null;
       setRecoveryCode(null);
@@ -529,7 +591,7 @@ export function PersonalVaultProvider({
     try {
       const response = await ensureClient().unlock();
       if (response.method !== "unlock") throw new Error("Unexpected vault response.");
-      applySnapshot(epoch, response.snapshot);
+      applySnapshot(epoch, response.snapshot, response.syncState);
     } catch (cause) {
       if (!isCurrentSession(epoch)) return;
       setError(clientErrorText(cause, locale));
@@ -549,7 +611,7 @@ export function PersonalVaultProvider({
       try {
         const response = await ensureClient().recover(code, allowOldestDeviceRevocation === true);
         if (response.method !== "recover") throw new Error("Unexpected vault response.");
-        applySnapshot(epoch, response.snapshot);
+        applySnapshot(epoch, response.snapshot, response.syncState);
       } catch (cause) {
         setRecoveryCode(null);
         if (!isCurrentSession(epoch)) return;
@@ -567,12 +629,14 @@ export function PersonalVaultProvider({
   const addTask = useCallback(
     async (title: string) => {
       const epoch = sessionEpochRef.current;
+      if (syncState === "synced" || syncState === "deferred") setSyncState("syncing");
       try {
         const response = await ensureClient().addTask(title);
         if (response.method !== "add-task") throw new Error("Unexpected vault response.");
-        applySnapshot(epoch, response.snapshot);
+        applySnapshot(epoch, response.snapshot, response.syncState);
       } catch (error) {
         if (isCurrentSession(epoch)) {
+          setSyncState("deferred");
           terminateSession();
           setError(writeFailureText(locale));
           setLastLockReason("write-failed");
@@ -581,18 +645,20 @@ export function PersonalVaultProvider({
         throw error;
       }
     },
-    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession],
+    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, syncState, terminateSession],
   );
 
   const toggleTask = useCallback(
     async (id: string) => {
       const epoch = sessionEpochRef.current;
+      if (syncState === "synced" || syncState === "deferred") setSyncState("syncing");
       try {
         const response = await ensureClient().toggleTask(id);
         if (response.method !== "toggle-task") throw new Error("Unexpected vault response.");
-        applySnapshot(epoch, response.snapshot);
+        applySnapshot(epoch, response.snapshot, response.syncState);
       } catch (error) {
         if (isCurrentSession(epoch)) {
+          setSyncState("deferred");
           terminateSession();
           setError(writeFailureText(locale));
           setLastLockReason("write-failed");
@@ -601,7 +667,7 @@ export function PersonalVaultProvider({
         throw error;
       }
     },
-    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession],
+    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, syncState, terminateSession],
   );
 
   const retryLegacyImport = useCallback(async () => {
@@ -619,7 +685,7 @@ export function PersonalVaultProvider({
       if (!isCurrentSession(epoch) || response.method !== "import-legacy") return;
       removeLegacyIfUnchanged(legacySnapshot.raw);
       refreshLegacyState();
-      applySnapshot(epoch, response.snapshot);
+      applySnapshot(epoch, response.snapshot, response.syncState);
     } catch (cause) {
       if (!isCurrentSession(epoch)) return;
       if (cause instanceof LegacyStorageUnavailableError) {
@@ -670,6 +736,322 @@ export function PersonalVaultProvider({
     return true;
   }, [markStorageUnavailable, setVaultStatus]);
 
+  const syncNow = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    setSyncState("syncing");
+    try {
+      const response = await ensureClient().syncNow();
+      if (!isCurrentSession(epoch) || response.method !== "sync-now") return;
+      setSyncState(response.syncState);
+      if (response.snapshot !== null) applySnapshot(epoch, response.snapshot, response.syncState);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      if (
+        cause instanceof PersonalVaultClientError &&
+        (cause.code === "OWNER_MISMATCH" ||
+          cause.code === "ROLLBACK_DETECTED" ||
+          cause.code === "SYNC_CONFLICT")
+      ) {
+        setSyncState(cause.code === "ROLLBACK_DETECTED" ? "rollback" : "conflict");
+        terminateSession();
+        setVaultStatus("locked");
+      } else {
+        setSyncState("deferred");
+      }
+    }
+  }, [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession]);
+
+  const enableAccountSync = useCallback(
+    async (code: string) => {
+      const epoch = sessionEpochRef.current;
+      const previousSyncState = syncState;
+      setSyncState("syncing");
+      try {
+        const response = await ensureClient().enableAccountSync(code);
+        if (!isCurrentSession(epoch) || response.method !== "enable-account-sync") return;
+        applySnapshot(epoch, response.snapshot, response.syncState);
+      } catch (cause) {
+        if (isCurrentSession(epoch)) {
+          setSyncState(previousSyncState);
+          setError(clientErrorText(cause, locale));
+        }
+        throw cause;
+      }
+    },
+    [applySnapshot, ensureClient, isCurrentSession, locale, syncState],
+  );
+
+  const beginDevicePairing = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const response = await ensureClient().beginDevicePairing();
+      if (!isCurrentSession(epoch) || response.method !== "begin-device-pairing") return;
+      setPairingCode(response.pairingCode);
+      setPairingId(response.pairingId);
+      setPairingExpiresAt(response.expiresAt);
+      setHasPendingPairing(true);
+      setSyncState("pairing");
+      setError(null);
+      clearPairingSecretTimer();
+      pairingSecretTimerRef.current = window.setTimeout(() => {
+        pairingSecretTimerRef.current = undefined;
+        setPairingCode(null);
+      }, PERSONAL_VAULT_RECOVERY_SECRET_TIMEOUT_MS);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      try {
+        const inspection = await ensureClient().inspect();
+        if (!isCurrentSession(epoch) || inspection.method !== "inspect") return;
+        setHasPendingPairing(inspection.hasPendingPairing);
+        setPairingId(inspection.pairingId);
+        setPairingExpiresAt(inspection.pairingExpiresAt);
+        setSyncState(inspection.syncState);
+      } catch {
+        // The original pairing error remains actionable; reload can re-inspect.
+      }
+    }
+  }, [clearPairingSecretTimer, ensureClient, isCurrentSession, locale]);
+
+  const cancelDevicePairing = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const response = await ensureClient().cancelDevicePairing();
+      if (!isCurrentSession(epoch) || response.method !== "cancel-device-pairing") return;
+      clearPairingSecretTimer();
+      setPairingCode(null);
+      setPairingId(null);
+      setPairingExpiresAt(null);
+      setHasPendingPairing(false);
+      setSyncState(response.syncState);
+      setError(null);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      try {
+        const inspection = await ensureClient().inspect();
+        if (!isCurrentSession(epoch) || inspection.method !== "inspect") return;
+        setHasPendingPairing(inspection.hasPendingPairing);
+        setPairingId(inspection.pairingId);
+        setPairingExpiresAt(inspection.pairingExpiresAt);
+        setSyncState(inspection.syncState);
+      } catch {
+        // Keep the durable cancellation/create intent for a later retry.
+      }
+    }
+  }, [clearPairingSecretTimer, ensureClient, isCurrentSession, locale]);
+
+  const regenerateDevicePairing = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const cancelled = await ensureClient().cancelDevicePairing();
+      if (!isCurrentSession(epoch) || cancelled.method !== "cancel-device-pairing") return;
+      clearPairingSecretTimer();
+      setPairingCode(null);
+      setPairingId(null);
+      setPairingExpiresAt(null);
+      setHasPendingPairing(false);
+      const created = await ensureClient().beginDevicePairing();
+      if (!isCurrentSession(epoch) || created.method !== "begin-device-pairing") return;
+      setPairingCode(created.pairingCode);
+      setPairingId(created.pairingId);
+      setPairingExpiresAt(created.expiresAt);
+      setHasPendingPairing(true);
+      setSyncState("pairing");
+      setError(null);
+      pairingSecretTimerRef.current = window.setTimeout(() => {
+        pairingSecretTimerRef.current = undefined;
+        setPairingCode(null);
+      }, PERSONAL_VAULT_RECOVERY_SECRET_TIMEOUT_MS);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      try {
+        const inspection = await ensureClient().inspect();
+        if (!isCurrentSession(epoch) || inspection.method !== "inspect") return;
+        setHasPendingPairing(inspection.hasPendingPairing);
+        setPairingId(inspection.pairingId);
+        setPairingExpiresAt(inspection.pairingExpiresAt);
+        setSyncState(inspection.syncState);
+      } catch {
+        // Keep any durable request for a later retry or page-load inspection.
+      }
+    }
+  }, [clearPairingSecretTimer, ensureClient, isCurrentSession, locale]);
+
+  const pollDevicePairing = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const response = await ensureClient().pollDevicePairing();
+      if (!isCurrentSession(epoch) || response.method !== "poll-device-pairing") return;
+      setSyncState(response.syncState);
+      if (!response.pending && response.snapshot !== null) {
+        setPairingCode(null);
+        setPairingId(null);
+        setPairingExpiresAt(null);
+        setHasPendingPairing(false);
+        clearPairingSecretTimer();
+        applySnapshot(epoch, response.snapshot, response.syncState);
+      }
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+    }
+  }, [applySnapshot, clearPairingSecretTimer, ensureClient, isCurrentSession, locale]);
+
+  const listDevicePairings = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const response = await ensureClient().listDevicePairings();
+      if (!isCurrentSession(epoch) || response.method !== "list-device-pairings") return;
+      setPairings(response.items);
+      setSyncState(response.syncState);
+      setError(null);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+    }
+  }, [ensureClient, isCurrentSession, locale]);
+
+  const approveDevicePairing = useCallback(
+    async (selectedPairingId: string, code: string) => {
+      const epoch = sessionEpochRef.current;
+      try {
+        const response = await ensureClient().approveDevicePairing(selectedPairingId, code);
+        if (!isCurrentSession(epoch) || response.method !== "approve-device-pairing") return;
+        setPairings((current) => current.filter((pairing) => pairing.id !== selectedPairingId));
+        applySnapshot(epoch, response.snapshot, response.syncState);
+      } catch (cause) {
+        if (!isCurrentSession(epoch)) return;
+        setError(clientErrorText(cause, locale));
+      }
+    },
+    [applySnapshot, ensureClient, isCurrentSession, locale],
+  );
+
+  const beginRemoteRecovery = useCallback(
+    async (code: string) => {
+      const epoch = sessionEpochRef.current;
+      setRecoverySecretExpiry(null);
+      try {
+        const response = await ensureClient().beginRemoteRecovery(code);
+        if (!isCurrentSession(epoch) || response.method !== "begin-remote-recovery") return;
+        setRemoteRecoveryStage("hardening-required");
+        applySnapshot(epoch, response.snapshot, response.syncState);
+      } catch (cause) {
+        if (!isCurrentSession(epoch)) return;
+        setError(clientErrorText(cause, locale));
+        try {
+          const inspection = await ensureClient().inspect();
+          if (!isCurrentSession(epoch) || inspection.method !== "inspect") return;
+          setRemoteRecoveryStage(inspection.remoteRecoveryStage);
+          setSyncState(inspection.syncState);
+          setVaultStatus(inspection.hasVault ? "locked" : "needs-setup");
+        } catch {
+          setVaultStatus("unavailable");
+        }
+        throw cause;
+      }
+    },
+    [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus],
+  );
+
+  const resumeRemoteRecovery = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    try {
+      const response = await ensureClient().resumeRemoteRecovery();
+      if (!isCurrentSession(epoch) || response.method !== "resume-remote-recovery") return;
+      setRemoteRecoveryStage(response.syncState === "synced" ? null : "hardening-required");
+      applySnapshot(epoch, response.snapshot, response.syncState);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      try {
+        const inspection = await ensureClient().inspect();
+        if (!isCurrentSession(epoch) || inspection.method !== "inspect") return;
+        setRemoteRecoveryStage(inspection.remoteRecoveryStage);
+        setSyncState(inspection.syncState);
+        setVaultStatus(inspection.hasVault ? "locked" : "needs-setup");
+      } catch {
+        // The durable recovery intent remains available after reload.
+      }
+      throw cause;
+    }
+  }, [applySnapshot, ensureClient, isCurrentSession, locale, setVaultStatus]);
+
+  const abandonRemoteRecoveryPairing = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    let response: Awaited<ReturnType<PersonalVaultClient["abandonRemoteRecoveryPairing"]>>;
+    try {
+      response = await ensureClient().abandonRemoteRecoveryPairing();
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      throw cause;
+    }
+    if (!isCurrentSession(epoch) || response.method !== "abandon-remote-recovery-pairing") return;
+    terminateSession();
+    const inspectionEpoch = sessionEpochRef.current;
+    try {
+      const inspection = await ensureClient().inspect();
+      if (!isCurrentSession(inspectionEpoch) || inspection.method !== "inspect") return;
+      setRemoteRecoveryStage(inspection.remoteRecoveryStage);
+      setSyncState(inspection.syncState);
+      setError(null);
+      setVaultStatus(inspection.hasVault ? "locked" : "needs-setup");
+    } catch {
+      if (isCurrentSession(inspectionEpoch)) setVaultStatus("unavailable");
+    }
+  }, [ensureClient, isCurrentSession, locale, setVaultStatus, terminateSession]);
+
+  const prepareRemoteRecoveryRotation = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    const response = await ensureClient().prepareRemoteRecoveryRotation();
+    if (!isCurrentSession(epoch) || response.method !== "prepare-remote-recovery-rotation") return;
+    setRecoveryCode(response.recoveryCode);
+    setRemoteRecoveryStage("hardening-required");
+    setSyncState("hardening");
+    setError(null);
+    setVaultStatus("show-remote-recovery-code");
+    armRecoverySecretTimer();
+  }, [armRecoverySecretTimer, ensureClient, isCurrentSession, setVaultStatus]);
+
+  const confirmRemoteRecoveryRotation = useCallback(async () => {
+    const epoch = sessionEpochRef.current;
+    clearRecoverySecretTimer();
+    setRecoveryCode(null);
+    try {
+      const response = await ensureClient().confirmRemoteRecoveryRotation();
+      if (!isCurrentSession(epoch) || response.method !== "confirm-remote-recovery-rotation") return;
+      setRemoteRecoveryStage(null);
+      applySnapshot(epoch, response.snapshot, response.syncState);
+    } catch (cause) {
+      if (!isCurrentSession(epoch)) return;
+      setError(clientErrorText(cause, locale));
+      terminateSession();
+      const inspectionEpoch = sessionEpochRef.current;
+      try {
+        const inspection = await ensureClient().inspect();
+        if (!isCurrentSession(inspectionEpoch) || inspection.method !== "inspect") return;
+        setRemoteRecoveryStage(inspection.remoteRecoveryStage);
+        setSyncState(inspection.syncState);
+        setVaultStatus(inspection.hasVault ? "locked" : "needs-setup");
+      } catch {
+        setVaultStatus("unavailable");
+      }
+      throw cause;
+    }
+  }, [
+    applySnapshot,
+    clearRecoverySecretTimer,
+    ensureClient,
+    isCurrentSession,
+    locale,
+    setVaultStatus,
+    terminateSession,
+  ]);
+
   const value = useMemo<PersonalVaultValue>(
     () => ({
       status,
@@ -680,6 +1062,13 @@ export function PersonalVaultProvider({
       lastLockReason,
       recoverySecretExpiry,
       legacyAvailable: legacy.available,
+      syncState,
+      hasPendingPairing,
+      pairingCode,
+      pairingId,
+      pairingExpiresAt,
+      pairings,
+      remoteRecoveryStage,
       beginSetup,
       confirmRecoverySaved,
       cancelSetup,
@@ -692,6 +1081,19 @@ export function PersonalVaultProvider({
       retryLegacyImport,
       exportLegacy,
       deleteLegacy,
+      syncNow,
+      enableAccountSync,
+      beginDevicePairing,
+      cancelDevicePairing,
+      regenerateDevicePairing,
+      pollDevicePairing,
+      listDevicePairings,
+      approveDevicePairing,
+      beginRemoteRecovery,
+      resumeRemoteRecovery,
+      abandonRemoteRecoveryPairing,
+      prepareRemoteRecoveryRotation,
+      confirmRemoteRecoveryRotation,
     }),
     [
       addTask,
@@ -699,10 +1101,30 @@ export function PersonalVaultProvider({
       cancelSetup,
       confirmRecoverySaved,
       deleteLegacy,
+      syncNow,
+      enableAccountSync,
+      beginDevicePairing,
+      cancelDevicePairing,
+      regenerateDevicePairing,
+      pollDevicePairing,
+      listDevicePairings,
+      approveDevicePairing,
+      beginRemoteRecovery,
+      resumeRemoteRecovery,
+      abandonRemoteRecoveryPairing,
+      prepareRemoteRecoveryRotation,
+      confirmRemoteRecoveryRotation,
       error,
       expireRecoveryInput,
       exportLegacy,
       legacy.available,
+      syncState,
+      hasPendingPairing,
+      pairingCode,
+      pairingId,
+      pairingExpiresAt,
+      pairings,
+      remoteRecoveryStage,
       lastLockReason,
       lock,
       recover,

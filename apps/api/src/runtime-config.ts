@@ -17,6 +17,21 @@ type Environment = Readonly<Record<string, string | undefined>>;
 export interface OidcRuntimeConfig {
   readonly allowedClientIds: readonly string[];
   readonly audience: string;
+  readonly dpop: {
+    /**
+     * Canonical externally visible API origin used to reconstruct RFC 9449
+     * `htu`. It is deployment configuration and is never inferred from Host or
+     * forwarding headers.
+     */
+    readonly publicOrigin: URL;
+    readonly nonceTtlSeconds: number;
+    readonly operationTimeoutMs: number;
+    readonly proofLimit: number;
+    readonly proofMaxAgeSeconds: number;
+    readonly proofWindowSeconds: number;
+    readonly redisUrl: URL;
+    readonly replayTtlSeconds: number;
+  };
   readonly issuer: string;
   readonly jwksUrl: URL;
   readonly maxTokenLifetimeSeconds: number;
@@ -51,7 +66,8 @@ export interface ApiRuntimeConfig {
 const LOCAL_ISSUER = "http://127.0.0.1:8080/realms/gopher-assistant-dev";
 const LOCAL_AI_KNOWLEDGE_URL = "http://127.0.0.1:8100";
 const LOCAL_AI_REDIS_URL = "redis://:local-redis-password-only@127.0.0.1:6379";
-const DEFAULT_ALLOWED_CLIENT_IDS = ["gopher-web", "gopher-cli", "gopher-mcp"] as const;
+const LOCAL_API_PUBLIC_ORIGIN = "http://127.0.0.1:4000";
+const DEFAULT_ALLOWED_CLIENT_IDS = ["gopher-web", "gopher-cli"] as const;
 const DEFAULT_CORS_ORIGINS = ["http://localhost:3000"] as const;
 const DEFAULT_MAX_TOKEN_LIFETIME_SECONDS = 300;
 const MAX_TOKEN_LIFETIME_SECONDS = 600;
@@ -64,6 +80,10 @@ const DEVELOPMENT_AI_RATE_LIMIT_HMAC_KEY = Buffer.from("development-only-ai-rate
 const DEVELOPMENT_AI_SERVICE_HMAC_KEY = Buffer.from("development-only-ai-service-hmac-key-v1", "utf8");
 const DEVELOPMENT_AI_BFF_PROOF_HMAC_KEY = Buffer.from(
   "development-only-ai-bff-core-proof-hmac-key-v1",
+  "utf8",
+);
+const DEVELOPMENT_ACCOUNT_SUBJECT_HMAC_KEY = Buffer.from(
+  "development-only-account-subject-hmac-key-v1",
   "utf8",
 );
 
@@ -175,6 +195,162 @@ export function loadAiBffProofHmacKey(environment: Environment = process.env): U
   return new Uint8Array(decoded);
 }
 
+/**
+ * Pseudonymizes the exact verified OIDC issuer/subject pair used for the
+ * internal account lookup. This key is purpose-specific and must remain
+ * independent from cursor, quota, BFF, and service-authentication keys.
+ */
+export function loadAccountSubjectHmacKey(environment: Environment = process.env): Uint8Array {
+  const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
+  const encoded = environment["API_ACCOUNT_SUBJECT_HMAC_KEY"];
+  if (encoded === undefined) {
+    if (nodeEnv === "production") {
+      throw new TypeError("API_ACCOUNT_SUBJECT_HMAC_KEY is required in production");
+    }
+    return new Uint8Array(DEVELOPMENT_ACCOUNT_SUBJECT_HMAC_KEY);
+  }
+  if (!BASE64URL_PATTERN.test(encoded)) {
+    throw new TypeError("API_ACCOUNT_SUBJECT_HMAC_KEY must be canonical base64url");
+  }
+  const decoded = Buffer.from(encoded, "base64url");
+  if (decoded.toString("base64url") !== encoded || decoded.byteLength < 32 || decoded.byteLength > 64) {
+    throw new TypeError(
+      "API_ACCOUNT_SUBJECT_HMAC_KEY must be canonical base64url encoding of 32 through 64 bytes",
+    );
+  }
+  if (nodeEnv === "production" && decoded.equals(DEVELOPMENT_ACCOUNT_SUBJECT_HMAC_KEY)) {
+    throw new TypeError("API_ACCOUNT_SUBJECT_HMAC_KEY must not use the fixed development key in production");
+  }
+  return new Uint8Array(decoded);
+}
+
+export interface AccountSubjectHmacKeySet {
+  /**
+   * One-time migration escape hatch for installing the continuity sentinel
+   * over an existing identity table. It must be removed after the first
+   * successful rollout.
+   */
+  readonly allowExistingContinuityBootstrap: boolean;
+  readonly currentKey: Uint8Array;
+  readonly currentVersion: number;
+  readonly previousKey?: Uint8Array;
+  readonly previousVersion?: number;
+  /** Finalizes a completed rotation and permits removal of the previous key. */
+  readonly rotationFinalized: boolean;
+}
+
+function parseAccountHmacVersion(value: string | undefined, name: string, fallback?: number): number {
+  const candidate = value ?? (fallback === undefined ? undefined : String(fallback));
+  if (candidate === undefined || !/^[1-9][0-9]{0,4}$/u.test(candidate)) {
+    throw new TypeError(`${name} must be an integer between 1 and 32767`);
+  }
+  const parsed = Number(candidate);
+  if (!Number.isSafeInteger(parsed) || parsed > 32_767) {
+    throw new TypeError(`${name} must be an integer between 1 and 32767`);
+  }
+  return parsed;
+}
+
+function parseAccountHmacBoolean(value: string | undefined, name: string): boolean {
+  if (value === undefined || value === "false") return false;
+  if (value === "true") return true;
+  throw new TypeError(`${name} must be exactly true or false`);
+}
+
+/**
+ * A one-step identity-HMAC rotation accepts only the immediately previous
+ * version. The database atomically attaches the current digest to the account
+ * found through the previous digest while preserving its random owner binding.
+ */
+export function loadAccountSubjectHmacKeySet(
+  environment: Environment = process.env,
+): AccountSubjectHmacKeySet {
+  const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
+  const currentKey = loadAccountSubjectHmacKey(environment);
+  const currentVersionRaw = environment["API_ACCOUNT_HMAC_KEY_VERSION"];
+  if (nodeEnv === "production" && currentVersionRaw === undefined) {
+    currentKey.fill(0);
+    throw new TypeError("API_ACCOUNT_HMAC_KEY_VERSION is required in production");
+  }
+  const currentVersion = parseAccountHmacVersion(currentVersionRaw, "API_ACCOUNT_HMAC_KEY_VERSION", 1);
+  const allowExistingContinuityBootstrap = parseAccountHmacBoolean(
+    environment["API_ACCOUNT_HMAC_ALLOW_EXISTING_BOOTSTRAP"],
+    "API_ACCOUNT_HMAC_ALLOW_EXISTING_BOOTSTRAP",
+  );
+  const rotationFinalized = parseAccountHmacBoolean(
+    environment["API_ACCOUNT_HMAC_ROTATION_FINALIZED"],
+    "API_ACCOUNT_HMAC_ROTATION_FINALIZED",
+  );
+  const previousEncoded = environment["API_PREVIOUS_ACCOUNT_SUBJECT_HMAC_KEY"];
+  const previousVersionRaw = environment["API_PREVIOUS_ACCOUNT_HMAC_KEY_VERSION"];
+  const hasPrevious = previousEncoded !== undefined || previousVersionRaw !== undefined;
+  if (rotationFinalized && currentVersion === 1) {
+    currentKey.fill(0);
+    throw new TypeError("API_ACCOUNT_HMAC_ROTATION_FINALIZED requires a key version above 1");
+  }
+  if (rotationFinalized && hasPrevious) {
+    currentKey.fill(0);
+    throw new TypeError("A finalized account HMAC rotation must not retain the previous key");
+  }
+  if (currentVersion > 1 && !hasPrevious && !rotationFinalized) {
+    currentKey.fill(0);
+    throw new TypeError("Account HMAC versions above 1 require the previous key and version");
+  }
+  if (!hasPrevious) {
+    return Object.freeze({
+      allowExistingContinuityBootstrap,
+      currentKey,
+      currentVersion,
+      rotationFinalized,
+    });
+  }
+  if (previousEncoded === undefined || previousVersionRaw === undefined) {
+    throw new TypeError("Previous account HMAC key and version must be configured together");
+  }
+  if (!BASE64URL_PATTERN.test(previousEncoded)) {
+    throw new TypeError("API_PREVIOUS_ACCOUNT_SUBJECT_HMAC_KEY must be canonical base64url");
+  }
+  const previousKey = Buffer.from(previousEncoded, "base64url");
+  if (
+    previousKey.toString("base64url") !== previousEncoded ||
+    previousKey.byteLength < 32 ||
+    previousKey.byteLength > 64
+  ) {
+    throw new TypeError("API_PREVIOUS_ACCOUNT_SUBJECT_HMAC_KEY must encode 32 through 64 bytes");
+  }
+  const previousVersion = parseAccountHmacVersion(
+    previousVersionRaw,
+    "API_PREVIOUS_ACCOUNT_HMAC_KEY_VERSION",
+  );
+  if (previousVersion !== currentVersion - 1) {
+    previousKey.fill(0);
+    throw new TypeError("API_PREVIOUS_ACCOUNT_HMAC_KEY_VERSION must immediately precede the current version");
+  }
+  if (
+    environment["NODE_ENV"] === "production" &&
+    sameSecret(previousKey, DEVELOPMENT_ACCOUNT_SUBJECT_HMAC_KEY)
+  ) {
+    previousKey.fill(0);
+    throw new TypeError(
+      "API_PREVIOUS_ACCOUNT_SUBJECT_HMAC_KEY must not use the fixed development key in production",
+    );
+  }
+  if (sameSecret(currentKey, previousKey)) {
+    previousKey.fill(0);
+    throw new TypeError("Current and previous account subject HMAC keys must be independent");
+  }
+  const previousMaterial = new Uint8Array(previousKey);
+  previousKey.fill(0);
+  return Object.freeze({
+    allowExistingContinuityBootstrap,
+    currentKey,
+    currentVersion,
+    previousKey: previousMaterial,
+    previousVersion,
+    rotationFinalized,
+  });
+}
+
 function sameSecret(left: Uint8Array, right: Uint8Array): boolean {
   if (left.byteLength !== right.byteLength) return false;
   return timingSafeEqual(Buffer.from(left), Buffer.from(right));
@@ -241,6 +417,54 @@ function parseRedisEndpoint(raw: string, nodeEnv: ApiRuntimeConfig["nodeEnv"]): 
     throw new TypeError("Plaintext API_AI_REDIS_URL is allowed only on loopback");
   }
   return endpoint;
+}
+
+function parseDpopRedisEndpoint(raw: string, nodeEnv: ApiRuntimeConfig["nodeEnv"]): URL {
+  if (raw.trim() !== raw) {
+    throw new TypeError("API_DPOP_REDIS_URL must not contain surrounding whitespace");
+  }
+  let endpoint: URL;
+  try {
+    endpoint = new URL(raw);
+  } catch {
+    throw new TypeError("API_DPOP_REDIS_URL must be an absolute Redis URL");
+  }
+  if (endpoint.protocol !== "redis:" && endpoint.protocol !== "rediss:") {
+    throw new TypeError("API_DPOP_REDIS_URL must use redis or rediss");
+  }
+  if (endpoint.search || endpoint.hash || (endpoint.pathname !== "" && endpoint.pathname !== "/")) {
+    throw new TypeError("API_DPOP_REDIS_URL must not contain a database path, query, or fragment");
+  }
+  if (endpoint.password.length === 0) {
+    throw new TypeError("API_DPOP_REDIS_URL must contain a password");
+  }
+  if (nodeEnv === "production" && endpoint.protocol !== "rediss:") {
+    throw new TypeError("API_DPOP_REDIS_URL must use rediss in production");
+  }
+  if (
+    endpoint.protocol === "redis:" &&
+    !isLoopbackHostname(endpoint.hostname) &&
+    endpoint.hostname.toLowerCase() !== "localhost"
+  ) {
+    throw new TypeError("Plaintext API_DPOP_REDIS_URL is allowed only on loopback");
+  }
+  return endpoint;
+}
+
+function parsePublicOrigin(raw: string, nodeEnv: ApiRuntimeConfig["nodeEnv"]): URL {
+  const endpoint = parseEndpoint(raw, "API_PUBLIC_ORIGIN");
+  if (
+    endpoint.pathname !== "/" ||
+    endpoint.search !== "" ||
+    endpoint.hash !== "" ||
+    endpoint.origin !== raw
+  ) {
+    throw new TypeError("API_PUBLIC_ORIGIN must be a canonical HTTP or HTTPS origin");
+  }
+  if (nodeEnv === "production" && endpoint.protocol !== "https:") {
+    throw new TypeError("API_PUBLIC_ORIGIN must use HTTPS in production");
+  }
+  return new URL(endpoint.origin);
 }
 
 function defaultJwksUrl(issuer: URL): URL {
@@ -342,7 +566,13 @@ function parseCorsAllowedOrigins(
 export function loadApiRuntimeConfig(environment: Environment = process.env): ApiRuntimeConfig {
   const nodeEnv = parseNodeEnvironment(environment["NODE_ENV"]);
   if (nodeEnv === "production") {
-    for (const name of ["API_OIDC_ISSUER", "API_OIDC_AUDIENCE", "API_OIDC_JWKS_URL"] as const) {
+    for (const name of [
+      "API_OIDC_ISSUER",
+      "API_OIDC_AUDIENCE",
+      "API_OIDC_JWKS_URL",
+      "API_PUBLIC_ORIGIN",
+      "API_DPOP_REDIS_URL",
+    ] as const) {
       if (environment[name] === undefined) {
         throw new TypeError(`${name} is required in production`);
       }
@@ -372,16 +602,21 @@ export function loadApiRuntimeConfig(environment: Environment = process.env): Ap
   const aiRateLimitHmacKey = loadAiRateLimitHmacKey(environment);
   const aiBffProofHmacKey = loadAiBffProofHmacKey(environment);
   const aiKnowledgeServiceHmacKey = loadAiKnowledgeServiceHmacKey(environment);
-  if (
-    sameSecret(cursorHmacKey, aiRateLimitHmacKey) ||
-    sameSecret(cursorHmacKey, aiBffProofHmacKey) ||
-    sameSecret(cursorHmacKey, aiKnowledgeServiceHmacKey) ||
-    sameSecret(aiRateLimitHmacKey, aiBffProofHmacKey) ||
-    sameSecret(aiRateLimitHmacKey, aiKnowledgeServiceHmacKey) ||
-    sameSecret(aiBffProofHmacKey, aiKnowledgeServiceHmacKey)
-  ) {
+  const accountSubjectHmacKeys = loadAccountSubjectHmacKeySet(environment);
+  const purposeKeys = [
+    cursorHmacKey,
+    aiRateLimitHmacKey,
+    aiBffProofHmacKey,
+    aiKnowledgeServiceHmacKey,
+    accountSubjectHmacKeys.currentKey,
+    ...(accountSubjectHmacKeys.previousKey === undefined ? [] : [accountSubjectHmacKeys.previousKey]),
+  ];
+  const duplicatePurposeKey = purposeKeys.some((candidate, index) =>
+    purposeKeys.slice(index + 1).some((other) => sameSecret(candidate, other)),
+  );
+  if (duplicatePurposeKey) {
     throw new TypeError(
-      "Catalog cursor, AI rate-limit, AI BFF proof, and AI knowledge service HMAC keys must be independent",
+      "Catalog cursor, AI rate-limit, AI BFF proof, AI knowledge service, and account subject HMAC keys must be independent",
     );
   }
 
@@ -459,6 +694,52 @@ export function loadApiRuntimeConfig(environment: Environment = process.env): Ap
     oidc: {
       allowedClientIds: parseAllowedClientIds(environment["API_OIDC_ALLOWED_CLIENT_IDS"], nodeEnv),
       audience: parseAudience(environment["API_OIDC_AUDIENCE"]),
+      dpop: {
+        nonceTtlSeconds: parseIntegerSetting(
+          environment["API_DPOP_NONCE_TTL_SECONDS"],
+          "API_DPOP_NONCE_TTL_SECONDS",
+          300,
+          30,
+          900,
+        ),
+        operationTimeoutMs: parseIntegerSetting(
+          environment["API_DPOP_REDIS_TIMEOUT_MS"],
+          "API_DPOP_REDIS_TIMEOUT_MS",
+          1_000,
+          100,
+          10_000,
+        ),
+        proofLimit: parseIntegerSetting(
+          environment["API_DPOP_PROOF_LIMIT"],
+          "API_DPOP_PROOF_LIMIT",
+          600,
+          10,
+          100_000,
+        ),
+        proofMaxAgeSeconds: parseIntegerSetting(
+          environment["API_DPOP_PROOF_MAX_AGE_SECONDS"],
+          "API_DPOP_PROOF_MAX_AGE_SECONDS",
+          60,
+          10,
+          300,
+        ),
+        proofWindowSeconds: parseIntegerSetting(
+          environment["API_DPOP_PROOF_WINDOW_SECONDS"],
+          "API_DPOP_PROOF_WINDOW_SECONDS",
+          60,
+          10,
+          3_600,
+        ),
+        publicOrigin: parsePublicOrigin(environment["API_PUBLIC_ORIGIN"] ?? LOCAL_API_PUBLIC_ORIGIN, nodeEnv),
+        redisUrl: parseDpopRedisEndpoint(environment["API_DPOP_REDIS_URL"] ?? LOCAL_AI_REDIS_URL, nodeEnv),
+        replayTtlSeconds: parseIntegerSetting(
+          environment["API_DPOP_REPLAY_TTL_SECONDS"],
+          "API_DPOP_REPLAY_TTL_SECONDS",
+          120,
+          30,
+          900,
+        ),
+      },
       issuer: issuerRaw,
       jwksUrl,
       maxTokenLifetimeSeconds: parseIntegerSetting(

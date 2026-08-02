@@ -67,6 +67,7 @@ describe("PersonalVaultClient graceful termination", () => {
       id: writeRequest.id,
       method: "add-task",
       ok: true,
+      syncState: "synced",
       snapshot: { revision: 2, tasks: [{ done: false, id: "task-1", title: "Persist me" }] },
     });
     await expect(write).resolves.toMatchObject({ method: "add-task" });
@@ -94,5 +95,29 @@ describe("PersonalVaultClient graceful termination", () => {
 
     expect(requestAt(worker, 0).method).toBe("lock");
     expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+
+  it("uses a dedicated exact RPC for abandoning only a pending remote recovery pairing", async () => {
+    vi.stubGlobal("Worker", FakeWorker);
+    const client = new PersonalVaultClient(new URL("http://localhost/worker.mjs"));
+    const worker = FakeWorker.latest;
+    if (worker === undefined) throw new Error("Worker was not constructed.");
+
+    const abandoned = client.abandonRemoteRecoveryPairing();
+    const request = requestAt(worker, 0);
+    expect(request).toMatchObject({
+      method: "abandon-remote-recovery-pairing",
+    });
+    expect(Object.keys(request).sort()).toEqual(["id", "method"]);
+    worker.respond({
+      id: request.id,
+      method: "abandon-remote-recovery-pairing",
+      ok: true,
+    });
+
+    await expect(abandoned).resolves.toMatchObject({
+      method: "abandon-remote-recovery-pairing",
+    });
+    client.terminate();
   });
 });

@@ -55,5 +55,57 @@ describe("content-addressed vault Worker artifacts", () => {
     expect(source).toContain("vault-runtime-${VAULT_WORKER_BUILD_DIGEST}");
     expect(source).toContain("/personal-vault.worker.${VAULT_WORKER_BUILD_DIGEST}.mjs");
     expect(source).toContain(`const VAULT_WORKER_BUILD_DIGEST = "${digest}";`);
+    expect(source).toContain('pathname === "/auth"');
+    expect(source).toContain('pathname.startsWith("/auth/")');
+  });
+
+  it("creates the short-lived recovery rotation command only after one-time-code confirmation", () => {
+    const source = readFileSync(resolve(process.cwd(), "workers/personal-vault.worker.ts"), "utf8");
+    const preparation = source.slice(
+      source.indexOf("async function prepareRemoteRecoveryRotation"),
+      source.indexOf("async function rebaseStaleRemoteRecoveryRotation"),
+    );
+    const confirmationStart = source.indexOf("async function confirmRemoteRecoveryRotation");
+    const confirmation = source.slice(
+      confirmationStart,
+      source.indexOf("async function resumeRemoteRecovery()", confirmationStart),
+    );
+
+    expect(preparation).not.toContain("createVaultRecoveryRotationCommand({");
+    expect(confirmation).toContain("createVaultRecoveryRotationCommand({");
+    expect(confirmation.indexOf("createVaultRecoveryRotationCommand({")).toBeLessThan(
+      confirmation.indexOf("stageRemoteRecoveryRotationV2("),
+    );
+  });
+
+  it("fails closed on unproven multi-hop recovery-rotation rebases", () => {
+    const source = readFileSync(resolve(process.cwd(), "workers/personal-vault.worker.ts"), "utf8");
+    const start = source.indexOf("async function rebaseStaleRemoteRecoveryRotation");
+    const rebase = source.slice(start, source.indexOf("async function finishRemoteRecoveryRotation", start));
+
+    expect(rebase).toContain("classifyVerifiedPendingUpdateHead({");
+    expect(rebase).toContain('classification !== "payload-child"');
+    expect(rebase).not.toMatch(/commit\.sequence\s*[<>]=?\s*sync\.highWater\.sequence/u);
+  });
+
+  it("publishes reopened vault state only after setup upload and unlock synchronization succeed", () => {
+    const source = readFileSync(resolve(process.cwd(), "workers/personal-vault.worker.ts"), "utf8");
+    const setupStart = source.indexOf("async function confirmSetup");
+    const setup = source.slice(setupStart, source.indexOf("async function enableAccountSync", setupStart));
+    const unlockStart = source.indexOf('case "unlock":');
+    const unlock = source.slice(unlockStart, source.indexOf('case "recover":', unlockStart));
+    const recoveryStart = source.indexOf('case "recover":');
+    const recovery = source.slice(recoveryStart, source.indexOf('case "lock":', recoveryStart));
+
+    expect(setup).toContain("prepareVaultStateForPublication(");
+    expect(setup.indexOf("await uploadPending(candidate")).toBeLessThan(setup.indexOf("unlocked = readBack"));
+    expect(unlock).toContain("prepareVaultStateForPublication(");
+    expect(unlock.indexOf("await synchronizeUnlocked(candidate)")).toBeLessThan(
+      unlock.indexOf("unlocked = nextState"),
+    );
+    expect(unlock).not.toContain("unlocked = await unlockPersistedVault()");
+    expect(recovery.indexOf("await readPersistedVaultSyncV2()")).toBeLessThan(
+      recovery.indexOf("unlocked = readBack"),
+    );
   });
 });

@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections.abc import Mapping
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -19,7 +20,7 @@ from pydantic import (
     model_validator,
 )
 
-from .url_policy import is_official_umn_url
+from .url_policy import is_official_umn_url, is_project_summary_url
 
 _HTML_OR_ENTITY_RE = re.compile(r"[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?")
 
@@ -133,6 +134,23 @@ class KnowledgeSourceDescriptor(StrictModel):
     license_evidence_url: AnyHttpUrl | None = Field(alias="licenseEvidenceUrl")
     kill_switch: SourceKillSwitch = Field(alias="killSwitch")
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_project_source_url(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        resource_kinds = value.get("resourceKinds", value.get("resource_kinds"))
+        if not isinstance(resource_kinds, list) or not any(
+            item == KnowledgeSourceResourceKind.SUMMARY
+            or item == KnowledgeSourceResourceKind.SUMMARY.value
+            for item in resource_kinds
+        ):
+            return value
+        source_url = value.get("sourceUrl", value.get("source_url"))
+        if not is_project_summary_url(str(source_url)):
+            raise ValueError("project summary sources must identify this repository")
+        return value
+
     @field_validator("resource_kinds", mode="before")
     @classmethod
     def parse_resource_kinds(cls, value: object) -> object:
@@ -176,16 +194,12 @@ class KnowledgeSourceDescriptor(StrictModel):
             raise ValueError("knowledge source kill-switch key must match its identity")
 
         resource_kind = self.resource_kinds[0]
-        source = urlsplit(str(self.source_url))
-        hostname = (source.hostname or "").casefold()
         if resource_kind is KnowledgeSourceResourceKind.SUMMARY:
             if self.license_status is not LicenseStatus.OPEN_REUSE:
                 raise ValueError("project summary sources must be OPEN_REUSE")
             if self.license_evidence_url is None:
                 raise ValueError("project summary sources require license evidence")
-            if hostname != "github.com" or not source.path.startswith(
-                "/appleweiping/umn-gopher-assistant/"
-            ):
+            if not is_project_summary_url(str(self.source_url)):
                 raise ValueError("project summary sources must identify this repository")
         else:
             if self.license_status is not LicenseStatus.DEEPLINK_ONLY:
@@ -392,30 +406,70 @@ class AnswerParagraph(StrictModel):
         return values
 
 
+class CitationLicense(StrictModel):
+    status: Literal["OPEN_REUSE"]
+    spdx_id: Literal["Apache-2.0"] = Field(alias="spdxId")
+    evidence_url: AnyHttpUrl = Field(alias="evidenceUrl")
+
+    @field_validator("evidence_url")
+    @classmethod
+    def validate_evidence_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if str(value) != "https://www.apache.org/licenses/LICENSE-2.0":
+            raise ValueError("license evidence must identify the reviewed Apache-2.0 terms")
+        return value
+
+
+class CitationSummarySource(StrictModel):
+    kind: Literal["project-authored-summary"]
+    source_id: SafeIdentifier = Field(alias="sourceId")
+    source_url: AnyHttpUrl = Field(alias="sourceUrl")
+    corpus_sha256: Sha256 = Field(alias="corpusSha256")
+    license: CitationLicense
+
+    @field_validator("source_url", mode="before")
+    @classmethod
+    def validate_project_source_url(cls, value: object) -> object:
+        if not is_project_summary_url(str(value)):
+            raise ValueError("summary sourceUrl must identify this repository")
+        return value
+
+
+class CitationVerificationLink(StrictModel):
+    kind: Literal["official-verification-link"]
+    source_id: SafeIdentifier = Field(alias="sourceId")
+    source_url: AnyHttpUrl = Field(alias="sourceUrl")
+    license_status: Literal["DEEPLINK_ONLY"] = Field(alias="licenseStatus")
+    source_use: Literal["verification-link-only"] = Field(alias="sourceUse")
+    content_retrieved: Literal[False] = Field(alias="contentRetrieved")
+
+    @field_validator("source_url")
+    @classmethod
+    def validate_official_source_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
+        if not is_official_umn_url(str(value)):
+            raise ValueError("verification sourceUrl must be a canonical official umn.edu URL")
+        return value
+
+
 class Citation(StrictModel):
     id: EvidenceIdentifier
+    document_id: SafeIdentifier = Field(alias="documentId")
     campus_id: CampusId = Field(alias="campusId")
-    source_id: SafeIdentifier = Field(alias="sourceId")
     category: Category
     title: BilingualText
-    source_url: AnyHttpUrl = Field(alias="sourceUrl")
     content_sha256: Sha256 = Field(alias="contentSha256")
     updated_at: datetime = Field(alias="updatedAt")
-    freshness_state: FreshnessState = Field(alias="freshnessState")
-    verification_state: VerificationState = Field(alias="verificationState")
+    summary_freshness_state: Literal["FRESH", "STALE", "EXPIRED"] = Field(
+        alias="summaryFreshnessState"
+    )
+    summary_verification_state: Literal["schematic"] = Field(alias="summaryVerificationState")
+    summary_source: CitationSummarySource = Field(alias="summarySource")
+    verification_link: CitationVerificationLink = Field(alias="verificationLink")
     excerpt: Annotated[str, StringConstraints(min_length=1, max_length=4_000)]
 
     @field_validator("excerpt")
     @classmethod
     def validate_excerpt(cls, value: str) -> str:
         return _reject_unsafe_text(value, field_name="citation excerpt")
-
-    @field_validator("source_url")
-    @classmethod
-    def validate_citation_source_url(cls, value: AnyHttpUrl) -> AnyHttpUrl:
-        if not is_official_umn_url(str(value)):
-            raise ValueError("sourceUrl must be a canonical official umn.edu URL")
-        return value
 
     @field_validator("updated_at", mode="before")
     @classmethod
@@ -429,15 +483,11 @@ class Citation(StrictModel):
             raise ValueError("updatedAt must contain an offset")
         return value
 
-    @field_validator("freshness_state", mode="before")
-    @classmethod
-    def parse_freshness_state(cls, value: FreshnessState | str) -> FreshnessState:
-        return value if isinstance(value, FreshnessState) else FreshnessState(value)
-
-    @field_validator("verification_state", mode="before")
-    @classmethod
-    def parse_citation_verification_state(cls, value: VerificationState | str) -> VerificationState:
-        return value if isinstance(value, VerificationState) else VerificationState(value)
+    @model_validator(mode="after")
+    def validate_distinct_source_roles(self) -> Self:
+        if self.summary_source.source_id == self.verification_link.source_id:
+            raise ValueError("summary and verification source identities must be distinct")
+        return self
 
 
 class RetrievalMetadata(StrictModel):
@@ -467,6 +517,8 @@ class QueryResponse(StrictModel):
         citation_ids = [citation.id for citation in self.citations]
         if len(citation_ids) != len(set(citation_ids)):
             raise ValueError("citation ids must be unique")
+        if len({citation.summary_source.corpus_sha256 for citation in self.citations}) > 1:
+            raise ValueError("citations cannot mix summary corpus revisions")
 
         known_citation_ids = set(citation_ids)
         referenced_citation_ids = {
@@ -480,10 +532,6 @@ class QueryResponse(StrictModel):
         for citation in self.citations:
             if citation.campus_id != self.campus_id:
                 raise ValueError("cross-campus citations are not allowed")
-            if citation.verification_state is VerificationState.RETIRED:
-                raise ValueError("retired evidence cannot be cited")
-            if citation.freshness_state is FreshnessState.UNKNOWN:
-                raise ValueError("evidence with unknown freshness cannot be cited")
 
         if self.state == "no-results":
             if self.paragraphs or self.citations:
@@ -493,19 +541,23 @@ class QueryResponse(StrictModel):
             raise ValueError(f"{self.state} responses require evidence")
 
         if self.state == "answered" and any(
-            citation.freshness_state is not FreshnessState.FRESH for citation in self.citations
+            citation.summary_freshness_state != FreshnessState.FRESH for citation in self.citations
         ):
             raise ValueError("answered responses may cite only FRESH evidence")
         if self.state == "stale" and any(
-            citation.freshness_state not in {FreshnessState.STALE, FreshnessState.EXPIRED}
+            citation.summary_freshness_state not in {FreshnessState.STALE, FreshnessState.EXPIRED}
             for citation in self.citations
         ):
             raise ValueError("stale responses may cite only STALE or EXPIRED evidence")
         if self.state == "conflict":
             if len(self.citations) < 2:
                 raise ValueError("conflict responses require at least two citations")
-            if len({citation.source_id for citation in self.citations}) < 2:
-                raise ValueError("conflict responses require at least two distinct sources")
+            if len({citation.document_id for citation in self.citations}) < 2:
+                raise ValueError("conflict responses require at least two distinct records")
+            if len({citation.verification_link.source_id for citation in self.citations}) < 2:
+                raise ValueError(
+                    "conflict responses require at least two distinct verification links"
+                )
             if len({citation.content_sha256 for citation in self.citations}) < 2:
                 raise ValueError("conflict responses require genuinely different evidence")
         return self

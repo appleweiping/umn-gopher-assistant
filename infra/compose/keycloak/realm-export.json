@@ -1,12 +1,59 @@
 {
   "realm": "gopher-assistant-dev",
   "displayName": "Campus Assistant Local Development",
+  "attributes": {
+    "gopher.assistant.realm-revision": "2026-08-03.1"
+  },
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": false,
   "bruteForceProtected": true,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "clientProfiles": {
+    "profiles": [
+      {
+        "name": "gopher-strict-dpop-code-binding",
+        "description": "Requires every public OIDC authorization-code flow to bind its code to the submitted dpop_jkt thumbprint",
+        "executors": [
+          {
+            "executor": "dpop-bind-enforcer",
+            "configuration": {
+              "auto-configure": "false",
+              "enforce-authorization-code-binding-to-dpop": "true",
+              "allow-only-refresh-token-binding": "false"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "clientPolicies": {
+    "policies": [
+      {
+        "name": "Gopher public OIDC DPoP binding",
+        "description": "Applies strict DPoP authorization-code binding to the web and MCP public clients; the CLI remains a DPoP-bound device-flow client",
+        "enabled": true,
+        "conditions": [
+          {
+            "condition": "client-type",
+            "configuration": {
+              "protocol": "openid-connect"
+            }
+          },
+          {
+            "condition": "client-access-type",
+            "configuration": {
+              "type": ["public"]
+            }
+          }
+        ],
+        "profiles": ["gopher-strict-dpop-code-binding"]
+      }
+    ]
+  },
   "roles": {
     "realm": [
       {
@@ -244,20 +291,12 @@
       "webOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
       "attributes": {
         "access.token.header.type.rfc9068": "true",
+        "dpop.bound.access.tokens": "true",
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/##http://127.0.0.1:3000/"
       },
-      "defaultClientScopes": [
-        "web-origins",
-        "acr",
-        "profile",
-        "gopher-platform-roles",
-        "basic",
-        "email",
-        "gopher-api-audience",
-        "campus:read"
-      ],
-      "optionalClientScopes": []
+      "defaultClientScopes": ["gopher-platform-roles", "gopher-api-audience", "campus:read"],
+      "optionalClientScopes": ["personal:read", "personal:write"]
     },
     {
       "clientId": "gopher-cli",
@@ -272,23 +311,16 @@
       "serviceAccountsEnabled": false,
       "attributes": {
         "access.token.header.type.rfc9068": "true",
+        "dpop.bound.access.tokens": "true",
         "oauth2.device.authorization.grant.enabled": "true"
       },
-      "defaultClientScopes": [
-        "acr",
-        "profile",
-        "gopher-platform-roles",
-        "basic",
-        "email",
-        "gopher-api-audience",
-        "campus:read"
-      ],
+      "defaultClientScopes": ["gopher-platform-roles", "gopher-api-audience", "campus:read"],
       "optionalClientScopes": ["offline_access"]
     },
     {
       "clientId": "gopher-mcp",
       "name": "Campus Assistant Local MCP Authorization Client",
-      "description": "Local PKCE client only; Keycloak 26.5.5 cannot provide RFC 8707 resource indicators",
+      "description": "Local DPoP-bound PKCE client with a fixed MCP audience; Keycloak 26.7.0 does not implement RFC 8707 resource indicators",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
@@ -301,17 +333,11 @@
       "webOrigins": ["http://127.0.0.1:4100"],
       "attributes": {
         "access.token.header.type.rfc9068": "true",
+        "dpop.bound.access.tokens": "true",
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://127.0.0.1:4100/"
       },
-      "defaultClientScopes": [
-        "acr",
-        "profile",
-        "gopher-platform-roles",
-        "basic",
-        "gopher-mcp-audience",
-        "campus:read"
-      ],
+      "defaultClientScopes": ["gopher-platform-roles", "gopher-mcp-audience", "campus:read"],
       "optionalClientScopes": []
     },
     {

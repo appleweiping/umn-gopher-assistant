@@ -29,16 +29,35 @@ const response = {
   citations: [
     {
       id: "citation.1",
+      documentId: "tc-library-hours",
       campusId: "tc",
-      sourceId: "tc-library-hours",
       category: "library",
       title: { en: "Library hours", "zh-CN": "图书馆开放时间" },
-      sourceUrl: "https://www.lib.umn.edu/spaces",
       contentSha256: "a".repeat(64),
       updatedAt: "2026-07-22T12:00:00.000Z",
-      freshnessState: "FRESH",
-      verificationState: "campus-reviewed",
+      summaryFreshnessState: "FRESH",
+      summaryVerificationState: "schematic",
       excerpt: "Synthetic evidence excerpt for the SDK contract test.",
+      summarySource: {
+        kind: "project-authored-summary",
+        sourceId: "uga-ai-summary-corpus-v1",
+        sourceUrl:
+          "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+        corpusSha256: "c".repeat(64),
+        license: {
+          status: "OPEN_REUSE",
+          spdxId: "Apache-2.0",
+          evidenceUrl: "https://www.apache.org/licenses/LICENSE-2.0",
+        },
+      },
+      verificationLink: {
+        kind: "official-verification-link",
+        sourceId: "official-tc-library-hours",
+        sourceUrl: "https://www.lib.umn.edu/spaces",
+        licenseStatus: "DEEPLINK_ONLY",
+        sourceUse: "verification-link-only",
+        contentRetrieved: false,
+      },
     },
   ],
   retrieval: { mode: "no-key-hybrid", documentsConsidered: 5 },
@@ -75,7 +94,109 @@ describe("generated AI SDK contract", () => {
     expect(
       validateImplementedSuccessBody("queryCampusAssistant", 200, {
         ...response,
-        citations: [{ ...response.citations[0], sourceUrl: "http://example.invalid" }],
+        citations: [
+          {
+            ...response.citations[0],
+            verificationLink: {
+              ...response.citations[0].verificationLink,
+              sourceUrl: "http://example.invalid",
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            summarySource: {
+              ...response.citations[0].summarySource,
+              corpusSha256: "not-a-digest",
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            verificationLink: {
+              ...response.citations[0].verificationLink,
+              contentRetrieved: true,
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            verificationLink: {
+              ...response.citations[0].verificationLink,
+              sourceId: response.citations[0].summarySource.sourceId,
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+  });
+
+  it("requires conflicts to use distinct authored documents, verification links, and hashes", () => {
+    const conflictingCitation = {
+      ...response.citations[0],
+      id: "citation.2",
+      documentId: "tc-library-hours-conflicting",
+      contentSha256: "b".repeat(64),
+      verificationLink: {
+        ...response.citations[0].verificationLink,
+        sourceId: "official-tc-library-hours-conflicting",
+      },
+    };
+    const conflict = {
+      ...response,
+      state: "conflict",
+      paragraphs: [{ ...response.paragraphs[0], citationIds: ["citation.1", "citation.2"] }],
+      citations: [response.citations[0], conflictingCitation],
+    };
+    expect(validateImplementedSuccessBody("queryCampusAssistant", 200, conflict)).toMatchObject({
+      success: true,
+    });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...conflict,
+        citations: [response.citations[0], { ...conflictingCitation, documentId: "tc-library-hours" }],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...conflict,
+        citations: [
+          response.citations[0],
+          { ...conflictingCitation, verificationLink: response.citations[0].verificationLink },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...conflict,
+        citations: [
+          response.citations[0],
+          {
+            ...conflictingCitation,
+            summarySource: {
+              ...conflictingCitation.summarySource,
+              corpusSha256: "d".repeat(64),
+            },
+          },
+        ],
       }),
     ).toEqual({ reason: "invalid-success-body", success: false });
   });
@@ -99,9 +220,60 @@ describe("generated AI SDK contract", () => {
     expect(
       validateImplementedSuccessBody("queryCampusAssistant", 200, {
         ...response,
-        citations: [{ ...response.citations[0], sourceUrl: "HTTPS://WWW.LIB.UMN.EDU/" }],
+        citations: [
+          {
+            ...response.citations[0],
+            verificationLink: {
+              ...response.citations[0].verificationLink,
+              sourceUrl: "HTTPS://WWW.LIB.UMN.EDU/",
+            },
+          },
+        ],
       }),
     ).toMatchObject({ success: true });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            summarySource: {
+              ...response.citations[0].summarySource,
+              sourceUrl:
+                "https://github.com:443/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+            },
+          },
+        ],
+      }),
+    ).toMatchObject({ success: true });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            summarySource: {
+              ...response.citations[0].summarySource,
+              sourceUrl: "https://github.com/appleweiping/umn-gopher-assistant/blob/main/README.md",
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
+    expect(
+      validateImplementedSuccessBody("queryCampusAssistant", 200, {
+        ...response,
+        citations: [
+          {
+            ...response.citations[0],
+            verificationLink: {
+              ...response.citations[0].verificationLink,
+              sourceUrl: "https://umn.edu/dept/@current",
+            },
+          },
+        ],
+      }),
+    ).toEqual({ reason: "invalid-success-body", success: false });
 
     const padded = validateImplementedSuccessBody("queryCampusAssistant", 200, {
       ...response,
@@ -109,7 +281,10 @@ describe("generated AI SDK contract", () => {
         {
           ...response.citations[0],
           excerpt: "  Evidence with safe surrounding whitespace.  ",
-          sourceUrl: "HTTPS://WWW.LIB.UMN.EDU/",
+          verificationLink: {
+            ...response.citations[0].verificationLink,
+            sourceUrl: "HTTPS://WWW.LIB.UMN.EDU/",
+          },
           title: { en: "  Library hours  ", "zh-CN": "  图书馆开放时间  " },
         },
       ],
@@ -216,11 +391,11 @@ describe("generated AI SDK contract", () => {
     },
     {
       ...response,
-      citations: [{ ...response.citations[0], freshnessState: "EXPIRED" }],
+      citations: [{ ...response.citations[0], summaryFreshnessState: "EXPIRED" }],
     },
     {
       ...response,
-      citations: [{ ...response.citations[0], verificationState: "retired" }],
+      citations: [{ ...response.citations[0], summaryVerificationState: "retired" }],
     },
     {
       ...response,

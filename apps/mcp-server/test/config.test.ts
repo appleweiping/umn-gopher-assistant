@@ -70,6 +70,7 @@ describe("MCP server configuration", () => {
     expect(() =>
       loadMcpServerConfig({
         MCP_AUTH_MODE: "oauth",
+        MCP_DPOP_REDIS_URL: "rediss://:test-password@redis.example.edu:6379",
         MCP_OAUTH_ISSUER: "https://identity.example.edu/realms/gopher",
         MCP_RESOURCE_URL: "https://assistant.example.edu/mcp",
         NODE_ENV: "production",
@@ -79,12 +80,67 @@ describe("MCP server configuration", () => {
     const config = loadMcpServerConfig({
       GOPHER_API_BASE_URL: "https://api.example.edu/",
       MCP_AUTH_MODE: "oauth",
+      MCP_DPOP_REDIS_URL: "rediss://:test-password@redis.example.edu:6379",
       MCP_AUTHORIZATION_SERVER: "https://identity.example.edu/realms/gopher",
       MCP_OAUTH_ISSUER: "https://identity.example.edu/realms/gopher",
       MCP_RESOURCE_URL: "https://assistant.example.edu/mcp",
       NODE_ENV: "production",
     });
     expect(config.auth.mode).toBe("oauth");
+    expect(config.auth.mode === "oauth" && [...config.auth.allowedClientIds]).toEqual(["gopher-mcp"]);
+  });
+
+  it("strictly parses the approved OAuth client allowlist", () => {
+    const config = loadMcpServerConfig({
+      MCP_ALLOWED_CLIENT_IDS: "gopher-mcp,partner-mcp",
+      MCP_AUTH_MODE: "oauth",
+      MCP_OAUTH_ISSUER: "http://127.0.0.1:8080/realms/gopher-assistant-dev",
+      MCP_RESOURCE_URL: "http://127.0.0.1:4100/mcp",
+      NODE_ENV: "test",
+    });
+    expect(config.auth.mode === "oauth" && [...config.auth.allowedClientIds]).toEqual([
+      "gopher-mcp",
+      "partner-mcp",
+    ]);
+
+    for (const invalid of ["", "gopher-mcp,gopher-mcp", "not allowed", "a".repeat(129)]) {
+      expect(() =>
+        loadMcpServerConfig({
+          MCP_ALLOWED_CLIENT_IDS: invalid,
+          MCP_AUTH_MODE: "oauth",
+          MCP_OAUTH_ISSUER: "http://127.0.0.1:8080/realms/gopher-assistant-dev",
+          MCP_RESOURCE_URL: "http://127.0.0.1:4100/mcp",
+          NODE_ENV: "test",
+        }),
+      ).toThrow(/MCP_ALLOWED_CLIENT_IDS/u);
+    }
+  });
+
+  it("allows plaintext DPoP Redis only on loopback and without a database path", () => {
+    const oauthEnvironment = {
+      MCP_AUTH_MODE: "oauth",
+      MCP_OAUTH_ISSUER: "http://127.0.0.1:8080/realms/gopher-assistant-dev",
+      MCP_RESOURCE_URL: "http://127.0.0.1:4100/mcp",
+      NODE_ENV: "test",
+    } as const;
+    expect(() =>
+      loadMcpServerConfig({
+        ...oauthEnvironment,
+        MCP_DPOP_REDIS_URL: "redis://:password@redis.example.edu:6379",
+      }),
+    ).toThrow(/MCP_DPOP_REDIS_URL/u);
+    expect(() =>
+      loadMcpServerConfig({
+        ...oauthEnvironment,
+        MCP_DPOP_REDIS_URL: "redis://:password@127.0.0.1:6379/1",
+      }),
+    ).toThrow(/MCP_DPOP_REDIS_URL/u);
+    expect(
+      loadMcpServerConfig({
+        ...oauthEnvironment,
+        MCP_DPOP_REDIS_URL: "rediss://:password@redis.example.edu:6379",
+      }).auth.mode,
+    ).toBe("oauth");
   });
 
   it("preserves exact root issuer spelling with and without a trailing slash", () => {

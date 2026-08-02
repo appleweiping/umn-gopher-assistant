@@ -19,7 +19,7 @@ class ManualClock:
 
 
 def empty_snapshot(revision: str) -> CorpusSnapshot:
-    return CorpusSnapshot(documents=(), corpus_sha256=revision)
+    return CorpusSnapshot(documents=(), source_registry={}, corpus_sha256=revision)
 
 
 def test_snapshot_cache_coalesces_concurrent_cold_loads() -> None:

@@ -41,6 +41,28 @@ describe("AI browser client", () => {
       },
     },
     { label: "uncited paragraphs", body: { ...aiResponse(), citations: [] } },
+    {
+      label: "optimistic verification without a review artifact",
+      body: {
+        ...aiResponse(),
+        citations: [{ ...aiResponse().citations[0], summaryVerificationState: "verified" }],
+      },
+    },
+    {
+      label: "official verification content presented as retrieved",
+      body: {
+        ...aiResponse(),
+        citations: [
+          {
+            ...aiResponse().citations[0],
+            verificationLink: {
+              ...aiResponse().citations[0]?.verificationLink,
+              contentRetrieved: true,
+            },
+          },
+        ],
+      },
+    },
   ])("fails closed for $label", async ({ body }) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(body));
     await expect(

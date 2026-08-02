@@ -62,16 +62,34 @@
         "citations": [
           {
             "id": "citation.1",
+            "documentId": "tc-library-overview",
             "campusId": "tc",
-            "sourceId": "official-tc-library",
             "category": "library",
             "title": { "en": "Library", "zh-CN": "图书馆" },
-            "sourceUrl": "https://www.lib.umn.edu/",
             "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "updatedAt": "2026-07-22T12:00:00.000Z",
-            "freshnessState": "FRESH",
-            "verificationState": "schematic",
-            "excerpt": "Use the reviewed library starting point."
+            "summaryFreshnessState": "FRESH",
+            "summaryVerificationState": "schematic",
+            "excerpt": "Use the reviewed library starting point.",
+            "summarySource": {
+              "kind": "project-authored-summary",
+              "sourceId": "uga-ai-summary-corpus-v1",
+              "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+              "corpusSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "license": {
+                "status": "OPEN_REUSE",
+                "spdxId": "Apache-2.0",
+                "evidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+              }
+            },
+            "verificationLink": {
+              "kind": "official-verification-link",
+              "sourceId": "official-tc-library",
+              "sourceUrl": "https://www.lib.umn.edu/",
+              "licenseStatus": "DEEPLINK_ONLY",
+              "sourceUse": "verification-link-only",
+              "contentRetrieved": false
+            }
           }
         ],
         "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
@@ -102,16 +120,34 @@
         "citations": [
           {
             "id": "citation.1",
+            "documentId": "tc-library-overview",
             "campusId": "tc",
-            "sourceId": "official-tc-library",
             "category": "library",
             "title": { "en": "Library", "zh-CN": "图书馆" },
-            "sourceUrl": "https://www.lib.umn.edu/",
             "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "updatedAt": "2020-01-01T00:00:00.000Z",
-            "freshnessState": "EXPIRED",
-            "verificationState": "schematic",
-            "excerpt": "Old answer"
+            "summaryFreshnessState": "EXPIRED",
+            "summaryVerificationState": "schematic",
+            "excerpt": "Old answer",
+            "summarySource": {
+              "kind": "project-authored-summary",
+              "sourceId": "uga-ai-summary-corpus-v1",
+              "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+              "corpusSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "license": {
+                "status": "OPEN_REUSE",
+                "spdxId": "Apache-2.0",
+                "evidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+              }
+            },
+            "verificationLink": {
+              "kind": "official-verification-link",
+              "sourceId": "official-tc-library",
+              "sourceUrl": "https://www.lib.umn.edu/",
+              "licenseStatus": "DEEPLINK_ONLY",
+              "sourceUse": "verification-link-only",
+              "contentRetrieved": false
+            }
           }
         ],
         "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
@@ -128,16 +164,34 @@
         "citations": [
           {
             "id": "citation.1",
+            "documentId": "duluth-library-overview",
             "campusId": "duluth",
-            "sourceId": "official-duluth-library",
             "category": "library",
             "title": { "en": "Library", "zh-CN": "图书馆" },
-            "sourceUrl": "https://lib.d.umn.edu/",
             "contentSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             "updatedAt": "2026-07-22T12:00:00.000Z",
-            "freshnessState": "FRESH",
-            "verificationState": "schematic",
-            "excerpt": "Wrong campus"
+            "summaryFreshnessState": "FRESH",
+            "summaryVerificationState": "schematic",
+            "excerpt": "Wrong campus",
+            "summarySource": {
+              "kind": "project-authored-summary",
+              "sourceId": "uga-ai-summary-corpus-v1",
+              "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+              "corpusSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "license": {
+                "status": "OPEN_REUSE",
+                "spdxId": "Apache-2.0",
+                "evidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+              }
+            },
+            "verificationLink": {
+              "kind": "official-verification-link",
+              "sourceId": "official-duluth-library",
+              "sourceUrl": "https://lib.d.umn.edu/",
+              "licenseStatus": "DEEPLINK_ONLY",
+              "sourceUse": "verification-link-only",
+              "contentRetrieved": false
+            }
           }
         ],
         "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }
@@ -154,16 +208,34 @@
         "citations": [
           {
             "id": "citation.1",
+            "documentId": "tc-library-overview",
             "campusId": "tc",
-            "sourceId": "official-tc-library",
             "category": "library",
             "title": { "en": "Library", "zh-CN": "图书馆" },
-            "sourceUrl": "https://www.lib.umn.edu/",
             "contentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "updatedAt": "2026-07-22T12:00:00.000Z",
-            "freshnessState": "FRESH",
-            "verificationState": "retired",
-            "excerpt": "Retired answer"
+            "summaryFreshnessState": "FRESH",
+            "summaryVerificationState": "retired",
+            "excerpt": "Retired answer",
+            "summarySource": {
+              "kind": "project-authored-summary",
+              "sourceId": "uga-ai-summary-corpus-v1",
+              "sourceUrl": "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json",
+              "corpusSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+              "license": {
+                "status": "OPEN_REUSE",
+                "spdxId": "Apache-2.0",
+                "evidenceUrl": "https://www.apache.org/licenses/LICENSE-2.0"
+              }
+            },
+            "verificationLink": {
+              "kind": "official-verification-link",
+              "sourceId": "official-tc-library",
+              "sourceUrl": "https://www.lib.umn.edu/",
+              "licenseStatus": "DEEPLINK_ONLY",
+              "sourceUse": "verification-link-only",
+              "contentRetrieved": false
+            }
           }
         ],
         "retrieval": { "mode": "no-key-hybrid", "documentsConsidered": 5 }

@@ -10,6 +10,8 @@ set -eu
 : "${AI_KNOWLEDGE_READER_DB_PASSWORD:?AI_KNOWLEDGE_READER_DB_PASSWORD is required}"
 : "${AI_KNOWLEDGE_SYNC_DB_USER:=gopher_ai_sync}"
 : "${AI_KNOWLEDGE_SYNC_DB_PASSWORD:?AI_KNOWLEDGE_SYNC_DB_PASSWORD is required}"
+: "${API_PERSONAL_DB_USER:=gopher_api_personal}"
+: "${API_PERSONAL_DB_PASSWORD:?API_PERSONAL_DB_PASSWORD is required}"
 : "${KEYCLOAK_DB:=keycloak}"
 : "${KEYCLOAK_DB_USER:=gopher_keycloak}"
 : "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}"
@@ -214,6 +216,7 @@ psql_platform \
   --set=migration_user="$POSTGRES_USER" \
   --set=ai_reader_user="$AI_KNOWLEDGE_READER_DB_USER" \
   --set=ai_sync_user="$AI_KNOWLEDGE_SYNC_DB_USER" \
+  --set=api_personal_user="$API_PERSONAL_DB_USER" \
   --set=keycloak_user="$KEYCLOAK_DB_USER" \
   --file=/migrations/runtime-grants.sql
 

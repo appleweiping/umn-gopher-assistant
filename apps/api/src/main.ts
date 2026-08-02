@@ -6,6 +6,7 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 
 import { AppModule } from "./app.module.js";
 import { createFastifyAdapter } from "./http/fastify-adapter.js";
+import { apiCorsOptions } from "./http/cors.js";
 import { loadApiRuntimeConfig } from "./runtime-config.js";
 
 async function bootstrap(): Promise<void> {
@@ -14,10 +15,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
     bufferLogs: true,
   });
-  app.enableCors({
-    credentials: true,
-    origin: [...runtimeConfig.cors.allowedOrigins],
-  });
+  app.enableCors(apiCorsOptions(runtimeConfig.cors.allowedOrigins));
   app.enableShutdownHooks();
 
   const host = process.env["HOST"] ?? "0.0.0.0";

@@ -107,6 +107,8 @@ services:
       AI_KNOWLEDGE_READER_DB_PASSWORD: ${AI_KNOWLEDGE_READER_DB_PASSWORD:-local-ai-reader-password-only}
       AI_KNOWLEDGE_SYNC_DB_USER: ${AI_KNOWLEDGE_SYNC_DB_USER:-gopher_ai_sync}
       AI_KNOWLEDGE_SYNC_DB_PASSWORD: ${AI_KNOWLEDGE_SYNC_DB_PASSWORD:-local-ai-sync-password-only}
+      API_PERSONAL_DB_USER: ${API_PERSONAL_DB_USER:-gopher_api_personal}
+      API_PERSONAL_DB_PASSWORD: ${API_PERSONAL_DB_PASSWORD:-local-api-personal-password-only}
       KEYCLOAK_DB: ${KEYCLOAK_DB:-keycloak}
       KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:-gopher_keycloak}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-local-keycloak-password-only}
@@ -147,6 +149,8 @@ services:
       AI_KNOWLEDGE_READER_DB_PASSWORD: ${AI_KNOWLEDGE_READER_DB_PASSWORD:-local-ai-reader-password-only}
       AI_KNOWLEDGE_SYNC_DB_USER: ${AI_KNOWLEDGE_SYNC_DB_USER:-gopher_ai_sync}
       AI_KNOWLEDGE_SYNC_DB_PASSWORD: ${AI_KNOWLEDGE_SYNC_DB_PASSWORD:-local-ai-sync-password-only}
+      API_PERSONAL_DB_USER: ${API_PERSONAL_DB_USER:-gopher_api_personal}
+      API_PERSONAL_DB_PASSWORD: ${API_PERSONAL_DB_PASSWORD:-local-api-personal-password-only}
       KEYCLOAK_DB: ${KEYCLOAK_DB:-keycloak}
       KEYCLOAK_DB_USER: ${KEYCLOAK_DB_USER:-gopher_keycloak}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-local-keycloak-password-only}
@@ -156,13 +160,16 @@ services:
       - ./postgres/runtime-grants.sql:/migrations/runtime-grants.sql:ro
       - ../../packages/db/migrations/0000_foundation.sql:/migrations/0000_foundation.sql:ro
       - ../../packages/db/migrations/0001_ai_knowledge.sql:/migrations/0001_ai_knowledge.sql:ro
+      - ../../packages/db/migrations/0002_personal_vault_sync.sql:/migrations/0002_personal_vault_sync.sql:ro
+      - ../../packages/db/migrations/0003_personal_vault_ephemera_retention.sql:/migrations/0003_personal_vault_ephemera_retention.sql:ro
+      - ../../packages/db/migrations/0004_account_hmac_continuity.sql:/migrations/0004_account_hmac_continuity.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
     networks: [platform]
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.5.5
+    image: quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
     restart: unless-stopped
     command: [start-dev, --import-realm]
     environment:
@@ -195,6 +202,30 @@ services:
       timeout: 5s
       retries: 12
       start_period: 40s
+    networks: [platform]
+
+  keycloak-reconcile:
+    image: node:24.11.1-bookworm-slim@sha256:48abc13a19400ca3985071e287bd405a1d99306770eb81d61202fb6b65cf0b57
+    restart: "no"
+    init: true
+    user: node
+    read_only: true
+    command: [node, /reconciler/reconcile-realm.mjs]
+    environment:
+      KEYCLOAK_BASE_URL: http://keycloak:8080/
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-dev-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-local-keycloak-admin-password-only}
+      KEYCLOAK_REALM_EXPORT_PATH: /reconciler/realm-export.json
+    volumes:
+      - ./keycloak/reconcile-realm.mjs:/reconciler/reconcile-realm.mjs:ro
+      - ./keycloak/realm-export.json:/reconciler/realm-export.json:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      keycloak:
+        condition: service_healthy
     networks: [platform]
 
   redis:

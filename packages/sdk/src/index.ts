@@ -5,7 +5,6 @@ export {
   GopherApiError,
   GopherClient,
   GopherProtocolError,
-  type AccessTokenProvider,
   type GopherClientOptions,
   type NotModifiedResult,
   type OperationArguments,
@@ -17,6 +16,21 @@ export {
   type ResponseMetadata,
   type SuccessResult,
 } from "./client.js";
+export {
+  canonicalizeDpopHtu,
+  createDpopProof,
+  dpopNonceChallenge,
+  dpopThumbprint,
+  generateDpopPrivateJwk,
+  parseDpopNonce,
+  parseDpopPrivateJwk,
+  publicDpopJwk,
+  validateDpopCredential,
+  type DpopCredential,
+  type DpopCredentialProvider,
+  type DpopPrivateJwk,
+  type DpopProofOptions,
+} from "./dpop.js";
 export { operationDefinitions, type OperationDefinition, type OperationId } from "./generated/operations.js";
 export {
   successValidatorContractSha256,

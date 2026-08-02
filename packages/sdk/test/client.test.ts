@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { gzipSync } from "node:zlib";
 
+import { decodeJwt } from "jose";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,7 +11,10 @@ import {
   GopherApiError,
   GopherClient,
   GopherProtocolError,
+  dpopThumbprint,
+  generateDpopPrivateJwk,
 } from "../src/index.js";
+import { TEST_DPOP_CREDENTIAL, testAccessToken } from "./dpop-fixture.js";
 
 const baseUrl = "https://assistant.example.test/base/";
 
@@ -182,6 +186,167 @@ const validManifest = {
   worldVersion: "tc-schematic-v1",
 } as const;
 
+const vaultIds = {
+  authorizationKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523114",
+  device: "018fb9d8-3ec5-7e8b-a512-35f8ff523112",
+  encryptionKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523113",
+  operation: "018fb9d8-3ec5-7e8b-a512-35f8ff523116",
+  recoveryKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523115",
+  vault: "018fb9d8-3ec5-7e8b-a512-35f8ff523110",
+  vaultKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523111",
+} as const;
+const vaultOwnerBinding = "A".repeat(43);
+const vaultHash = "A".repeat(43);
+const vaultSignature = "A".repeat(86);
+const vaultCreatedAt = "2026-07-23T00:00:00.000Z";
+const validVaultDevice = {
+  authorizationKey: {
+    algorithm: "ED25519",
+    fingerprint: vaultHash,
+    keyId: vaultIds.authorizationKey,
+    publicKey: vaultHash,
+  },
+  createdAt: vaultCreatedAt,
+  deviceId: vaultIds.device,
+  encryptionKey: {
+    algorithm: "X25519",
+    fingerprint: vaultHash,
+    keyId: vaultIds.encryptionKey,
+    publicKey: vaultHash,
+  },
+  formatVersion: 2,
+  ownerBinding: vaultOwnerBinding,
+  revokedAt: null,
+} as const;
+const validVaultSnapshot = {
+  authorizationManifest: {
+    createdAt: vaultCreatedAt,
+    devices: [validVaultDevice],
+    epoch: 1,
+    formatVersion: 2,
+    ownerBinding: vaultOwnerBinding,
+    recoveryAuthorization: {
+      algorithm: "ED25519",
+      createdAt: vaultCreatedAt,
+      fingerprint: vaultHash,
+      formatVersion: 2,
+      keyId: vaultIds.recoveryKey,
+      ownerBinding: vaultOwnerBinding,
+      publicKey: vaultHash,
+      revokedAt: null,
+      vaultId: vaultIds.vault,
+    },
+    revision: 1,
+    updatedAt: vaultCreatedAt,
+    vaultId: vaultIds.vault,
+  },
+  commit: {
+    author: {
+      deviceId: vaultIds.device,
+      keyId: vaultIds.authorizationKey,
+      kind: "DEVICE",
+    },
+    authorizationManifestHash: vaultHash,
+    createdAt: vaultCreatedAt,
+    epoch: 1,
+    formatVersion: 2,
+    keyringHash: vaultHash,
+    operationId: vaultIds.operation,
+    ownerBinding: vaultOwnerBinding,
+    parentCommitHash: null,
+    payloadHash: vaultHash,
+    sequence: 1,
+    signature: vaultSignature,
+    stateMac: vaultHash,
+    vaultId: vaultIds.vault,
+  },
+  commitHash: vaultHash,
+  formatVersion: 2,
+  keyring: {
+    createdAt: vaultCreatedAt,
+    deviceEnvelopes: [
+      {
+        cipherSuite: "X25519_XCHACHA20_POLY1305",
+        createdAt: vaultCreatedAt,
+        ephemeralPublicKey: vaultHash,
+        formatVersion: 1,
+        nonce: "A".repeat(32),
+        recipientDeviceId: vaultIds.device,
+        recipientKeyId: vaultIds.encryptionKey,
+        recipientPublicKeyFingerprint: vaultHash,
+        vaultId: vaultIds.vault,
+        vaultKeyId: vaultIds.vaultKey,
+        wrappedKey: "A".repeat(107),
+      },
+    ],
+    formatVersion: 1,
+    recoveryEnvelope: {
+      aad: "AA",
+      cipherSuite: "XCHACHA20_POLY1305",
+      createdAt: vaultCreatedAt,
+      formatVersion: 1,
+      kdf: {
+        algorithm: "ARGON2ID13",
+        memLimitBytes: 67_108_864,
+        opsLimit: 2,
+        outputBytes: 32,
+        salt: "A".repeat(22),
+      },
+      nonce: "A".repeat(32),
+      vaultId: vaultIds.vault,
+      vaultKeyId: vaultIds.vaultKey,
+      wrappedKey: "A".repeat(64),
+    },
+    revision: 1,
+    updatedAt: vaultCreatedAt,
+    vaultId: vaultIds.vault,
+    vaultKeyId: vaultIds.vaultKey,
+  },
+  ownerBinding: vaultOwnerBinding,
+  payload: {
+    aad: "AA",
+    baseRevision: null,
+    cipherSuite: "XCHACHA20_POLY1305",
+    ciphertext: "A".repeat(5483),
+    contentSchemaVersion: 1,
+    contentType: "application/vnd.umn-gopher-assistant.personal-vault+json",
+    createdAt: vaultCreatedAt,
+    formatVersion: 2,
+    nonce: "A".repeat(32),
+    ownerBinding: vaultOwnerBinding,
+    padding: { algorithm: "SODIUM_PAD", blockSize: 4096 },
+    revision: 1,
+    vaultId: vaultIds.vault,
+    vaultKeyId: vaultIds.vaultKey,
+  },
+  vaultId: vaultIds.vault,
+} as const;
+const validCreateVaultCommand = {
+  commandType: "CREATE_VAULT",
+  formatVersion: 2,
+  operationId: vaultIds.operation,
+  ownerBinding: vaultOwnerBinding,
+  proof: {
+    commandType: "CREATE_VAULT",
+    expectedParentCommitHash: null,
+    expiresAt: "2026-07-23T00:05:00.000Z",
+    formatVersion: 2,
+    issuedAt: vaultCreatedAt,
+    nextCommitHash: vaultHash,
+    operationId: vaultIds.operation,
+    ownerBinding: vaultOwnerBinding,
+    signature: vaultSignature,
+    signer: {
+      deviceId: vaultIds.device,
+      keyId: vaultIds.authorizationKey,
+      kind: "DEVICE",
+    },
+    vaultId: vaultIds.vault,
+  },
+  snapshot: validVaultSnapshot,
+  vaultId: vaultIds.vault,
+} as const;
+
 describe("GopherClient", () => {
   it("requires HTTPS except for explicit loopback development hosts", () => {
     expect(() => new GopherClient({ baseUrl: "http://api.example.test" })).toThrow(/must use HTTPS/u);
@@ -245,7 +410,11 @@ describe("GopherClient", () => {
           errorCancelled,
         ),
       );
-    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
 
     await expect(client.request("getHealth")).rejects.toMatchObject({
       code: "response-body-too-large",
@@ -582,7 +751,11 @@ describe("GopherClient", () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValue(response(validEventPage, { headers: { etag: '"events-v1"' } }));
-    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
 
     const result = await client.request("listEvents", {
       query: { campusId: "tc", cursor: "next page", limit: 25 },
@@ -599,7 +772,11 @@ describe("GopherClient", () => {
 
   it("encodes path parameters without allowing them to reshape the URL", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(validManifest));
-    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
 
     await client.request("getWorldManifest", {
       path: { campusId: "tc/../morris" as "tc" },
@@ -610,22 +787,25 @@ describe("GopherClient", () => {
   });
 
   it("resolves a token for each request without exposing it", async () => {
-    const tokenProvider = vi.fn().mockResolvedValue("private-access-token");
+    const tokenProvider = vi.fn().mockResolvedValue(TEST_DPOP_CREDENTIAL);
     const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => response([]));
-    const client = new GopherClient({ baseUrl, accessToken: tokenProvider, fetch: fetchMock });
+    const client = new GopherClient({ baseUrl, dpopCredential: tokenProvider, fetch: fetchMock });
 
     await client.request("listAcademicCourses", { query: { campusId: "rochester" } });
 
     expect(tokenProvider).toHaveBeenCalledOnce();
     const [request] = fetchMock.mock.calls[0] as [Request];
-    expect(request.headers.get("authorization")).toBe("Bearer private-access-token");
-    expect(JSON.stringify(await client.request("listAcademicCourses"))).not.toContain("private-access-token");
+    expect(request.headers.get("authorization")).toBe(`DPoP ${TEST_DPOP_CREDENTIAL.accessToken}`);
+    expect(request.headers.get("dpop")).toMatch(/^[^.]+\.[^.]+\.[^.]+$/u);
+    expect(JSON.stringify(await client.request("listAcademicCourses"))).not.toContain(
+      TEST_DPOP_CREDENTIAL.accessToken,
+    );
   });
 
   it("does not resolve or attach a token for an explicitly public operation", async () => {
-    const tokenProvider = vi.fn().mockResolvedValue("must-stay-private");
+    const tokenProvider = vi.fn().mockResolvedValue(TEST_DPOP_CREDENTIAL);
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(validHealth));
-    const client = new GopherClient({ baseUrl, accessToken: tokenProvider, fetch: fetchMock });
+    const client = new GopherClient({ baseUrl, dpopCredential: tokenProvider, fetch: fetchMock });
 
     await client.request("getHealth");
 
@@ -634,7 +814,154 @@ describe("GopherClient", () => {
     expect(request.headers.has("authorization")).toBe(false);
   });
 
-  it("sends conditional, idempotency, and request correlation headers", async () => {
+  it("fails closed before network access when a protected operation has no DPoP key", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    await expect(client.request("listAcademicCourses")).rejects.toThrow(/requires a DPoP-bound credential/u);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("retries a nonce challenge without head-of-line blocking or stale nonce overwrite", async () => {
+    const proofs: string[] = [];
+    let call = 0;
+    let inFlight = 0;
+    let maximumInFlight = 0;
+    let resolveOlderRequest!: () => void;
+    let markOlderStarted!: () => void;
+    const olderRequestCanFinish = new Promise<void>((resolve) => {
+      resolveOlderRequest = resolve;
+    });
+    const olderRequestStarted = new Promise<void>((resolve) => {
+      markOlderStarted = resolve;
+    });
+    const fetchMock = vi.fn<typeof fetch>(async (request) => {
+      const currentCall = (call += 1);
+      proofs.push((request as Request).headers.get("dpop") ?? "");
+      inFlight += 1;
+      maximumInFlight = Math.max(maximumInFlight, inFlight);
+      if (currentCall === 3) {
+        markOlderStarted();
+        await olderRequestCanFinish;
+      } else if (currentCall === 4) {
+        await olderRequestStarted;
+      }
+      if (currentCall === 1) {
+        inFlight -= 1;
+        return response(
+          {
+            detail: "Use the server nonce.",
+            instance: "/v1/academics/courses",
+            status: 401,
+            title: "Unauthorized",
+            traceId: "nonce-challenge",
+            type: "about:blank",
+          },
+          {
+            headers: {
+              "dpop-nonce": "resource-nonce-001",
+              "www-authenticate": 'Bearer realm="legacy", dPoP realm="api", error="use_dpop_nonce", ext="ok"',
+            },
+            status: 401,
+          },
+        );
+      }
+      inFlight -= 1;
+      return response([], {
+        headers: { "dpop-nonce": `resource-nonce-${String(currentCall).padStart(3, "0")}` },
+      });
+    });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+
+    await client.request("listAcademicCourses");
+    const older = client.request("listAcademicCourses", { query: { campusId: "tc" } });
+    await olderRequestStarted;
+    await client.request("listAcademicCourses", { query: { campusId: "morris" } });
+    resolveOlderRequest();
+    await older;
+    await client.request("listAcademicCourses", { query: { campusId: "duluth" } });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(maximumInFlight).toBe(2);
+    const payloads = proofs.map((proof) => decodeJwt(proof));
+    expect(payloads[0]?.["nonce"]).toBeUndefined();
+    expect(payloads[1]?.["nonce"]).toBe("resource-nonce-001");
+    expect(payloads[2]?.["nonce"]).toBe("resource-nonce-002");
+    expect(payloads[3]?.["nonce"]).toBe("resource-nonce-002");
+    expect(payloads[4]?.["nonce"]).toBe("resource-nonce-004");
+    expect(new Set(payloads.map((payload) => payload.jti)).size).toBe(5);
+  });
+
+  it("expires resource nonces at the configured TTL", async () => {
+    let nowMilliseconds = 2_100_000_000_000;
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => nowMilliseconds);
+    const proofs: string[] = [];
+    let call = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (request) => {
+      call += 1;
+      proofs.push((request as Request).headers.get("dpop") ?? "");
+      return response([], {
+        headers: call === 1 ? { "dpop-nonce": "ttl-resource-nonce" } : {},
+      });
+    });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      dpopNonceTtlMilliseconds: 1_000,
+      fetch: fetchMock,
+    });
+
+    try {
+      await client.request("listAcademicCourses");
+      nowMilliseconds += 999;
+      await client.request("listAcademicCourses");
+      nowMilliseconds += 2;
+      await client.request("listAcademicCourses");
+    } finally {
+      clock.mockRestore();
+    }
+
+    expect(proofs.map((proof) => decodeJwt(proof)["nonce"])).toEqual([
+      undefined,
+      "ttl-resource-nonce",
+      undefined,
+    ]);
+  });
+
+  it("evicts the least-recently-used nonce key at the configured capacity", async () => {
+    const secondPrivateJwk = await generateDpopPrivateJwk();
+    const secondCredential = {
+      accessToken: testAccessToken(await dpopThumbprint(secondPrivateJwk)),
+      privateJwk: secondPrivateJwk,
+    };
+    const credentials = [TEST_DPOP_CREDENTIAL, secondCredential, TEST_DPOP_CREDENTIAL];
+    const proofs: string[] = [];
+    let call = 0;
+    const fetchMock = vi.fn<typeof fetch>(async (request) => {
+      call += 1;
+      proofs.push((request as Request).headers.get("dpop") ?? "");
+      return response([], {
+        headers: { "dpop-nonce": `capacity-nonce-${String(call)}` },
+      });
+    });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: () => credentials.shift(),
+      dpopNonceCacheMaxEntries: 1,
+      fetch: fetchMock,
+    });
+
+    await client.request("listAcademicCourses");
+    await client.request("listAcademicCourses");
+    await client.request("listAcademicCourses");
+
+    expect(proofs.map((proof) => decodeJwt(proof)["nonce"])).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("sends idempotency and request correlation headers only where declared", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response({ routeId: "route-1" }));
     const client = new GopherClient({ baseUrl, fetch: fetchMock });
 
@@ -645,13 +972,12 @@ describe("GopherClient", () => {
         origin: [-93.24, 44.97],
         profile: "walking",
       },
-      etag: 'W/"route-input-v1"',
       idempotencyKey: "26cf2094-bfdf-4e98-aef5-03c51574bf37",
       requestId: "request-123",
     });
 
     const [request] = fetchMock.mock.calls[0] as [Request];
-    expect(request.headers.get("if-none-match")).toBe('W/"route-input-v1"');
+    expect(request.headers.has("if-none-match")).toBe(false);
     expect(request.headers.get("idempotency-key")).toBe("26cf2094-bfdf-4e98-aef5-03c51574bf37");
     expect(request.headers.get("x-request-id")).toBe("request-123");
     expect(request.headers.get("content-type")).toBe("application/json");
@@ -661,6 +987,181 @@ describe("GopherClient", () => {
       origin: [-93.24, 44.97],
       profile: "walking",
     });
+  });
+
+  it("enforces account-bound vault creation preconditions and operation-bound idempotency", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(validVaultSnapshot, { status: 201 }));
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+
+    await expect(
+      client.request("createPersonalVault", {
+        body: validCreateVaultCommand,
+        idempotencyKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523999",
+      }),
+    ).rejects.toThrow(/must equal body operationId/u);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await expect(
+      client.request("createPersonalVault", {
+        body: validCreateVaultCommand,
+        idempotencyKey: vaultIds.operation,
+      }),
+    ).resolves.toMatchObject({ data: validVaultSnapshot, status: 201 });
+
+    const [request] = fetchMock.mock.calls[0] as [Request];
+    expect(request.headers.get("authorization")).toBe(`DPoP ${TEST_DPOP_CREDENTIAL.accessToken}`);
+    expect(request.headers.get("if-none-match")).toBe("*");
+    expect(request.headers.get("idempotency-key")).toBe(vaultIds.operation);
+    expect(request.headers.has("if-match")).toBe(false);
+  });
+
+  it("surfaces a failed If-None-Match vault creation as the declared 412 problem", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      response(
+        {
+          detail: "A personal vault already exists.",
+          instance: "/v1/personal/vault",
+          status: 412,
+          title: "Precondition Failed",
+          traceId: "trace-vault-exists",
+          type: "https://api.gopher-assistant.example/problems/precondition-failed",
+        },
+        { headers: { "content-type": "application/problem+json" }, status: 412 },
+      ),
+    );
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+
+    await expect(
+      client.request("createPersonalVault", {
+        body: validCreateVaultCommand,
+        idempotencyKey: vaultIds.operation,
+      }),
+    ).rejects.toMatchObject({
+      problem: { status: 412, title: "Precondition Failed" },
+      status: 412,
+    });
+    const [request] = fetchMock.mock.calls[0] as [Request];
+    expect(request.headers.get("if-none-match")).toBe("*");
+  });
+
+  it("requires a bounded possession proof and a strong validator for encrypted vault reads", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(undefined, { headers: { etag: '"vault-v1"' }, status: 304 }));
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+    const unsafeClient = client as unknown as {
+      request(operationId: string, options?: Record<string, unknown>): Promise<unknown>;
+    };
+
+    await expect(unsafeClient.request("readPersonalVault", { etag: '"vault-v1"' })).rejects.toThrow(
+      /requires vaultReadProof/u,
+    );
+    await expect(
+      client.request("readPersonalVault", {
+        etag: 'W/"vault-v1"',
+        vaultReadProof: "A".repeat(64),
+      }),
+    ).rejects.toThrow(/exactly one strong ETag/u);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await expect(
+      client.request("readPersonalVault", {
+        etag: '"vault-v1"',
+        vaultReadProof: "A".repeat(64),
+      }),
+    ).resolves.toEqual({
+      etag: '"vault-v1"',
+      notModified: true,
+      status: 304,
+    });
+    const [request] = fetchMock.mock.calls[0] as [Request];
+    expect(request.headers.get("if-none-match")).toBe('"vault-v1"');
+    expect(request.headers.get("x-vault-read-proof")).toBe("A".repeat(64));
+  });
+
+  it("requires one strong If-Match validator for pairing mutations", async () => {
+    const pairing = {
+      createdAt: vaultCreatedAt,
+      expiresAt: "2026-07-23T00:15:00.000Z",
+      id: "018fb9d8-3ec5-7e8b-a512-35f8ff523117",
+      requestingDevice: validVaultDevice,
+      state: "cancelled",
+      updatedAt: vaultCreatedAt,
+      vaultId: vaultIds.vault,
+    } as const;
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(response(pairing));
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+
+    await expect(
+      client.request("cancelPersonalVaultDevicePairing", {
+        idempotencyKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523118",
+        ifMatch: 'W/"vault-v1"',
+        path: { pairingId: pairing.id },
+      }),
+    ).rejects.toThrow(/exactly one strong ETag/u);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await expect(
+      client.request("cancelPersonalVaultDevicePairing", {
+        idempotencyKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523118",
+        ifMatch: '"vault-v1"',
+        path: { pairingId: pairing.id },
+      }),
+    ).resolves.toMatchObject({ data: pairing, status: 200 });
+    const [request] = fetchMock.mock.calls[0] as [Request];
+    expect(request.headers.get("if-match")).toBe('"vault-v1"');
+    expect(request.headers.get("idempotency-key")).toBe("018fb9d8-3ec5-7e8b-a512-35f8ff523118");
+  });
+
+  it("uses the contract's 16 MiB vault response boundary without raising the global default", async () => {
+    const largeSnapshot = {
+      ...validVaultSnapshot,
+      payload: {
+        ...validVaultSnapshot.payload,
+        ciphertext: "A".repeat(DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES + 1024),
+      },
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => streamedJsonResponse(largeSnapshot));
+    const constrainedClient = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+      maxSuccessResponseBodyBytes: DEFAULT_MAX_SUCCESS_RESPONSE_BODY_BYTES,
+    });
+    await expect(
+      constrainedClient.request("readPersonalVault", {
+        vaultReadProof: "A".repeat(64),
+      }),
+    ).rejects.toMatchObject({ code: "response-body-too-large" });
+
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
+    await expect(
+      client.request("readPersonalVault", {
+        vaultReadProof: "A".repeat(64),
+      }),
+    ).resolves.toMatchObject({ data: largeSnapshot, status: 200 });
   });
 
   it("returns an explicit result for a 304 response", async () => {
@@ -673,7 +1174,11 @@ describe("GopherClient", () => {
           status: 304,
         }),
       );
-    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
 
     await expect(client.request("listCampuses", { etag: '"campuses-v1"' })).resolves.toEqual({
       etag: '"campuses-v1"',
@@ -713,12 +1218,12 @@ describe("GopherClient", () => {
       ),
     );
     const client = new GopherClient({
-      accessToken: "must-not-escape",
       baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
       fetch: fetchMock,
     });
 
-    const error = await client.request("listEvents").catch((value: unknown) => value);
+    const error = await client.request("listAcademicCourses").catch((value: unknown) => value);
 
     expect(error).toBeInstanceOf(GopherApiError);
     expect(error).toMatchObject({
@@ -726,8 +1231,8 @@ describe("GopherClient", () => {
       requestId: "request-400",
       status: 400,
     });
-    expect(JSON.stringify(error)).not.toContain("must-not-escape");
-    expect(String(error)).not.toContain("must-not-escape");
+    expect(JSON.stringify(error)).not.toContain(TEST_DPOP_CREDENTIAL.accessToken);
+    expect(String(error)).not.toContain(TEST_DPOP_CREDENTIAL.accessToken);
   });
 
   it("uses the HTTP status when a problem body or media type is contradictory", async () => {
@@ -748,7 +1253,11 @@ describe("GopherClient", () => {
         }),
       )
       .mockResolvedValueOnce(response({ ...contradictoryProblem, status: 403 }, { status: 403 }));
-    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const client = new GopherClient({
+      baseUrl,
+      dpopCredential: TEST_DPOP_CREDENTIAL,
+      fetch: fetchMock,
+    });
 
     for (const expectedStatus of [401, 403]) {
       const error = await client.request("listAcademicCourses").catch((value: unknown) => value);
@@ -994,6 +1503,29 @@ describe("GopherClient", () => {
     });
   });
 
+  it("rejects an error status that the selected operation does not declare", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      response(
+        {
+          detail: "Unexpected status.",
+          instance: "/v1/health",
+          status: 418,
+          title: "Teapot",
+          traceId: "trace-418",
+          type: "about:blank",
+        },
+        { headers: { "content-type": "application/problem+json" }, status: 418 },
+      ),
+    );
+    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+
+    await expect(client.request("getHealth")).rejects.toMatchObject({
+      code: "unexpected-error-status",
+      operationId: "getHealth",
+      status: 418,
+    });
+  });
+
   it("accepts 304 only when the operation declares it", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(undefined, { status: 304 }));
     const client = new GopherClient({ baseUrl, fetch: fetchMock });
@@ -1049,6 +1581,30 @@ describe("GopherClient", () => {
     const [request] = fetchMock.mock.calls[0] as [Request];
     expect(request.headers.get("accept-language")).toBe("zh-CN");
     expect(request.redirect).toBe("error");
+  });
+
+  it("rejects dedicated protocol options on operations that do not declare them", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const client = new GopherClient({ baseUrl, fetch: fetchMock });
+    const unsafeClient = client as unknown as {
+      request(operationId: string, options?: Record<string, unknown>): Promise<unknown>;
+    };
+
+    await expect(unsafeClient.request("getHealth", { etag: '"undeclared"' })).rejects.toThrow(
+      /does not accept etag/u,
+    );
+    await expect(
+      unsafeClient.request("getHealth", {
+        idempotencyKey: "018fb9d8-3ec5-7e8b-a512-35f8ff523118",
+      }),
+    ).rejects.toThrow(/does not accept idempotencyKey/u);
+    await expect(unsafeClient.request("getHealth", { ifMatch: '"undeclared"' })).rejects.toThrow(
+      /does not accept ifMatch/u,
+    );
+    await expect(unsafeClient.request("getHealth", { vaultReadProof: "A".repeat(64) })).rejects.toThrow(
+      /does not accept vaultReadProof/u,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("rejects unknown operation IDs before a network call", async () => {

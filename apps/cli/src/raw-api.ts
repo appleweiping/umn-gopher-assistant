@@ -1,7 +1,13 @@
 import {
+  createDpopProof,
+  dpopNonceChallenge,
+  dpopThumbprint,
   GopherProtocolError,
   operationDefinitions,
+  parseDpopNonce,
+  validateDpopCredential,
   validateImplementedSuccessBody,
+  type DpopCredential,
 } from "@umn-gopher-assistant/sdk";
 
 import { CliError } from "./errors.js";
@@ -20,7 +26,7 @@ export interface RawResponse {
   readonly status: number;
 }
 
-export type AccessTokenResolver = () => Promise<string>;
+export type DpopCredentialResolver = () => Promise<DpopCredential>;
 
 function statusError(status: number, traceId?: string): CliError {
   const details = { status, ...(traceId === undefined ? {} : { traceId }) };
@@ -58,17 +64,18 @@ function safeProblemTraceId(value: unknown, status: number): string | undefined 
 }
 
 export class RawApiClient {
-  readonly #accessToken: AccessTokenResolver;
   readonly #baseUrl: URL;
+  readonly #credential: DpopCredentialResolver;
   readonly #http: HttpDependencies;
+  readonly #nonces = new Map<string, string>();
 
   constructor(options: {
-    readonly accessToken: AccessTokenResolver;
     readonly baseUrl: URL;
+    readonly credential: DpopCredentialResolver;
     readonly http: HttpDependencies;
   }) {
-    this.#accessToken = options.accessToken;
     this.#baseUrl = options.baseUrl;
+    this.#credential = options.credential;
     this.#http = options.http;
   }
 
@@ -78,14 +85,45 @@ export class RawApiClient {
     }
     const validated: ValidatedRawRequest = validateRawRequestPath(input);
     const definition = operationDefinitions[validated.operationId];
-    const headers = new Headers({ Accept: "application/json" });
-    if (!definition.public) headers.set("Authorization", `Bearer ${await this.#accessToken()}`);
-    const response = await fetchNoRedirect(
-      this.#http,
-      resolveRawRequestUrl(this.#baseUrl, validated.pathAndQuery),
-      { headers, method },
-      signal,
-    );
+    const requestUrl = resolveRawRequestUrl(this.#baseUrl, validated.pathAndQuery);
+    const send = async (
+      credential: DpopCredential | undefined,
+      nonce: string | undefined,
+    ): Promise<Response> => {
+      const headers = new Headers({ Accept: "application/json" });
+      if (credential !== undefined) {
+        headers.set("Authorization", `DPoP ${credential.accessToken}`);
+        headers.set(
+          "DPoP",
+          await createDpopProof({
+            accessToken: credential.accessToken,
+            htm: method,
+            htu: requestUrl,
+            ...(nonce === undefined ? {} : { nonce }),
+            privateJwk: credential.privateJwk,
+          }),
+        );
+      }
+      return fetchNoRedirect(this.#http, requestUrl, { headers, method }, signal);
+    };
+    let response: Response;
+    if (definition.public) {
+      response = await send(undefined, undefined);
+    } else {
+      const credential = await validateDpopCredential(await this.#credential());
+      const nonceKey = `${requestUrl.origin}\0${await dpopThumbprint(credential.privateJwk)}`;
+      response = await send(credential, this.#nonces.get(nonceKey));
+      const returnedNonce = parseDpopNonce(response.headers.get("dpop-nonce"));
+      if (returnedNonce !== undefined) this.#nonces.set(nonceKey, returnedNonce);
+      const challenge = dpopNonceChallenge(response);
+      if (challenge !== undefined) {
+        await response.body?.cancel().catch(() => undefined);
+        this.#nonces.set(nonceKey, challenge);
+        response = await send(credential, challenge);
+        const retryNonce = parseDpopNonce(response.headers.get("dpop-nonce"));
+        if (retryNonce !== undefined) this.#nonces.set(nonceKey, retryNonce);
+      }
+    }
     const requestId = response.headers.get("x-request-id") ?? undefined;
     if (!response.ok) {
       const problem = method === "HEAD" ? undefined : await readJson(response);

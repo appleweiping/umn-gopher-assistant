@@ -1,15 +1,11 @@
 import { z } from "zod";
 
-import {
-  CampusIdSchema,
-  FreshnessStateSchema,
-  IsoDateTimeSchema,
-  Sha256Schema,
-  VerificationStateSchema,
-} from "./common.js";
+import { CampusIdSchema, IsoDateTimeSchema, Sha256Schema } from "./common.js";
 import { SourceIdSchema } from "./source.js";
 
 const HTML_OR_ENTITY = /[<>]|&(?:#(?:[xX][0-9A-Fa-f]+|\d+)|[A-Za-z][A-Za-z0-9]{1,31});?/u;
+const PROJECT_REPOSITORY_URL =
+  /^[Hh][Tt][Tt][Pp][Ss]:\/\/[Gg][Ii][Tt][Hh][Uu][Bb]\.[Cc][Oo][Mm](?::443)?\/appleweiping\/umn-gopher-assistant\/blob\/main\/apps\/ai-knowledge\/ai_knowledge\/data\/corpus\.json$/u;
 const UNSAFE_UNICODE = /[\p{Cc}\p{Cf}\p{Cs}]/u;
 
 const OfficialCampusUrlSchema = z.url().superRefine((value, context) => {
@@ -18,6 +14,7 @@ const OfficialCampusUrlSchema = z.url().superRefine((value, context) => {
   if (
     url.protocol !== "https:" ||
     (hostname !== "umn.edu" && !hostname.endsWith(".umn.edu")) ||
+    value.includes("@") ||
     url.username !== "" ||
     url.password !== "" ||
     (url.port !== "" && url.port !== "443") ||
@@ -27,6 +24,27 @@ const OfficialCampusUrlSchema = z.url().superRefine((value, context) => {
     context.addIssue({
       code: "custom",
       message: "Expected a credential-free canonical HTTPS URL on an official umn.edu host",
+    });
+  }
+});
+
+const ProjectRepositoryUrlSchema = z.url().superRefine((value, context) => {
+  const url = new URL(value);
+  if (
+    url.protocol !== "https:" ||
+    !PROJECT_REPOSITORY_URL.test(value) ||
+    url.hostname.toLowerCase() !== "github.com" ||
+    url.pathname !==
+      "/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.port !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Expected the canonical credential-free HTTPS URL for the project corpus",
     });
   }
 });
@@ -100,21 +118,55 @@ export const AiAnswerParagraphSchema = z
   });
 export type AiAnswerParagraph = z.infer<typeof AiAnswerParagraphSchema>;
 
+export const AiSummarySourceSchema = z
+  .object({
+    kind: z.literal("project-authored-summary"),
+    sourceId: SourceIdSchema,
+    sourceUrl: ProjectRepositoryUrlSchema,
+    corpusSha256: Sha256Schema,
+    license: z
+      .object({
+        status: z.literal("OPEN_REUSE"),
+        spdxId: z.literal("Apache-2.0"),
+        evidenceUrl: z.literal("https://www.apache.org/licenses/LICENSE-2.0"),
+      })
+      .strict(),
+  })
+  .strict();
+export type AiSummarySource = z.infer<typeof AiSummarySourceSchema>;
+
+export const AiVerificationLinkSchema = z
+  .object({
+    kind: z.literal("official-verification-link"),
+    sourceId: SourceIdSchema,
+    sourceUrl: OfficialCampusUrlSchema,
+    licenseStatus: z.literal("DEEPLINK_ONLY"),
+    sourceUse: z.literal("verification-link-only"),
+    contentRetrieved: z.literal(false),
+  })
+  .strict();
+export type AiVerificationLink = z.infer<typeof AiVerificationLinkSchema>;
+
 export const AiCitationSchema = z
   .object({
     id: EvidenceIdSchema,
+    documentId: SourceIdSchema,
     campusId: CampusIdSchema,
-    sourceId: SourceIdSchema,
     category: AiCitationCategorySchema,
     title: EvidenceTitleSchema,
-    sourceUrl: OfficialCampusUrlSchema,
+    excerpt: EvidenceTextSchema,
     contentSha256: Sha256Schema,
     updatedAt: IsoDateTimeSchema,
-    freshnessState: FreshnessStateSchema,
-    verificationState: VerificationStateSchema,
-    excerpt: EvidenceTextSchema,
+    summaryFreshnessState: z.enum(["FRESH", "STALE", "EXPIRED"]),
+    summaryVerificationState: z.literal("schematic"),
+    summarySource: AiSummarySourceSchema,
+    verificationLink: AiVerificationLinkSchema,
   })
-  .strict();
+  .strict()
+  .refine((citation) => citation.summarySource.sourceId !== citation.verificationLink.sourceId, {
+    message: "summary and official verification sources must be distinct",
+    path: ["verificationLink", "sourceId"],
+  });
 export type AiCitation = z.infer<typeof AiCitationSchema>;
 
 export const AiRetrievalSchema = z
@@ -177,21 +229,15 @@ export const AiQueryResponseSchema = z
           path: ["citations", citationIndex, "id"],
         });
       }
-      if (citation.verificationState === "retired") {
-        context.addIssue({
-          code: "custom",
-          message: "retired evidence cannot be cited",
-          path: ["citations", citationIndex, "verificationState"],
-        });
-      }
-      if (citation.freshnessState === "UNKNOWN") {
-        context.addIssue({
-          code: "custom",
-          message: "evidence with unknown freshness cannot be cited",
-          path: ["citations", citationIndex, "freshnessState"],
-        });
-      }
     });
+
+    if (new Set(response.citations.map((citation) => citation.summarySource.corpusSha256)).size > 1) {
+      context.addIssue({
+        code: "custom",
+        message: "all citations must come from one atomic authored-summary corpus snapshot",
+        path: ["citations"],
+      });
+    }
 
     if (response.state === "no-results") {
       if (response.paragraphs.length !== 0) {
@@ -228,11 +274,11 @@ export const AiQueryResponseSchema = z
 
     if (response.state === "answered") {
       response.citations.forEach((citation, citationIndex) => {
-        if (citation.freshnessState !== "FRESH") {
+        if (citation.summaryFreshnessState !== "FRESH") {
           context.addIssue({
             code: "custom",
-            message: "answered responses may cite only FRESH evidence",
-            path: ["citations", citationIndex, "freshnessState"],
+            message: "answered responses may cite only FRESH authored summaries",
+            path: ["citations", citationIndex, "summaryFreshnessState"],
           });
         }
       });
@@ -240,11 +286,11 @@ export const AiQueryResponseSchema = z
 
     if (response.state === "stale") {
       response.citations.forEach((citation, citationIndex) => {
-        if (citation.freshnessState !== "STALE" && citation.freshnessState !== "EXPIRED") {
+        if (citation.summaryFreshnessState !== "STALE" && citation.summaryFreshnessState !== "EXPIRED") {
           context.addIssue({
             code: "custom",
-            message: "stale responses may cite only STALE or EXPIRED evidence",
-            path: ["citations", citationIndex, "freshnessState"],
+            message: "stale responses may cite only STALE or EXPIRED authored summaries",
+            path: ["citations", citationIndex, "summaryFreshnessState"],
           });
         }
       });
@@ -258,10 +304,17 @@ export const AiQueryResponseSchema = z
           path: ["citations"],
         });
       }
-      if (new Set(response.citations.map((citation) => citation.sourceId)).size < 2) {
+      if (new Set(response.citations.map((citation) => citation.documentId)).size < 2) {
         context.addIssue({
           code: "custom",
-          message: "conflict responses require at least two distinct sources",
+          message: "conflict responses require at least two distinct authored documents",
+          path: ["citations"],
+        });
+      }
+      if (new Set(response.citations.map((citation) => citation.verificationLink.sourceId)).size < 2) {
+        context.addIssue({
+          code: "custom",
+          message: "conflict responses require at least two distinct official verification links",
           path: ["citations"],
         });
       }

@@ -9,7 +9,10 @@ import { GopherClient } from "@umn-gopher-assistant/sdk";
 
 const client = new GopherClient({
   baseUrl: "https://assistant.example.edu/",
-  accessToken: async () => tokenStore.current(),
+  dpopCredential: async () => ({
+    accessToken: tokenStore.current(),
+    privateJwk: deviceKeyStore.currentP256PrivateJwk(),
+  }),
 });
 
 const result = await client.request("listSources", {
@@ -22,10 +25,20 @@ if (!result.notModified) console.log(result.data);
 ```
 
 State-changing operations require an idempotency key in their TypeScript
-options. Non-success responses become `GopherApiError` with validated RFC 9457
-details. Unexpected 2xx/304 statuses, content types, malformed success JSON, or
+options. Declared non-success responses become `GopherApiError` with validated
+RFC 9457 details. Undeclared error or success statuses, unexpected 304
+responses, content types, malformed success JSON, or
 success bodies that fail an implemented operation's strict runtime schema
 become `GopherProtocolError` instead of being cast to the advertised result.
+
+Account-bound vault operations have dedicated protocol options rather than a
+generic header escape hatch. Creation automatically sends
+`If-None-Match: *`; optimistic mutations require one strong `ifMatch`; reads
+require a fresh `vaultReadProof`; and signed command operations reject an
+`idempotencyKey` that differs from the command's `operationId` (including the
+nested pairing-approval command). The SDK never decrypts a vault snapshot.
+Creating an already-existing account vault is a 412 precondition failure; 409
+remains reserved for idempotency reuse or another state conflict.
 The runtime validators are generated directly from each implemented OpenAPI
 request-body and success schema; unsupported schema keywords fail generation
 instead of being silently ignored. Objects reject undeclared fields. Values
@@ -41,6 +54,14 @@ headers use dedicated SDK behavior or remain reserved. Remote API base URLs
 must use HTTPS; plaintext HTTP is accepted only for explicit loopback
 development hosts. Problem details are trusted only when their media type and
 status match the actual HTTP response.
+
+Protected operations accept only an access token cryptographically bound to
+the supplied P-256 private key. The client sends the `DPoP` authorization
+scheme plus a fresh ES256 proof, handles one RFC 9449 nonce retry, and never
+falls back to Bearer. Resource-server nonces are isolated by API origin and
+key thumbprint in a bounded LRU cache with a five-minute default TTL; callers
+can tighten both limits with `dpopNonceCacheMaxEntries` and
+`dpopNonceTtlMilliseconds`.
 
 Operation results keep the convenient `result.data` API and also expose
 `requestId`/`traceId`, `retryAfterSeconds`, and parsed `rateLimit` metadata when
@@ -63,7 +84,9 @@ objects. The SDK cancels an oversized stream and raises a content-free
 `GopherProtocolError` with code `response-body-too-large`. Callers can set
 `maxSuccessResponseBodyBytes` and `maxErrorResponseBodyBytes` on
 `GopherClient`; both must be positive integers and cannot exceed the absolute
-8 MiB safety cap.
+16 MiB safety cap. The normal success default remains 2 MiB. Only operations
+whose reviewed OpenAPI contract declares the 16 MiB encrypted-vault boundary
+receive that larger operation default; an explicit client limit still wins.
 
 From the repository root:
 

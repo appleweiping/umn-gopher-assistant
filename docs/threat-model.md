@@ -113,14 +113,32 @@ string, source domain, or user claim.
 Keycloak in local Compose is a development identity service. It is not evidence
 of University single sign-on approval.
 
-The API's five-minute default and ten-minute hard maximum access-token lifetime
-reduce exposure but do not make a Bearer token non-replayable. A `jti` claim is
-required for traceability and future replay controls; ordinary read tokens are
-not placed in a process-local one-time cache. Such a cache would be inconsistent
-across replicas and would break standard OAuth reuse. Consequential write
-routes remain gated until durable idempotency and a complete sender-constrained
-scheme such as DPoP are implemented and tested. A stolen Bearer token can still
-be replayed until expiry or revocation.
+Protected API routes reject Bearer fallback. They require a short-lived
+`typ=at+jwt` access token whose `cnf.jkt` is bound to a fresh RFC 9449 DPoP
+proof. The resource server validates the exact issuer, audience, approved
+client, signature, lifetime, subject, token ID and scopes, then validates an
+ES256 proof over the public JWK, canonical target URI, HTTP method, access-token
+hash, issued time, proof ID and server nonce. A Redis Lua decision stores the
+nonce and proof replay claim in the same per-subject cluster slot, applies a
+subject-wide proof quota even when the client rotates keys, and fails closed if
+Redis is unavailable. This sender constraint reduces bearer-token replay; it
+does not make XSS, endpoint compromise, malicious software, or theft of both a
+token and its private key harmless.
+
+The browser BFF keeps its DPoP private key and refresh token in a sealed,
+server-side session and serializes refresh rotation with a Redis lease and
+compare-and-set. DPoP constrains the BFF-to-API hop; it does not convert the
+browser session cookie into proof of possession or eliminate cookie theft and
+CSRF controls. CLI credentials and the DPoP key remain in the operating-system
+keychain. The public API process limits cryptographically valid proofs by
+subject, but invalid-token and cross-subject volumetric abuse still require the
+documented shared ingress rate limiter before production exposure.
+
+Consequential personal-vault mutations additionally use signed commands,
+strict optimistic parents, durable idempotency and encrypted read-back. Those
+controls prevent accidental replay and stale overwrite, but they are not a
+global transparency log and cannot prove that a malicious storage service has
+not shown two clients different internally consistent histories.
 
 Compose binds every published development port to `127.0.0.1`. Overriding
 `COMPOSE_BIND_ADDRESS` to a non-loopback address is an explicit remote-exposure

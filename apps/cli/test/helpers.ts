@@ -33,6 +33,7 @@ export function captureIo(): CapturedIo {
 export function oidcDiscovery(issuer = "https://identity.example/realms/gopher"): unknown {
   return {
     device_authorization_endpoint: "https://identity.example/device",
+    dpop_signing_alg_values_supported: ["ES256"],
     issuer,
     token_endpoint: "https://identity.example/token",
   };

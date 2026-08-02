@@ -36,6 +36,15 @@ describe("local infrastructure contract", () => {
     expect(compose).toContain(
       "../../packages/db/migrations/0000_foundation.sql:/migrations/0000_foundation.sql:ro",
     );
+    expect(compose).toContain(
+      "../../packages/db/migrations/0002_personal_vault_sync.sql:/migrations/0002_personal_vault_sync.sql:ro",
+    );
+    expect(compose).toContain(
+      "../../packages/db/migrations/0003_personal_vault_ephemera_retention.sql:/migrations/0003_personal_vault_ephemera_retention.sql:ro",
+    );
+    expect(compose).toContain(
+      "../../packages/db/migrations/0004_account_hmac_continuity.sql:/migrations/0004_account_hmac_continuity.sql:ro",
+    );
     expect(compose).toContain("./postgres/migrate.sh:/migrations/migrate.sh:ro");
     expect(compose).toContain(
       "./postgres/bootstrap-runtime-roles.sh:/docker-entrypoint-initdb.d/00-bootstrap-runtime-roles.sh:ro",
@@ -69,6 +78,9 @@ describe("local infrastructure contract", () => {
     expect(smoke).toContain("Legacy Twin Cities");
     expect(smoke).toContain("chown -R 999:999 /var/lib/postgresql/data");
     expect(smoke).toContain('test "$(id -u)" = 70');
+    expect(smoke).toContain("0003_personal_vault_ephemera_retention");
+    expect(smoke).toContain("0004_account_hmac_continuity");
+    expect(smoke).toContain("migration ledger does not contain exactly five migrations");
     expect(compose).toContain('"${COMPOSE_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"');
     expect(smoke).toContain('POSTGRES_PORT: "0"');
     expect(smoke).toContain("https://evil-umn.edu/path");
@@ -79,7 +91,7 @@ describe("local infrastructure contract", () => {
     expect(smoke).toContain("https://safe.umn.edu:8443/path");
   });
 
-  it("separates migration, AI reader, AI sync, and Keycloak database authority", () => {
+  it("separates migration, AI, personal-vault, and Keycloak database authority", () => {
     const bootstrapPath = resolve(repositoryRoot, "infra/compose/postgres/bootstrap-runtime-roles.sh");
     const grantsPath = resolve(repositoryRoot, "infra/compose/postgres/runtime-grants.sql");
     expect(existsSync(bootstrapPath)).toBe(true);
@@ -94,6 +106,7 @@ describe("local infrastructure contract", () => {
       "AI_KNOWLEDGE_SYNC_DATABASE_URL:-postgresql://gopher_ai_sync:local-ai-sync-password-only@postgres:5432/gopher",
     );
     expect(compose).toContain("KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-gopher_keycloak}");
+    expect(compose).toContain("API_PERSONAL_DB_USER: ${API_PERSONAL_DB_USER:-gopher_api_personal}");
     expect(bootstrap).toContain("NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS");
     expect(bootstrap).toContain("FROM pg_auth_members AS membership");
     expect(bootstrap).toContain("REVOKE %I FROM %I");
@@ -108,9 +121,37 @@ describe("local infrastructure contract", () => {
     );
     expect(grants).toContain("GRANT INSERT, UPDATE, DELETE ON TABLE knowledge_sources");
     expect(grants).toContain("REVOKE UPDATE ON TABLE knowledge_citations");
+    expect(grants).toContain(
+      "GRANT EXECUTE ON FUNCTION resolve_personal_account(bytea, smallint, bytea, smallint)",
+    );
+    expect(grants).toContain("SET LOCAL statement_timeout = '30s'");
+    expect(grants).toContain("SET LOCAL lock_timeout = '5s'");
+    expect(grants).toContain("REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC");
+    for (const runtimeRole of ["ai_reader_user", "ai_sync_user", "api_personal_user"]) {
+      expect(grants).toContain(
+        `REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM %I', :'${runtimeRole}'`,
+      );
+    }
+    expect(grants.indexOf("REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public")).toBeLessThan(
+      grants.indexOf("GRANT EXECUTE ON FUNCTION resolve_personal_account"),
+    );
+    expect(grants).toContain(
+      "GRANT EXECUTE ON FUNCTION assert_account_hmac_key_continuity(smallint, bytea, smallint, bytea, boolean, boolean)",
+    );
+    expect(grants.match(/GRANT EXECUTE ON FUNCTION/gu)).toHaveLength(2);
+    expect(grants).toContain(
+      "ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
+    );
+    expect(grants).toContain(
+      "GRANT SELECT, INSERT ON TABLE personal_vault_payloads, personal_vault_keyrings, personal_vault_manifests, personal_vault_commits",
+    );
+    expect(grants).not.toContain("GRANT SELECT ON TABLE accounts");
+    expect(grants).not.toContain("GRANT SELECT ON TABLE account_identity_keys");
     expect(grants).toContain("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
     expect(environmentExample).toContain("AI_KNOWLEDGE_READER_DB_USER=gopher_ai_reader");
     expect(environmentExample).toContain("AI_KNOWLEDGE_SYNC_DB_USER=gopher_ai_sync");
+    expect(environmentExample).toContain("API_PERSONAL_DB_USER=gopher_api_personal");
+    expect(environmentExample).toContain("API_PERSONAL_DATABASE_URL=postgresql://gopher_api_personal:");
     expect(environmentExample).toContain("KEYCLOAK_DB_USER=gopher_keycloak");
   });
 

@@ -22,6 +22,7 @@ tags:
   - name: Community
   - name: AI
   - name: Academics
+  - name: Personal Vault
   - name: Messages
   - name: Live Events
   - name: Moderation
@@ -32,11 +33,15 @@ paths:
       tags: [System]
       operationId: getHealth
       x-runtime-status: implemented
-      summary: Return process health
+      summary: Return process liveness
+      description: |
+        This anonymous endpoint proves that the HTTP process can serve requests. It is not a
+        production readiness signal and does not probe the DPoP replay Redis service, personal-vault
+        PostgreSQL, the identity provider, or optional catalog and AI dependencies.
       security: []
       responses:
         "200":
-          description: Service is ready
+          description: HTTP process is live
           headers:
             Cache-Control:
               schema: { type: string, const: no-store }
@@ -319,13 +324,16 @@ paths:
       x-uga-response-request-bindings: [campusId, locale]
       summary: Query the public bilingual campus retrieval assistant
       description: |
-        Performs deterministic no-key hybrid retrieval over reviewed campus knowledge. Every non-empty
-        answer is evidence-backed, citations are confined to the requested campus, and stale or conflicting
-        evidence is disclosed as a response state instead of being elevated to official fact. The response
+        Performs deterministic no-key hybrid retrieval over project-authored campus summaries. Every non-empty
+        answer is backed by a project-authored summary, citations are confined to the requested campus, and
+        stale or conflicting summaries are disclosed as a response state instead of being elevated to official
+        fact. Each citation separates the reusable project-authored text from an official UMN link supplied
+        only so a user can verify the summary; the linked official content is not retrieved or reproduced. The response
         contract requires unique paragraph and citation IDs, resolvable paragraph citation references,
-        no unused or retired evidence, empty evidence for `no-results`, only FRESH evidence for `answered`,
-        only STALE or EXPIRED citations for `stale`, and at least two genuinely different sources for
-        `conflict`. Queries are NFC-normalized plain text without control characters or HTML encodings.
+        no unused citations, a `schematic` summary verification state, empty evidence for `no-results`, only
+        FRESH summaries for `answered`, only STALE or EXPIRED summaries for `stale`, and genuinely different
+        authored documents, official verification links, and content hashes for `conflict`. Queries are
+        NFC-normalized plain text without control characters or HTML encodings.
       security: []
       requestBody:
         required: true
@@ -405,6 +413,440 @@ paths:
           $ref: "#/components/responses/CursorExpired"
         "503":
           $ref: "#/components/responses/ConnectorUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/bootstrap:
+    get:
+      tags: [Personal Vault]
+      operationId: bootstrapPersonalVault
+      x-runtime-status: implemented
+      summary: Bootstrap the authenticated account-bound encrypted vault
+      description: |
+        Returns only the opaque account binding needed to construct a client-side encrypted vault
+        and minimal existence metadata. For an existing vault it also returns only the current public
+        recovery-authorization descriptor so a fresh device can validate a high-entropy recovery code
+        before making a recovery-signed read. It never returns the OIDC subject, internal account ID,
+        authorization manifest, encrypted payload, key envelopes, device list, or any private plaintext.
+      security:
+        - oauth2: [personal:read]
+      responses:
+        "200":
+          description: Account binding and minimal personal-vault existence metadata
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonalVaultBootstrapV2"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault:
+    get:
+      tags: [Personal Vault]
+      operationId: readPersonalVault
+      x-runtime-status: implemented
+      x-uga-max-success-response-body-bytes: 16777216
+      summary: Read the current encrypted vault snapshot
+      description: |
+        Requires a fresh, single-use Ed25519 proof from a device or recovery authorization key
+        already present in the current manifest. The proof is consumed even when `If-None-Match`
+        produces 304. The server validates authenticated metadata and signatures but cannot decrypt
+        the payload, wrapped root key, or private records.
+      security:
+        - oauth2: [personal:read]
+      parameters:
+        - $ref: "#/components/parameters/VaultReadProof"
+        - $ref: "#/components/parameters/VaultIfNoneMatch"
+      responses:
+        "200":
+          description: Current account-bound encrypted vault snapshot
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/StrongETag"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultSyncSnapshotV2"
+        "304":
+          $ref: "#/components/responses/VaultNotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Personal Vault]
+      operationId: createPersonalVault
+      x-runtime-status: implemented
+      x-uga-idempotency-key-bound-to: operationId
+      x-uga-max-request-body-bytes: 16777216
+      x-uga-max-success-response-body-bytes: 16777216
+      summary: Create the authenticated account's encrypted vault
+      description: |
+        Creates one genesis snapshot. `If-None-Match` must be exactly `*`; the
+        `Idempotency-Key` must exactly equal the command's canonical UUID `operationId`.
+        An existing account vault fails the create precondition with 412; 409 is reserved for
+        idempotency-key reuse with different content or another non-precondition state conflict.
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/VaultCreateIfNoneMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultCreateCommandV2"
+      responses:
+        "201":
+          description: Genesis vault snapshot
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/StrongETag"
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+            Location:
+              schema: { type: string, const: /v1/personal/vault }
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VaultSyncSnapshotV2"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/payload:
+    put:
+      tags: [Personal Vault]
+      operationId: updatePersonalVaultPayload
+      x-runtime-status: implemented
+      x-uga-idempotency-key-bound-to: operationId
+      x-uga-max-request-body-bytes: 16777216
+      x-uga-max-success-response-body-bytes: 16777216
+      summary: Commit a new encrypted personal-vault payload
+      description: |
+        Requires exactly one strong `If-Match` validator. A stale validator returns 412 and never
+        merges ciphertext server-side. The `Idempotency-Key` must equal the command `operationId`.
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/VaultIfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultUpdatePayloadCommandV2"
+      responses:
+        "200":
+          $ref: "#/components/responses/VaultSnapshotMutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/device-pairings:
+    get:
+      tags: [Personal Vault]
+      operationId: listPersonalVaultDevicePairings
+      x-runtime-status: implemented
+      summary: List bounded device-pairing requests for the current vault
+      security:
+        - oauth2: [personal:read]
+      parameters:
+        - $ref: "#/components/parameters/VaultIfNoneMatch"
+      responses:
+        "200":
+          description: Pairing requests owned by the authenticated account
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/StrongETag"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevicePairingPageV2"
+        "304":
+          $ref: "#/components/responses/VaultNotModified"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Personal Vault]
+      operationId: createPersonalVaultDevicePairing
+      x-runtime-status: implemented
+      x-uga-idempotency-key-bound-to: operationId
+      x-uga-max-request-body-bytes: 16777216
+      summary: Create a short-lived request to add a new device
+      description: |
+        The pending device proves possession of both public-key identities. At most eight
+        unexpired pairing requests may coexist for one vault, and pairing is rejected once the
+        authorization manifest has reached its 32-device descriptor limit.
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/VaultIfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevicePairingRequestV2"
+      responses:
+        "201":
+          description: Pending device-pairing request
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/StrongETag"
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+            Location:
+              schema:
+                type: string
+                pattern: "^/v1/personal/vault/device-pairings/[0-9a-f-]{36}$"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevicePairingViewV2"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/device-pairings/{pairingId}:
+    delete:
+      tags: [Personal Vault]
+      operationId: cancelPersonalVaultDevicePairing
+      x-runtime-status: implemented
+      summary: Cancel one pending device-pairing request
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/PairingIdPath"
+        - $ref: "#/components/parameters/VaultIfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Cancelled pairing representation
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            ETag:
+              $ref: "#/components/headers/StrongETag"
+            Idempotency-Replayed:
+              $ref: "#/components/headers/IdempotencyReplayed"
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevicePairingViewV2"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/device-pairings/{pairingId}/approval:
+    post:
+      tags: [Personal Vault]
+      operationId: approvePersonalVaultDevicePairing
+      x-runtime-status: implemented
+      x-uga-idempotency-key-bound-to: command.operationId
+      x-uga-max-request-body-bytes: 16777216
+      x-uga-max-success-response-body-bytes: 16777216
+      summary: Approve a pairing with an atomic signed vault commit
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/PairingIdPath"
+        - $ref: "#/components/parameters/VaultIfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairingApprovalRequestV2"
+      responses:
+        "200":
+          $ref: "#/components/responses/VaultSnapshotMutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /v1/personal/vault/rotations:
+    post:
+      tags: [Personal Vault]
+      operationId: rotatePersonalVaultKey
+      x-runtime-status: implemented
+      x-uga-idempotency-key-bound-to: operationId
+      x-uga-max-request-body-bytes: 16777216
+      x-uga-max-success-response-body-bytes: 16777216
+      summary: Atomically rotate the root vault key and authorization epoch
+      security:
+        - oauth2: [personal:write]
+      parameters:
+        - $ref: "#/components/parameters/VaultIfMatch"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VaultRotateKeyCommandV2"
+      responses:
+        "200":
+          $ref: "#/components/responses/VaultSnapshotMutationSucceeded"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "428":
+          $ref: "#/components/responses/PreconditionRequired"
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
         "500":
           $ref: "#/components/responses/InternalServerError"
   /v1/academics/courses:
@@ -622,8 +1064,20 @@ components:
         Local Keycloak in development; the production issuer is deployment-specific. Browser and
         remote-client authorization uses authorization code with PKCE S256. The local CLI uses the
         Keycloak RFC 8628 device authorization endpoint. RFC 8707 resource indicators are not supported
-        by Keycloak 26.5.5, so this realm must not be described as fully compatible with MCP
-        authorization specifications newer than 2025-03-26.
+        by Keycloak 26.7.0, so this realm is only partially compatible with the MCP
+        2025-06-18 and 2025-11-25 authorization specifications. Its experimental CIMD support is
+        not enabled here and would not replace RFC 8707.
+
+        Every operation with this security scheme requires RFC 9449 sender-constrained credentials:
+        the access token is sent as `Authorization: DPoP <token>` and a fresh ES256 proof JWT is sent
+        in the `DPoP` request header. Bearer fallback is prohibited. Clients must validate
+        `token_type=DPoP` and `cnf.jkt`, consume `DPoP-Nonce` on any response, and retry a
+        `use_dpop_nonce` challenge at most once with a new `jti`.
+      x-dpop-required: true
+      x-dpop-proof-header: DPoP
+      x-dpop-nonce-header: DPoP-Nonce
+      x-dpop-algorithms: [ES256]
+      x-authorization-scheme: DPoP
       x-device-authorization-url: http://localhost:8080/realms/gopher-assistant-dev/protocol/openid-connect/auth/device
       flows:
         authorizationCode:
@@ -632,7 +1086,6 @@ components:
           x-pkce-required: true
           scopes:
             openid: OpenID Connect
-            profile: Basic profile
             campus:read: Read campus-scoped public and approved data
             campus:write: Modify reviewed campus-scoped metadata
             personal:read: Read the authenticated user's private data
@@ -713,16 +1166,70 @@ components:
       required: false
       description: Conditional request validator from a previous ETag response.
       schema: { type: string, maxLength: 256 }
+    VaultIfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: One strong ETag returned by a previous personal-vault response.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+        pattern: '^"[\x21\x23-\x7e]+"$'
+    VaultCreateIfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: true
+      description: Vault creation is allowed only when no vault exists.
+      schema: { type: string, const: "*" }
+    VaultIfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: |
+        Exactly one strong ETag returned by the current vault snapshot. Weak validators, wildcard
+        validators, and comma-separated validator lists are rejected.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+        pattern: '^"[\x21\x23-\x7e]+"$'
+    VaultReadProof:
+      name: X-Vault-Read-Proof
+      in: header
+      required: true
+      description: |
+        Canonical unpadded base64url JSON containing a short-lived single-use
+        `VaultReadProofV2`. This proves possession of an authorization private key; it is
+        independent from the OAuth DPoP credential and is consumed before a possible 304 response.
+      schema:
+        type: string
+        minLength: 64
+        maxLength: 5462
+        pattern: "^[A-Za-z0-9_-]+$"
+    PairingIdPath:
+      name: pairingId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/CanonicalUuid"
     IdempotencyKey:
       name: Idempotency-Key
       in: header
       required: true
       description: Unique opaque key retained for 24 hours; reuse with a different body returns 409.
-      schema: { type: string, minLength: 16, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" }
+      schema: { type: string, minLength: 16, maxLength: 128, pattern: '^[\x21-\x7e]+$' }
   headers:
     ETag:
       description: Entity tag for conditional requests.
       schema: { type: string }
+    StrongETag:
+      description: One strong entity tag for optimistic personal-vault concurrency control.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+        pattern: '^"[\x21\x23-\x7e]+"$'
     RequestId:
       description: Correlation ID suitable for support, not an authentication credential.
       schema:
@@ -730,6 +1237,24 @@ components:
         minLength: 8
         maxLength: 128
         pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+    DPoPNonce:
+      description: |
+        RFC 9449 server nonce. A client stores this value per protected-resource origin and
+        DPoP public-key thumbprint, then includes it in the next fresh proof.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 512
+        pattern: "^[A-Za-z0-9._~-]+$"
+    WwwAuthenticateDPoP:
+      description: |
+        RFC 9449 DPoP authentication challenge. `error="use_dpop_nonce"` is accompanied by
+        `DPoP-Nonce`; other values include `invalid_token`, `invalid_dpop_proof`, and
+        `insufficient_scope`.
+      schema:
+        type: string
+        minLength: 4
+        maxLength: 2048
     NoStore:
       description: This representation must not be stored by clients or intermediaries.
       schema: { type: string, const: no-store }
@@ -751,6 +1276,32 @@ components:
       headers:
         ETag:
           $ref: "#/components/headers/ETag"
+    VaultNotModified:
+      description: |
+        The account-bound encrypted representation has not changed. The response has no body;
+        a supplied read proof has still been consumed and must not be replayed.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        ETag:
+          $ref: "#/components/headers/StrongETag"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+    VaultSnapshotMutationSucceeded:
+      description: Authenticated encrypted snapshot committed atomically
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        ETag:
+          $ref: "#/components/headers/StrongETag"
+        Idempotency-Replayed:
+          $ref: "#/components/headers/IdempotencyReplayed"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/VaultSyncSnapshotV2"
     LiveCatalogNotModified:
       description: |
         The live source was revalidated and the normalized representation has not changed;
@@ -768,7 +1319,18 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
     Unauthorized:
-      description: Authentication is required or invalid
+      description: |
+        DPoP authentication is required or invalid. A `use_dpop_nonce` response includes a
+        fresh nonce and can be retried once with a new proof JWT and `jti`.
+      headers:
+        Cache-Control:
+          $ref: "#/components/headers/NoStore"
+        DPoP-Nonce:
+          $ref: "#/components/headers/DPoPNonce"
+        WWW-Authenticate:
+          $ref: "#/components/headers/WwwAuthenticateDPoP"
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -792,6 +1354,16 @@ components:
           schema: { $ref: "#/components/schemas/Problem" }
     Conflict:
       description: State or idempotency-key conflict
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PreconditionFailed:
+      description: The supplied strong ETag no longer identifies the current vault state
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    PreconditionRequired:
+      description: A required conditional, possession-proof, or idempotency header is missing
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
@@ -860,12 +1432,640 @@ components:
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/ConnectorUnavailableProblem" }
+    ServiceUnavailable:
+      description: A required private-sync dependency is temporarily unavailable
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     InternalServerError:
       description: Unexpected server failure
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    CanonicalUuid:
+      type: string
+      minLength: 36
+      maxLength: 36
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    NullableCanonicalUuid:
+      type: [string, "null"]
+      minLength: 36
+      maxLength: 36
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    CanonicalUtcDateTime:
+      type: string
+      format: date-time
+      minLength: 24
+      maxLength: 24
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    NullableCanonicalUtcDateTime:
+      type: [string, "null"]
+      format: date-time
+      minLength: 24
+      maxLength: 24
+      pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    PositiveSafeInteger:
+      type: integer
+      minimum: 1
+      maximum: 9007199254740991
+    NullablePositiveSafeInteger:
+      type: [integer, "null"]
+      minimum: 1
+      maximum: 9007199254740991
+    OwnerBindingV2:
+      type: string
+      description: Opaque HMAC-derived account binding; never an OIDC subject or internal account ID.
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+    Base64UrlHash32:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+    NullableBase64UrlHash32:
+      type: [string, "null"]
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+    Base64UrlPublicKey32:
+      type: string
+      minLength: 43
+      maxLength: 43
+      pattern: "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$"
+    Base64UrlSignature64:
+      type: string
+      minLength: 86
+      maxLength: 86
+      pattern: "^[A-Za-z0-9_-]{85}[AQgw]$"
+    Base64UrlNonce24:
+      type: string
+      minLength: 32
+      maxLength: 32
+      pattern: "^[A-Za-z0-9_-]{32}$"
+    Base64UrlSalt16:
+      type: string
+      minLength: 22
+      maxLength: 22
+      pattern: "^[A-Za-z0-9_-]{21}[AQgw]$"
+    Base64UrlDeviceWrappedKey80:
+      type: string
+      minLength: 107
+      maxLength: 107
+      pattern: "^[A-Za-z0-9_-]{106}[AEIMQUYcgkosw048]$"
+    Base64UrlRecoveryWrappedKey48:
+      type: string
+      minLength: 64
+      maxLength: 64
+      pattern: "^[A-Za-z0-9_-]{64}$"
+    Base64UrlAad:
+      type: string
+      description: Canonical authenticated-data bytes encoded as unpadded base64url.
+      minLength: 2
+      maxLength: 5462
+      pattern: "^[A-Za-z0-9_-]+$"
+    Base64UrlVaultCiphertext:
+      type: string
+      description: |
+        XChaCha20-Poly1305 ciphertext over complete 4096-byte sodium padding blocks. Decoded
+        length is at most 8,388,624 bytes; the whole HTTP JSON body is capped at 16 MiB.
+      minLength: 5483
+      maxLength: 11184832
+      pattern: "^[A-Za-z0-9_-]+$"
+    DeviceEncryptionPublicKeyV2:
+      type: object
+      additionalProperties: false
+      required: [keyId, algorithm, publicKey, fingerprint]
+      properties:
+        keyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        algorithm: { type: string, const: X25519 }
+        publicKey: { $ref: "#/components/schemas/Base64UrlPublicKey32" }
+        fingerprint: { $ref: "#/components/schemas/Base64UrlHash32" }
+    DeviceAuthorizationPublicKeyV2:
+      type: object
+      additionalProperties: false
+      required: [keyId, algorithm, publicKey, fingerprint]
+      properties:
+        keyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        algorithm: { type: string, const: ED25519 }
+        publicKey: { $ref: "#/components/schemas/Base64UrlPublicKey32" }
+        fingerprint: { $ref: "#/components/schemas/Base64UrlHash32" }
+    DeviceDescriptorV2:
+      type: object
+      additionalProperties: false
+      description: |
+        The encryption and authorization key IDs must differ. A non-null revocation timestamp
+        cannot precede creation; current manifests must retain at least one non-revoked device.
+      required: [formatVersion, ownerBinding, deviceId, encryptionKey, authorizationKey, createdAt, revokedAt]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        deviceId: { $ref: "#/components/schemas/CanonicalUuid" }
+        encryptionKey: { $ref: "#/components/schemas/DeviceEncryptionPublicKeyV2" }
+        authorizationKey: { $ref: "#/components/schemas/DeviceAuthorizationPublicKeyV2" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        revokedAt: { $ref: "#/components/schemas/NullableCanonicalUtcDateTime" }
+    RecoveryAuthorizationPublicKeyV2:
+      type: object
+      additionalProperties: false
+      required:
+        [formatVersion, ownerBinding, vaultId, keyId, algorithm, publicKey, fingerprint, createdAt, revokedAt]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        keyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        algorithm: { type: string, const: ED25519 }
+        publicKey: { $ref: "#/components/schemas/Base64UrlPublicKey32" }
+        fingerprint: { $ref: "#/components/schemas/Base64UrlHash32" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        revokedAt: { $ref: "#/components/schemas/NullableCanonicalUtcDateTime" }
+    AuthorizationManifestV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Device IDs and all key IDs are unique. Every device and the current recovery key are bound
+        to this owner and vault. At least one device remains active and the current recovery key is
+        not revoked. Lifecycle timestamps and revisions are monotonic.
+      required:
+        [
+          formatVersion,
+          ownerBinding,
+          vaultId,
+          epoch,
+          revision,
+          devices,
+          recoveryAuthorization,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        epoch: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        revision: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        devices:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: { $ref: "#/components/schemas/DeviceDescriptorV2" }
+        recoveryAuthorization:
+          $ref: "#/components/schemas/RecoveryAuthorizationPublicKeyV2"
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        updatedAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    VaultPayloadPaddingV1:
+      type: object
+      additionalProperties: false
+      required: [algorithm, blockSize]
+      properties:
+        algorithm: { type: string, const: SODIUM_PAD }
+        blockSize: { type: integer, const: 4096 }
+    EncryptedVaultPayloadEnvelopeV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Revision one has a null base revision; later revisions advance exactly one. `aad` is the
+        canonical account-bound V2 metadata tuple and ciphertext contains only padded client data.
+      required:
+        [
+          formatVersion,
+          ownerBinding,
+          vaultId,
+          vaultKeyId,
+          revision,
+          baseRevision,
+          cipherSuite,
+          contentType,
+          contentSchemaVersion,
+          padding,
+          nonce,
+          ciphertext,
+          aad,
+          createdAt,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        vaultKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        revision: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        baseRevision: { $ref: "#/components/schemas/NullablePositiveSafeInteger" }
+        cipherSuite: { type: string, const: XCHACHA20_POLY1305 }
+        contentType:
+          type: string
+          const: application/vnd.umn-gopher-assistant.personal-vault+json
+        contentSchemaVersion: { type: integer, const: 1 }
+        padding: { $ref: "#/components/schemas/VaultPayloadPaddingV1" }
+        nonce: { $ref: "#/components/schemas/Base64UrlNonce24" }
+        ciphertext: { $ref: "#/components/schemas/Base64UrlVaultCiphertext" }
+        aad: { $ref: "#/components/schemas/Base64UrlAad" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    DevicePublicKeyV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          formatVersion,
+          deviceId,
+          deviceKeyId,
+          keyAlgorithm,
+          publicKey,
+          publicKeyFingerprint,
+          createdAt,
+          revokedAt,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 1 }
+        deviceId: { $ref: "#/components/schemas/CanonicalUuid" }
+        deviceKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        keyAlgorithm: { type: string, const: X25519 }
+        publicKey: { $ref: "#/components/schemas/Base64UrlPublicKey32" }
+        publicKeyFingerprint: { $ref: "#/components/schemas/Base64UrlHash32" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        revokedAt: { $ref: "#/components/schemas/NullableCanonicalUtcDateTime" }
+    DeviceKeyEnvelopeV1:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          formatVersion,
+          vaultId,
+          vaultKeyId,
+          recipientDeviceId,
+          recipientKeyId,
+          recipientPublicKeyFingerprint,
+          cipherSuite,
+          ephemeralPublicKey,
+          nonce,
+          wrappedKey,
+          createdAt,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 1 }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        vaultKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        recipientDeviceId: { $ref: "#/components/schemas/CanonicalUuid" }
+        recipientKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        recipientPublicKeyFingerprint: { $ref: "#/components/schemas/Base64UrlHash32" }
+        cipherSuite: { type: string, const: X25519_XCHACHA20_POLY1305 }
+        ephemeralPublicKey: { $ref: "#/components/schemas/Base64UrlPublicKey32" }
+        nonce: { $ref: "#/components/schemas/Base64UrlNonce24" }
+        wrappedKey: { $ref: "#/components/schemas/Base64UrlDeviceWrappedKey80" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    Argon2idParametersV1:
+      type: object
+      additionalProperties: false
+      required: [algorithm, salt, opsLimit, memLimitBytes, outputBytes]
+      properties:
+        algorithm: { type: string, const: ARGON2ID13 }
+        salt: { $ref: "#/components/schemas/Base64UrlSalt16" }
+        opsLimit: { type: integer, minimum: 2, maximum: 4 }
+        memLimitBytes: { type: integer, minimum: 67108864, maximum: 268435456 }
+        outputBytes: { type: integer, const: 32 }
+    RecoveryKeyEnvelopeV1:
+      type: object
+      additionalProperties: false
+      description: The `aad` value must exactly encode the canonical V1 recovery metadata.
+      required: [formatVersion, vaultId, vaultKeyId, cipherSuite, kdf, nonce, wrappedKey, aad, createdAt]
+      properties:
+        formatVersion: { type: integer, const: 1 }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        vaultKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        cipherSuite: { type: string, const: XCHACHA20_POLY1305 }
+        kdf: { $ref: "#/components/schemas/Argon2idParametersV1" }
+        nonce: { $ref: "#/components/schemas/Base64UrlNonce24" }
+        wrappedKey: { $ref: "#/components/schemas/Base64UrlRecoveryWrappedKey48" }
+        aad: { $ref: "#/components/schemas/Base64UrlAad" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    VaultKeyringV1:
+      type: object
+      additionalProperties: false
+      description: |
+        Device recipients and key IDs are unique and match optional public-key descriptors one to
+        one. Every envelope is for this vault and root key, and lifecycle timestamps are monotonic.
+      required:
+        [
+          formatVersion,
+          vaultId,
+          vaultKeyId,
+          revision,
+          deviceEnvelopes,
+          recoveryEnvelope,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 1 }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        vaultKeyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        revision: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        devicePublicKeys:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: { $ref: "#/components/schemas/DevicePublicKeyV1" }
+        deviceEnvelopes:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items: { $ref: "#/components/schemas/DeviceKeyEnvelopeV1" }
+        recoveryEnvelope: { $ref: "#/components/schemas/RecoveryKeyEnvelopeV1" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        updatedAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    VaultCommitAuthorV2:
+      type: object
+      additionalProperties: false
+      description: The `deviceId` value is non-null only for `DEVICE` authors.
+      required: [kind, keyId, deviceId]
+      properties:
+        kind: { type: string, enum: [DEVICE, RECOVERY] }
+        keyId: { $ref: "#/components/schemas/CanonicalUuid" }
+        deviceId: { $ref: "#/components/schemas/NullableCanonicalUuid" }
+    VaultCommitV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Only the epoch-one sequence-one genesis commit has a null parent. Hashes bind the payload,
+        keyring, authorization manifest, and preceding commit. The public-key `signature` is checked
+        by the service. `stateMac` is bound into the commit hash and signed mutation command, but only
+        a client holding the root vault key can verify that MAC when reading stored state.
+      required:
+        [
+          formatVersion,
+          ownerBinding,
+          vaultId,
+          epoch,
+          sequence,
+          parentCommitHash,
+          payloadHash,
+          keyringHash,
+          authorizationManifestHash,
+          operationId,
+          author,
+          createdAt,
+          stateMac,
+          signature,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        epoch: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        sequence: { $ref: "#/components/schemas/PositiveSafeInteger" }
+        parentCommitHash: { $ref: "#/components/schemas/NullableBase64UrlHash32" }
+        payloadHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        keyringHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        authorizationManifestHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        author: { $ref: "#/components/schemas/VaultCommitAuthorV2" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        stateMac: { $ref: "#/components/schemas/Base64UrlHash32" }
+        signature: { $ref: "#/components/schemas/Base64UrlSignature64" }
+    VaultSyncSnapshotV2:
+      type: object
+      additionalProperties: false
+      description: |
+        All components must use this owner and vault. The root-key identity, authorization epoch,
+        component hashes, current author, and Ed25519 signature are validated as one atomic snapshot
+        before storage or return. On mutation, the short-lived signed command also binds the exact
+        commit hash (including `stateMac`). A reader must still verify `stateMac` with its root key;
+        the service never possesses that key and cannot independently validate the MAC.
+      required:
+        [formatVersion, ownerBinding, vaultId, commitHash, commit, payload, keyring, authorizationManifest]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        commitHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        commit: { $ref: "#/components/schemas/VaultCommitV2" }
+        payload: { $ref: "#/components/schemas/EncryptedVaultPayloadEnvelopeV2" }
+        keyring: { $ref: "#/components/schemas/VaultKeyringV1" }
+        authorizationManifest: { $ref: "#/components/schemas/AuthorizationManifestV2" }
+    VaultCommandProofV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Short-lived Ed25519 proof binding command type, owner, vault, operation ID, expected parent,
+        next commit, and signer. Lifetime is positive and at most ten minutes.
+      required:
+        [
+          formatVersion,
+          commandType,
+          ownerBinding,
+          vaultId,
+          operationId,
+          expectedParentCommitHash,
+          nextCommitHash,
+          signer,
+          issuedAt,
+          expiresAt,
+          signature,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        commandType:
+          type: string
+          enum: [CREATE_VAULT, UPDATE_PAYLOAD, PAIR_DEVICE, ROTATE_KEY]
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        expectedParentCommitHash: { $ref: "#/components/schemas/NullableBase64UrlHash32" }
+        nextCommitHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        signer: { $ref: "#/components/schemas/VaultCommitAuthorV2" }
+        issuedAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        expiresAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        signature: { $ref: "#/components/schemas/Base64UrlSignature64" }
+    VaultCreateCommandV2:
+      type: object
+      additionalProperties: false
+      description: Genesis snapshot and proof metadata must bind exactly to this command.
+      required: [formatVersion, commandType, ownerBinding, vaultId, operationId, proof, snapshot]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        commandType: { type: string, const: CREATE_VAULT }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        proof: { $ref: "#/components/schemas/VaultCommandProofV2" }
+        snapshot: { $ref: "#/components/schemas/VaultSyncSnapshotV2" }
+    VaultUpdatePayloadCommandV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Advances payload and commit exactly once without changing the keyring or authorization
+        manifest. Proof, parent hash, operation ID, and next snapshot must bind exactly.
+      required:
+        [
+          formatVersion,
+          commandType,
+          ownerBinding,
+          vaultId,
+          operationId,
+          proof,
+          expectedParentCommitHash,
+          nextSnapshot,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        commandType: { type: string, const: UPDATE_PAYLOAD }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        proof: { $ref: "#/components/schemas/VaultCommandProofV2" }
+        expectedParentCommitHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        nextSnapshot: { $ref: "#/components/schemas/VaultSyncSnapshotV2" }
+    VaultPairDeviceCommandV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Adds exactly the approved active device, preserves the encrypted payload and existing
+        active devices, and advances keyring, manifest, and commit exactly once.
+      required:
+        [
+          formatVersion,
+          commandType,
+          ownerBinding,
+          vaultId,
+          operationId,
+          proof,
+          expectedParentCommitHash,
+          pairedDevice,
+          nextSnapshot,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        commandType: { type: string, const: PAIR_DEVICE }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        proof: { $ref: "#/components/schemas/VaultCommandProofV2" }
+        expectedParentCommitHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        pairedDevice: { $ref: "#/components/schemas/DeviceDescriptorV2" }
+        nextSnapshot: { $ref: "#/components/schemas/VaultSyncSnapshotV2" }
+    VaultRotateKeyCommandV2:
+      type: object
+      additionalProperties: false
+      description: |
+        Atomically advances root-key identity, epoch, payload, keyring, manifest, and commit. A
+        DEVICE_REVOKED reason requires a newly revoked device; RECOVERY_ROTATED requires a new
+        recovery authorization key.
+      required:
+        [
+          formatVersion,
+          commandType,
+          ownerBinding,
+          vaultId,
+          operationId,
+          proof,
+          expectedParentCommitHash,
+          reason,
+          nextSnapshot,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        commandType: { type: string, const: ROTATE_KEY }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        proof: { $ref: "#/components/schemas/VaultCommandProofV2" }
+        expectedParentCommitHash: { $ref: "#/components/schemas/Base64UrlHash32" }
+        reason:
+          type: string
+          enum: [DEVICE_REVOKED, RECOVERY_ROTATED, SCHEDULED, COMPROMISE]
+        nextSnapshot: { $ref: "#/components/schemas/VaultSyncSnapshotV2" }
+    DevicePairingRequestV2:
+      type: object
+      additionalProperties: false
+      description: |
+        A new non-revoked device signs this request. The request is bound to the current owner and
+        vault; its lifetime is positive and at most fifteen minutes.
+      required:
+        [
+          formatVersion,
+          ownerBinding,
+          vaultId,
+          operationId,
+          requestingDevice,
+          pairingCodeCommitment,
+          issuedAt,
+          expiresAt,
+          signature,
+        ]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        operationId: { $ref: "#/components/schemas/CanonicalUuid" }
+        requestingDevice: { $ref: "#/components/schemas/DeviceDescriptorV2" }
+        pairingCodeCommitment: { $ref: "#/components/schemas/Base64UrlHash32" }
+        issuedAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        expiresAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        signature: { $ref: "#/components/schemas/Base64UrlSignature64" }
+    PairingApprovalRequestV2:
+      type: object
+      additionalProperties: false
+      required: [pairingCodeCommitment, command]
+      properties:
+        pairingCodeCommitment: { $ref: "#/components/schemas/Base64UrlHash32" }
+        command: { $ref: "#/components/schemas/VaultPairDeviceCommandV2" }
+    DevicePairingViewV2:
+      type: object
+      additionalProperties: false
+      description: Lifecycle timestamps are canonical and monotonic; the pairing expires no earlier than creation.
+      required: [id, vaultId, requestingDevice, state, expiresAt, createdAt, updatedAt]
+      properties:
+        id: { $ref: "#/components/schemas/CanonicalUuid" }
+        vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+        requestingDevice: { $ref: "#/components/schemas/DeviceDescriptorV2" }
+        state:
+          type: string
+          enum: [pending, approved, consumed, expired, cancelled]
+        expiresAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        createdAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+        updatedAt: { $ref: "#/components/schemas/CanonicalUtcDateTime" }
+    DevicePairingPageV2:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/DevicePairingViewV2" }
+    PersonalVaultBootstrapV2:
+      type: object
+      additionalProperties: false
+      required: [formatVersion, ownerBinding, vault]
+      properties:
+        formatVersion: { type: integer, const: 2 }
+        ownerBinding: { $ref: "#/components/schemas/OwnerBindingV2" }
+        vault:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [exists]
+              properties:
+                exists: { type: boolean, const: false }
+            - type: object
+              additionalProperties: false
+              required: [exists, vaultId, etag, recoveryAuthorization]
+              properties:
+                exists: { type: boolean, const: true }
+                vaultId: { $ref: "#/components/schemas/CanonicalUuid" }
+                recoveryAuthorization:
+                  $ref: "#/components/schemas/RecoveryAuthorizationPublicKeyV2"
+                etag:
+                  type: string
+                  minLength: 3
+                  maxLength: 128
+                  pattern: '^"[\x21\x23-\x7e]+"$'
     CampusId:
       type: string
       enum: [tc, duluth, crookston, morris, rochester]
@@ -1494,42 +2694,86 @@ components:
           maxItems: 64
           description: Unique IDs that must resolve to citations in the same response.
           items: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
-    AiCitation:
+    AiSummaryLicense:
       type: object
       additionalProperties: false
-      required:
-        [
-          id,
-          campusId,
-          sourceId,
-          category,
-          title,
-          sourceUrl,
-          contentSha256,
-          updatedAt,
-          freshnessState,
-          verificationState,
-          excerpt,
-        ]
+      required: [status, spdxId, evidenceUrl]
       properties:
-        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
-        campusId: { $ref: "#/components/schemas/CampusId" }
+        status: { type: string, const: OPEN_REUSE }
+        spdxId: { type: string, const: Apache-2.0 }
+        evidenceUrl:
+          type: string
+          const: https://www.apache.org/licenses/LICENSE-2.0
+    AiSummarySource:
+      type: object
+      additionalProperties: false
+      description: Provenance for text authored and licensed by the UMN Gopher Assistant project.
+      required: [kind, sourceId, sourceUrl, corpusSha256, license]
+      properties:
+        kind: { type: string, const: project-authored-summary }
         sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
-        category: { $ref: "#/components/schemas/AiCitationCategory" }
-        title: { $ref: "#/components/schemas/AiBilingualText" }
         sourceUrl:
           type: string
           format: uri
-          pattern: "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^?#]*)?$"
-        contentSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
-        updatedAt: { type: string, format: date-time }
-        freshnessState: { $ref: "#/components/schemas/FreshnessState" }
-        verificationState: { $ref: "#/components/schemas/VerificationState" }
+          pattern: "^[Hh][Tt][Tt][Pp][Ss]://[Gg][Ii][Tt][Hh][Uu][Bb]\\.[Cc][Oo][Mm](?::443)?/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus\\.json$"
+        corpusSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        license: { $ref: "#/components/schemas/AiSummaryLicense" }
+    AiVerificationLink:
+      type: object
+      additionalProperties: false
+      description: An official UMN deep link supplied only for user verification; its content was not retrieved.
+      required: [kind, sourceId, sourceUrl, licenseStatus, sourceUse, contentRetrieved]
+      properties:
+        kind: { type: string, const: official-verification-link }
+        sourceId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        sourceUrl:
+          type: string
+          format: uri
+          pattern: "^[Hh][Tt][Tt][Pp][Ss]://(?:[A-Za-z0-9-]+\\.)*[Uu][Mm][Nn]\\.[Ee][Dd][Uu](?::443)?(?:/[^@?#]*)?$"
+        licenseStatus: { type: string, const: DEEPLINK_ONLY }
+        sourceUse: { type: string, const: verification-link-only }
+        contentRetrieved: { type: boolean, const: false }
+    AiCitation:
+      type: object
+      additionalProperties: false
+      description: A project-authored summary and a separately identified official link where the user can verify it. The two nested source IDs must be different.
+      required:
+        [
+          id,
+          documentId,
+          campusId,
+          category,
+          title,
+          excerpt,
+          contentSha256,
+          updatedAt,
+          summaryFreshnessState,
+          summaryVerificationState,
+          summarySource,
+          verificationLink,
+        ]
+      properties:
+        id: { type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" }
+        documentId: { type: string, pattern: "^[a-z0-9][a-z0-9-]{2,127}$" }
+        campusId: { $ref: "#/components/schemas/CampusId" }
+        category: { $ref: "#/components/schemas/AiCitationCategory" }
+        title: { $ref: "#/components/schemas/AiBilingualText" }
         excerpt:
           type: string
           minLength: 1
           maxLength: 4000
           x-uga-semantic-validator: ai-evidence-text-v1
+        contentSha256: { type: string, pattern: "^[a-f0-9]{64}$" }
+        updatedAt: { type: string, format: date-time }
+        summaryFreshnessState:
+          type: string
+          enum: [FRESH, STALE, EXPIRED]
+        summaryVerificationState:
+          type: string
+          const: schematic
+          description: Link-only summaries cannot claim a reviewed or verified state without a review-evidence artifact.
+        summarySource: { $ref: "#/components/schemas/AiSummarySource" }
+        verificationLink: { $ref: "#/components/schemas/AiVerificationLink" }
     AiRetrieval:
       type: object
       additionalProperties: false
@@ -1539,14 +2783,17 @@ components:
         documentsConsidered: { type: integer, minimum: 0, maximum: 1000000 }
     AiQueryResponse:
       type: object
-      x-uga-semantic-validator: ai-query-response-v1
+      x-uga-semantic-validator: ai-query-response-v2
       additionalProperties: false
       description: |
         `answered`, `stale`, and `conflict` require evidence-backed paragraphs. Paragraph IDs, citation IDs,
         and each paragraph's citation IDs are unique; every reference resolves within the response; and every
-        citation campus matches `campusId`. Every citation is referenced and is neither retired nor UNKNOWN.
-        `no-results` has no paragraphs or citations, `answered` cites only FRESH evidence, `stale` cites only
-        STALE or EXPIRED evidence, and `conflict` has at least two distinct source IDs and content hashes.
+        citation campus matches `campusId`. Every citation is referenced, its authored-summary state is
+        `schematic`, and its summary freshness is not UNKNOWN. `no-results` has no paragraphs or citations,
+        `answered` cites only FRESH summaries,
+        `stale` cites only STALE or EXPIRED summaries, and `conflict` has at least two distinct authored document
+        IDs, official verification-link source IDs, and content hashes. Every citation in one response is bound
+        to the same authored-summary corpus SHA-256 snapshot.
       required: [state, queryId, campusId, locale, paragraphs, citations, retrieval]
       properties:
         state: { $ref: "#/components/schemas/AiQueryState" }

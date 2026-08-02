@@ -3,12 +3,13 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
-import { JoseAccessTokenVerifier, parseBearerToken } from "./auth.js";
+import { JoseAccessTokenVerifier, parseDpopAccessToken } from "./auth.js";
 import type { AccessTokenVerifier, VerifiedAccessIdentity } from "./auth.js";
 import { isPermittedProtocolVersion } from "./config.js";
 import type { McpServerConfig } from "./config.js";
 import { BoundedFixedWindowRateLimiter, ConcurrencyGate, resolveClientAddress } from "./limits.js";
 import { createProtocolServer, MCP_TOOL_CATALOG, McpToolService } from "./tools.js";
+import { DpopVerificationError, RedisDpopProofVerifier, type DpopProofVerifier } from "./dpop.js";
 
 const serviceName = "gopher-mcp-server";
 const serviceVersion = "0.1.0";
@@ -19,6 +20,7 @@ export interface McpServerLogger {
 
 export interface CreateMcpHttpApplicationOptions {
   readonly config: McpServerConfig;
+  readonly dpopVerifier?: DpopProofVerifier;
   readonly fetch?: typeof fetch;
   readonly logger?: McpServerLogger;
   readonly tokenVerifier?: AccessTokenVerifier;
@@ -30,6 +32,7 @@ export interface McpHttpApplication {
     readonly activeTransports: number;
     readonly rateLimitEntries: number;
   };
+  close(): Promise<void>;
   handle(request: IncomingMessage, response: ServerResponse): Promise<void>;
 }
 
@@ -79,7 +82,10 @@ function singleHeader(request: IncomingMessage, name: string): string | undefine
 
 function setCorsHeaders(response: ServerResponse, origin: string): void {
   response.setHeader("Access-Control-Allow-Origin", origin);
-  response.setHeader("Access-Control-Expose-Headers", "mcp-protocol-version, retry-after, www-authenticate");
+  response.setHeader(
+    "Access-Control-Expose-Headers",
+    "dpop-nonce, mcp-protocol-version, retry-after, www-authenticate",
+  );
   response.setHeader("Vary", "Origin");
 }
 
@@ -221,13 +227,16 @@ async function readJsonBody(request: IncomingMessage, config: McpServerConfig): 
   });
 }
 
-function bearerChallenge(config: McpServerConfig, invalid: boolean): string {
+function dpopChallenge(
+  config: McpServerConfig,
+  error?: "invalid_dpop_proof" | "invalid_token" | "use_dpop_nonce",
+): string {
   const parameters = [
     `resource_metadata="${config.resourceMetadataUrl.toString()}"`,
     `scope="${config.requiredScopes.join(" ")}"`,
   ];
-  if (invalid) parameters.push('error="invalid_token"');
-  return `Bearer ${parameters.join(", ")}`;
+  if (error !== undefined) parameters.push(`error="${error}"`);
+  return `DPoP ${parameters.join(", ")}`;
 }
 
 function protectedResourceMetadata(config: McpServerConfig): Record<string, unknown> {
@@ -242,7 +251,8 @@ function protectedResourceMetadata(config: McpServerConfig): Record<string, unkn
   }
   return {
     authorization_servers: [config.auth.authorizationServer],
-    bearer_methods_supported: ["header"],
+    bearer_methods_supported: [],
+    dpop_signing_alg_values_supported: ["ES256"],
     resource: config.resourceUrl.toString(),
     resource_name: "UMN Gopher Assistant MCP",
     scopes_supported: [...config.requiredScopes],
@@ -258,16 +268,44 @@ async function authenticate(
   response: ServerResponse,
   config: McpServerConfig,
   verifier: AccessTokenVerifier | undefined,
+  proofVerifier: DpopProofVerifier | undefined,
 ): Promise<AuthenticationOutcome> {
   if (config.auth.mode === "none") return { accepted: true };
   const authorization = singleHeader(request, "authorization");
   try {
-    const token = parseBearerToken(authorization);
-    if (verifier === undefined) throw new Error("Missing OAuth verifier");
+    const token = parseDpopAccessToken(authorization);
+    if (verifier === undefined || proofVerifier === undefined) {
+      throw new Error("Missing OAuth verifier");
+    }
     const identity = await verifier.verify(token);
+    const proof = singleHeader(request, "dpop");
+    if (proof === undefined) throw new DpopVerificationError("invalid");
+    await proofVerifier.verify({
+      accessToken: token,
+      identity,
+      method: request.method ?? "",
+      proof,
+    });
     return { accepted: true, identity };
-  } catch {
-    response.setHeader("WWW-Authenticate", bearerChallenge(config, authorization !== undefined));
+  } catch (error) {
+    if (error instanceof DpopVerificationError && error.kind === "unavailable") {
+      sendJsonBeforeBody(request, response, 503, {
+        error: "dpop_replay_protection_unavailable",
+      });
+      return { accepted: false };
+    }
+    const challengeError =
+      error instanceof DpopVerificationError
+        ? error.kind === "nonce"
+          ? "use_dpop_nonce"
+          : "invalid_dpop_proof"
+        : authorization === undefined
+          ? undefined
+          : "invalid_token";
+    response.setHeader("WWW-Authenticate", dpopChallenge(config, challengeError));
+    if (error instanceof DpopVerificationError && error.kind === "nonce" && error.nonce !== undefined) {
+      response.setHeader("DPoP-Nonce", error.nonce);
+    }
     sendJsonBeforeBody(request, response, 401, { error: "unauthorized" });
     return { accepted: false };
   }
@@ -278,6 +316,8 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
   const logger = options.logger ?? { error: () => undefined };
   const verifier =
     config.auth.mode === "oauth" ? (options.tokenVerifier ?? new JoseAccessTokenVerifier(config)) : undefined;
+  const proofVerifier =
+    config.auth.mode === "oauth" ? (options.dpopVerifier ?? new RedisDpopProofVerifier(config)) : undefined;
   const toolService = new McpToolService({
     apiBaseUrl: config.apiBaseUrl,
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
@@ -291,6 +331,9 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
   let activeTransports = 0;
 
   const application: McpHttpApplication = {
+    close: async () => {
+      await proofVerifier?.close?.();
+    },
     diagnostics: {
       get activeRequests() {
         return concurrencyGate.active;
@@ -379,6 +422,20 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
               sendEmptyBeforeBody(request, response, 405);
               return;
             }
+            let replayProtectionReady = true;
+            try {
+              replayProtectionReady = (await proofVerifier?.ready?.()) ?? true;
+            } catch {
+              replayProtectionReady = false;
+            }
+            if (!replayProtectionReady) {
+              sendJsonBeforeBody(request, response, 503, {
+                dependency: "dpop_replay_store",
+                service: serviceName,
+                status: "not_ready",
+              });
+              return;
+            }
             sendJsonBeforeBody(request, response, 200, {
               auth: config.auth.mode,
               service: serviceName,
@@ -408,7 +465,7 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             }
             response.setHeader(
               "Access-Control-Allow-Headers",
-              "authorization, content-type, mcp-protocol-version",
+              "authorization, content-type, dpop, mcp-protocol-version",
             );
             response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
             response.setHeader("Access-Control-Max-Age", "600");
@@ -434,7 +491,7 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
             });
             return;
           }
-          const authentication = await authenticate(request, response, config, verifier);
+          const authentication = await authenticate(request, response, config, verifier, proofVerifier);
           if (!authentication.accepted) return;
 
           if (authentication.identity !== undefined) {
@@ -443,13 +500,11 @@ export function createMcpHttpApplication(options: CreateMcpHttpApplicationOption
                 key: `subject:${authentication.identity.subject}`,
                 limit: config.limits.subjectRequestsPerWindow,
               },
-            ];
-            if (authentication.identity.clientId !== undefined) {
-              identityCharges.push({
+              {
                 key: `client:${authentication.identity.clientId}`,
                 limit: config.limits.clientRequestsPerWindow,
-              });
-            }
+              },
+            ];
             const identityDecision = rateLimiter.consume(identityCharges);
             if (!identityDecision.allowed) {
               sendRateLimited(request, response, identityDecision.retryAfterSeconds);
@@ -535,5 +590,8 @@ export function createMcpHttpServer(options: CreateMcpHttpApplicationOptions): {
   server.headersTimeout = 10_000;
   server.keepAliveTimeout = 5_000;
   server.requestTimeout = options.config.bodyTimeoutMs + options.config.upstreamTimeoutMs + 5_000;
+  server.once("close", () => {
+    void application.close();
+  });
   return { application, server };
 }

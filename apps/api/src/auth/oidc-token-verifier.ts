@@ -4,7 +4,8 @@ import type { JWTPayload, JWTVerifyGetKey } from "jose";
 
 import type { ApiRuntimeConfig } from "../runtime-config.js";
 import { API_RUNTIME_CONFIG, OIDC_KEY_RESOLVER } from "./auth.tokens.js";
-import type { AccessTokenVerifier, AuthPrincipal } from "./auth.types.js";
+import type { AccessTokenVerifier, VerifiedAccessToken } from "./auth.types.js";
+import { isBoundedJwtString } from "./jwt-string.js";
 
 const ACCESS_TOKEN_ALGORITHMS = ["RS256"] as const;
 const ACCESS_TOKEN_TYPE = "at+jwt";
@@ -13,9 +14,9 @@ const MAX_ACCESS_TOKEN_LENGTH = 16_384;
 const MAX_SCOPE_CLAIM_LENGTH = 2_048;
 const MAX_SCOPE_COUNT = 64;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9._~:-]{1,128}$/u;
+const JWK_THUMBPRINT_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 // JWT ID is a case-sensitive string under RFC 7519. Keep it bounded and
 // URI-safe while accepting issuer formats such as `urn:uuid:<uuid>`.
-const JTI_PATTERN = /^[A-Za-z0-9._~:-]{8,128}$/u;
 const SCOPE_CLAIM_PATTERN = /^[\x21\x23-\x5b\x5d-\x7e]+(?: [\x21\x23-\x5b\x5d-\x7e]+)*$/u;
 
 export class AccessTokenValidationError extends Error {
@@ -65,6 +66,22 @@ function parseClientId(payload: JWTPayload, allowedClientIds: readonly string[])
   return clientId;
 }
 
+function parseDpopThumbprint(payload: JWTPayload): string {
+  const confirmation = payload["cnf"];
+  if (typeof confirmation !== "object" || confirmation === null || Array.isArray(confirmation)) {
+    throw new AccessTokenValidationError();
+  }
+  const thumbprint = (confirmation as { readonly jkt?: unknown }).jkt;
+  if (
+    typeof thumbprint !== "string" ||
+    !JWK_THUMBPRINT_PATTERN.test(thumbprint) ||
+    Buffer.from(thumbprint, "base64url").toString("base64url") !== thumbprint
+  ) {
+    throw new AccessTokenValidationError();
+  }
+  return thumbprint;
+}
+
 @Injectable()
 export class JoseOidcTokenVerifier implements AccessTokenVerifier {
   constructor(
@@ -72,7 +89,7 @@ export class JoseOidcTokenVerifier implements AccessTokenVerifier {
     @Inject(OIDC_KEY_RESOLVER) private readonly keyResolver: JWTVerifyGetKey,
   ) {}
 
-  async verify(token: string): Promise<AuthPrincipal> {
+  async verify(token: string): Promise<VerifiedAccessToken> {
     if (token.length < 32 || token.length > MAX_ACCESS_TOKEN_LENGTH) {
       throw new AccessTokenValidationError();
     }
@@ -108,15 +125,17 @@ export class JoseOidcTokenVerifier implements AccessTokenVerifier {
       ) {
         throw new AccessTokenValidationError();
       }
-      if (typeof payload.sub !== "string" || payload.sub.length === 0 || payload.sub.length > 512) {
+      if (!isBoundedJwtString(payload.sub, 512)) {
         throw new AccessTokenValidationError();
       }
-      if (typeof payload.jti !== "string" || !JTI_PATTERN.test(payload.jti)) {
+      if (!isBoundedJwtString(payload.jti, 256)) {
         throw new AccessTokenValidationError();
       }
 
       return Object.freeze({
         clientId: parseClientId(payload, this.config.oidc.allowedClientIds),
+        dpopJkt: parseDpopThumbprint(payload),
+        issuer: this.config.oidc.issuer,
         scopes: parseScopes(payload),
         subject: payload.sub,
       });
@@ -126,11 +145,11 @@ export class JoseOidcTokenVerifier implements AccessTokenVerifier {
   }
 }
 
-export function parseBearerToken(value: string | undefined): string {
+export function parseDpopAuthorization(value: string | undefined): string {
   if (value === undefined || value.length > MAX_ACCESS_TOKEN_LENGTH + 7) {
     throw new AccessTokenValidationError();
   }
-  const match = /^Bearer ([A-Za-z0-9._~-]+)$/u.exec(value);
+  const match = /^dpop +([A-Za-z0-9._~-]+)$/iu.exec(value);
   if (match?.[1] === undefined) throw new AccessTokenValidationError();
   return match[1];
 }

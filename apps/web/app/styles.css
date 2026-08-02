@@ -350,6 +350,30 @@ kbd,
   backdrop-filter: blur(12px);
 }
 
+.auth-status-control,
+.auth-status-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+}
+
+.auth-status-label {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.status-dot.is-private {
+  background: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.auth-status-action {
+  min-height: 2.25rem;
+  padding: 0.42rem 0.65rem;
+  white-space: nowrap;
+}
+
 .mobile-brand {
   display: none;
 }
@@ -1208,6 +1232,57 @@ legend {
   margin-block-start: var(--space-4);
 }
 
+.vault-sync-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.vault-sync-panel h3,
+.vault-sync-panel p {
+  margin: 0;
+}
+
+.vault-sync-panel fieldset {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0 0 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.vault-pairing-code {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.vault-pairing-code output {
+  font:
+    700 1.3rem/1.2 ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  letter-spacing: 0.12em;
+}
+
+.vault-pairing-request {
+  align-items: flex-start;
+  min-height: 2.75rem;
+  overflow-wrap: anywhere;
+}
+
+.vault-pairing-request small {
+  display: block;
+  margin-top: 0.25rem;
+}
+
 .vault-actions .fine-print {
   width: 100%;
   margin: 0;
@@ -1557,6 +1632,10 @@ legend {
   background: var(--color-surface-raised);
 }
 
+.answer-panel-schematic {
+  border-inline-start-color: var(--color-warning);
+}
+
 .answer-heading {
   align-items: start;
   padding-block-end: var(--space-4);
@@ -1588,6 +1667,11 @@ legend {
   color: var(--color-success);
 }
 
+.ai-state-schematic {
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface));
+  color: var(--color-warning);
+}
+
 .ai-state-stale {
   color: var(--color-warning);
 }
@@ -1601,6 +1685,18 @@ legend {
   padding-block: var(--space-3);
   font-size: 1.02rem;
   line-height: 1.72;
+}
+
+.schematic-disclosure {
+  margin-block-start: var(--space-4);
+}
+
+.answer-panel .notice > p {
+  margin-block: 0;
+}
+
+.answer-panel .notice > p + p {
+  margin-block-start: var(--space-2);
 }
 
 .answer-copy,
@@ -1661,7 +1757,7 @@ legend {
   min-width: 0;
   padding: var(--space-4);
   border: 1px solid var(--color-line);
-  border-block-start: 4px solid var(--color-lake);
+  border-block-start: 4px solid var(--color-warning);
   background: var(--color-surface);
   scroll-margin-block: 6rem;
 }
@@ -1734,9 +1830,14 @@ legend {
 
 .citation-link {
   width: 100%;
-  margin-block-start: var(--space-4);
   overflow-wrap: anywhere;
   text-align: center;
+}
+
+.citation-actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
 }
 
 .model-settings {
@@ -2146,6 +2247,10 @@ legend {
   }
 
   .campus-context {
+    display: none;
+  }
+
+  .auth-status-label {
     display: none;
   }
 

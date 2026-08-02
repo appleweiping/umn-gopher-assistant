@@ -13,7 +13,7 @@ The server exposes these HTTP routes:
 | ----------------------------------------------- | ---------------------------------------------------------- |
 | `POST /mcp`                                     | Stateless Streamable HTTP MCP endpoint                     |
 | `GET /healthz`                                  | Process liveness                                           |
-| `GET /readyz`                                   | Configuration and tool-catalog readiness                   |
+| `GET /readyz`                                   | Configuration, tool catalog, and replay-store readiness    |
 | `GET /.well-known/oauth-protected-resource/mcp` | Canonical, path-aware RFC 9728 protected-resource metadata |
 
 Only three MCP tools are registered. Each is generated-contract-backed,
@@ -28,10 +28,11 @@ Events, community, messages, AI, live events, and administrative operations
 are deliberately absent while their Core API operations remain contract-only.
 There is no generic HTTP execution tool.
 
-An inbound MCP bearer token is verified for this exact MCP resource and is
-then discarded. It is never passed to the Core API. These three public Core API
-requests use an SDK client with no access-token provider, and a defensive fetch
-guard rejects any downstream `Authorization` header.
+An inbound MCP DPoP-bound access token and fresh proof are verified for this
+exact MCP resource and are then discarded. Bearer fallback is rejected. The
+token is never passed to the Core API. These three public Core API requests use
+an SDK client with no access-token provider, and a defensive fetch guard rejects
+any downstream `Authorization` header.
 
 ## Local OAuth mode
 
@@ -87,6 +88,8 @@ and non-loopback HTTP endpoints are rejected.
 | `MCP_OAUTH_ISSUER`                | Local synthetic Keycloak issuer | Exact JWT issuer; required explicitly in production               |
 | `MCP_AUTHORIZATION_SERVER`        | Issuer                          | RFC 9728 authorization-server entry                               |
 | `MCP_OAUTH_JWKS_URL`              | Keycloak realm JWKS endpoint    | Same-origin JWKS endpoint                                         |
+| `MCP_ALLOWED_CLIENT_IDS`          | `gopher-mcp`                    | Exact comma-separated OAuth client allowlist                      |
+| `MCP_DPOP_REDIS_URL`              | Passworded loopback Redis       | Dedicated replay/nonce store; production requires `rediss`        |
 | `MCP_AUTHORIZATION_SPEC_VERSION`  | `2025-03-26`                    | Claimed authorization-spec revision                               |
 | `MCP_RFC8707_REVIEWED`            | `false`                         | Security-review gate for revisions newer than `2025-03-26`        |
 | `GOPHER_API_BASE_URL`             | `http://127.0.0.1:4000/`        | Core API base URL                                                 |
@@ -113,6 +116,8 @@ MCP_ALLOWED_ORIGINS=https://assistant.example.edu
 MCP_OAUTH_ISSUER=https://identity.example.edu/realms/gopher
 MCP_AUTHORIZATION_SERVER=https://identity.example.edu/realms/gopher
 MCP_OAUTH_JWKS_URL=https://identity.example.edu/realms/gopher/protocol/openid-connect/certs
+MCP_ALLOWED_CLIENT_IDS=gopher-mcp
+MCP_DPOP_REDIS_URL=rediss://:replace-with-secret@redis.internal.example.edu:6379
 GOPHER_API_BASE_URL=https://api.assistant.example.edu/
 ```
 
@@ -121,6 +126,17 @@ bodies, and avoid rewriting the canonical `/mcp` resource. It must also apply
 a shared/distributed rate limiter across replicas and to the inexpensive
 health and metadata routes. The built-in per-process limiter is fail-closed
 defense in depth; it is not a replacement for the proxy or gateway control.
+That distributed pre-auth gate is mandatory because an invalid token has no
+trustworthy subject for a subject-keyed limiter.
+
+DPoP nonce and replay state fail closed in a password-authenticated dedicated
+Redis deployment. Connection, command, queue, and Lua evaluation waits are
+bounded; an unavailable or saturated store returns `503` and never degrades to
+Bearer or unchecked proofs. Production requires TLS via `rediss`, memory
+headroom and alerts, and `maxmemory-policy noeviction` so live replay keys are
+not silently discarded. `/healthz` remains process liveness, while `/readyz`
+performs a bounded Redis check and returns `503` so an orchestrator removes an
+instance that cannot enforce replay protection.
 
 `X-Forwarded-For` is ignored by default. Add only the exact IP addresses of
 reviewed immediate proxies to `MCP_TRUSTED_PROXY_IPS`; never add public client
@@ -134,17 +150,27 @@ similar issuer identifier.
 
 ## Keycloak and RFC 8707 release gate
 
-The repository currently pins Keycloak 26.5.5. That version can support the
-MCP authorization specification dated `2025-03-26`, but it does not implement
-RFC 8707 Resource Indicators and therefore must not be presented as fully
-compatible with the `2025-06-18` or `2025-11-25` authorization revisions.
+The repository pins Keycloak 26.7.0 by tag and multi-architecture index digest.
+Keycloak's own MCP guide says it supports the authorization specification dated
+`2025-03-26`, but still does not implement RFC 8707 Resource Indicators or
+recognize the required `resource` parameter. It is therefore only partially
+compatible with the `2025-06-18` and `2025-11-25` authorization revisions.
 
 `MCP_AUTHORIZATION_SPEC_VERSION=2025-06-18` or `2025-11-25` makes startup fail
 unless `MCP_RFC8707_REVIEWED=true`. That flag is evidence of a completed
 security review of an upgraded authorization server or enforcing gateway; it
-is not a compatibility switch for unmodified Keycloak 26.5.5. Exact issuer,
-signature, expiry, not-before time, audience, and scope checks still apply to
-every bearer token in all OAuth configurations.
+is not a compatibility switch for Keycloak 26.7.0. Exact issuer, signature,
+expiry, not-before time, audience, scope, `cnf.jkt`, and DPoP proof checks still
+apply to every protected request.
+
+Keycloak 26.7 includes experimental OAuth Client ID Metadata Document (CIMD)
+support, but this Compose realm does not enable the `cimd` feature or install a
+CIMD client policy. CIMD does not implement RFC 8707. The local `gopher-mcp`
+client additionally requires `dpop_jkt` during authorization and DPoP proof at
+the token and refresh endpoints. Generic MCP clients without those DPoP
+capabilities are intentionally incompatible; fixed client registration, PKCE,
+or experimental CIMD support must not be described as universal MCP-client
+interoperability.
 
 ## HTTP and error behavior
 
@@ -195,14 +221,24 @@ pnpm test:mcp:oauth
 ```
 
 Tests use injected fetch functions or local signing keys and make no external
-network request. They cover startup gates, JWT issuer/signature/audience/scope/
-expiry/not-before failures, discovery and challenges, HTTP boundaries, exact
-tool catalog, structured output, downstream credential absence, redacted
-errors, future write confirmation policy, and transport cleanup.
+network request. They cover startup gates, JWT issuer/signature/audience/client/
+scope/expiry/not-before failures, DPoP proof and nonce boundaries, discovery
+and challenges, HTTP boundaries, exact tool catalog, structured output,
+downstream credential absence, redacted errors, future write confirmation
+policy, and transport cleanup. The opt-in DPoP integration test uses the local
+Compose Redis to prove nonce issuance, acceptance, and replay rejection.
 
-With the compiled API/MCP packages and local Keycloak running, set both local
-administrator environment variables and run `pnpm smoke:mcp:oauth` from the
-repository root. This opt-in smoke uses two disposable same-realm clients to
-prove exact MCP-vs-API audience separation against live JWKS verification and
-the real five-campus API. It handles interruption with bounded cleanup, deletes
-both clients, closes both listeners, and never prints credentials or tokens.
+With the compiled API/MCP packages and local Compose Redis running, execute
+`pnpm smoke:mcp:oauth` from the repository root. It starts an ephemeral
+loopback issuer/JWKS fixture and the real API/MCP processes, then proves exact
+MCP-vs-API audience separation, Bearer and wrong-key rejection, a nonce retry,
+proof replay rejection, and the real five-campus tool output against Redis. It
+closes all three listeners and never prints credentials or tokens.
+
+Run `pnpm smoke:identity:device` separately with the documented local
+administrator environment variables to exercise the checked-in `gopher-web`,
+`gopher-cli`, and `gopher-mcp` public clients against live Keycloak. That
+headless smoke proves authorization-code/device token and refresh DPoP binding;
+the strict resource smoke above deliberately uses a local signing fixture so it
+does not create confidential service-account clients that bypass the public
+client policy.

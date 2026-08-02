@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID, sign as signData } from "node:crypto";
 import { access } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
 const apiPort = 4000;
 const mcpPort = 4100;
-const apiBaseUrl = new URL(`http://127.0.0.1:${apiPort}/`);
-const mcpResourceUrl = new URL(`http://127.0.0.1:${mcpPort}/mcp`);
+const fixtureIssuerPort = 4200;
+const apiBaseUrl = new URL(`http://127.0.0.1:${String(apiPort)}/`);
+const mcpResourceUrl = new URL(`http://127.0.0.1:${String(mcpPort)}/mcp`);
 const requestTimeoutMilliseconds = 10_000;
 const startupTimeoutMilliseconds = 90_000;
 const shutdownGraceMilliseconds = 5_000;
@@ -55,32 +57,104 @@ function invariant(condition, message) {
   if (!condition) throw new SmokeError(message);
 }
 
-function requiredEnvironmentPair(leftName, rightName) {
-  const left = process.env[leftName];
-  const right = process.env[rightName];
-  invariant(
-    typeof left === "string" && left.length > 0 && typeof right === "string" && right.length > 0,
-    `Set both ${leftName} and ${rightName} to run this opt-in smoke test`,
-  );
-  return [left, right];
+function base64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
 
-function loopbackBaseUrl(value) {
-  const url = new URL(value);
+export function createDpopKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", {
+    namedCurve: "prime256v1",
+  });
+  const publicJwk = publicKey.export({ format: "jwk" });
   invariant(
-    url.protocol === "http:" || url.protocol === "https:",
-    "IDENTITY_BASE_URL must use HTTP or HTTPS",
+    publicJwk.kty === "EC" &&
+      publicJwk.crv === "P-256" &&
+      typeof publicJwk.x === "string" &&
+      typeof publicJwk.y === "string" &&
+      publicJwk.d === undefined,
+    "Generated smoke DPoP key is not a public P-256 JWK",
   );
-  invariant(
-    url.hostname === "localhost" || url.hostname === "[::1]" || /^127(?:\.\d{1,3}){3}$/u.test(url.hostname),
-    "This local smoke test requires a loopback IDENTITY_BASE_URL",
-  );
-  invariant(
-    !url.username && !url.password && !url.search && !url.hash,
-    "IDENTITY_BASE_URL must not contain credentials, query, or fragment",
-  );
-  if (!url.pathname.endsWith("/")) url.pathname += "/";
-  return url;
+  const thumbprint = createHash("sha256")
+    .update(
+      JSON.stringify({
+        crv: publicJwk.crv,
+        kty: publicJwk.kty,
+        x: publicJwk.x,
+        y: publicJwk.y,
+      }),
+      "utf8",
+    )
+    .digest("base64url");
+  return { privateKey, publicJwk, thumbprint };
+}
+
+export function createFixtureSigningKey() {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2_048,
+  });
+  return {
+    privateKey,
+    publicJwk: {
+      ...publicKey.export({ format: "jwk" }),
+      alg: "RS256",
+      kid: "mcp-smoke-signing-key",
+      use: "sig",
+    },
+  };
+}
+
+export function createFixtureAccessToken({
+  audience,
+  clientId = "gopher-mcp",
+  dpopJkt,
+  issuer,
+  signingKey,
+  subject = "mcp-smoke-subject",
+}) {
+  const now = Math.floor(Date.now() / 1_000);
+  const header = {
+    alg: "RS256",
+    kid: signingKey.publicJwk.kid,
+    typ: "at+jwt",
+  };
+  const payload = {
+    aud: audience,
+    azp: clientId,
+    cnf: { jkt: dpopJkt },
+    exp: now + 300,
+    iat: now,
+    iss: issuer,
+    jti: randomUUID(),
+    nbf: now - 1,
+    scope: "campus:read",
+    sub: subject,
+  };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
+  const signature = signData("RSA-SHA256", Buffer.from(signingInput, "ascii"), signingKey.privateKey);
+  return `${signingInput}.${signature.toString("base64url")}`;
+}
+
+export function createResourceDpopProof({ accessToken, key, nonce, url = mcpResourceUrl }) {
+  const header = {
+    alg: "ES256",
+    jwk: key.publicJwk,
+    typ: "dpop+jwt",
+  };
+  const payload = {
+    ath: createHash("sha256").update(accessToken, "ascii").digest("base64url"),
+    htm: "POST",
+    htu: url.toString(),
+    iat: Math.floor(Date.now() / 1_000),
+    jti: randomUUID(),
+    ...(nonce === undefined ? {} : { nonce }),
+  };
+  const signingInput = `${base64UrlJson(header)}.${base64UrlJson(payload)}`;
+  const signature = signData(null, Buffer.from(signingInput, "ascii"), {
+    dsaEncoding: "ieee-p1363",
+    key: key.privateKey,
+  });
+  invariant(signature.length === 64, "Generated smoke DPoP signature has the wrong length");
+  return `${signingInput}.${signature.toString("base64url")}`;
 }
 
 async function request(url, init = {}) {
@@ -106,15 +180,9 @@ async function readJson(response, label, expectedStatuses = [200]) {
   }
 }
 
-function requiredString(record, key, label) {
-  const value = record?.[key];
-  invariant(typeof value === "string" && value.length > 0, `${label} is missing ${key}`);
-  return value;
-}
-
 async function assertPortFree(port) {
   await new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createNetServer();
     server.unref();
     server.once("error", () => reject(new SmokeError(`Loopback port ${String(port)} is already in use`)));
     server.listen(port, "127.0.0.1", () => {
@@ -145,7 +213,7 @@ function isSensitiveEnvironmentKey(key) {
   );
 }
 
-function childEnvironment(overrides, inheritedEnvironment = process.env) {
+export function childEnvironment(overrides, inheritedEnvironment = process.env) {
   const environment = {};
   for (const [key, value] of Object.entries(inheritedEnvironment)) {
     if (value !== undefined && !isSensitiveEnvironmentKey(key)) environment[key] = value;
@@ -185,7 +253,7 @@ async function spawnRuntime(relativeEntryPoint, environment) {
   return child;
 }
 
-function assertRuntimeRunning(child) {
+export function assertRuntimeRunning(child) {
   invariant(!runtimeErrors.has(child), "A compiled smoke-test runtime emitted an error");
   invariant(child.exitCode === null, "A compiled smoke-test runtime exited unexpectedly");
   invariant(child.signalCode === null, "A compiled smoke-test runtime was terminated by a signal");
@@ -222,7 +290,7 @@ async function waitForRuntimeExit(child, timeoutMilliseconds) {
   });
 }
 
-async function stopRuntime(
+export async function stopRuntime(
   child,
   { graceMilliseconds = shutdownGraceMilliseconds, killMilliseconds = shutdownKillMilliseconds } = {},
 ) {
@@ -236,153 +304,33 @@ async function stopRuntime(
   );
 }
 
-async function authenticateAdmin(identityBaseUrl, username, password) {
-  const response = await request(new URL("realms/master/protocol/openid-connect/token", identityBaseUrl), {
-    body: new URLSearchParams({ client_id: "admin-cli", grant_type: "password", password, username }),
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    method: "POST",
+async function startFixtureIssuer(publicJwk) {
+  const server = createHttpServer((incoming, response) => {
+    if (incoming.method === "GET" && incoming.url === "/jwks") {
+      response.writeHead(200, {
+        "cache-control": "no-store",
+        "content-type": "application/json",
+      });
+      response.end(JSON.stringify({ keys: [publicJwk] }));
+      return;
+    }
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: "not_found" }));
   });
-  const body = await readJson(response, "Keycloak administrator authentication");
-  return requiredString(body, "access_token", "Keycloak administrator authentication");
-}
-
-function adminHeaders(accessToken) {
-  return { authorization: `Bearer ${accessToken}` };
-}
-
-function temporaryClientIdentity(purpose) {
-  return {
-    clientId: `mcp-oauth-smoke-${purpose}-${randomUUID().replaceAll("-", "")}`,
-    clientSecret: randomBytes(48).toString("base64url"),
-    internalId: undefined,
-  };
-}
-
-async function createTemporaryClient(identityBaseUrl, realm, accessToken, temporaryClient) {
-  const { clientId, clientSecret } = temporaryClient;
-  const clientsUrl = new URL(`admin/realms/${encodeURIComponent(realm)}/clients`, identityBaseUrl);
-  const createResponse = await request(clientsUrl, {
-    body: JSON.stringify({
-      bearerOnly: false,
-      clientAuthenticatorType: "client-secret",
-      clientId,
-      defaultClientScopes: [],
-      directAccessGrantsEnabled: false,
-      enabled: true,
-      fullScopeAllowed: false,
-      implicitFlowEnabled: false,
-      optionalClientScopes: [],
-      protocol: "openid-connect",
-      publicClient: false,
-      secret: clientSecret,
-      serviceAccountsEnabled: true,
-      standardFlowEnabled: false,
-    }),
-    headers: { ...adminHeaders(accessToken), "content-type": "application/json" },
-    method: "POST",
+  await new Promise((resolve, reject) => {
+    const onError = () => reject(new SmokeError("Fixture issuer could not start"));
+    server.once("error", onError);
+    server.listen(fixtureIssuerPort, "127.0.0.1", () => {
+      server.off("error", onError);
+      resolve();
+    });
   });
-  invariant(
-    createResponse.status === 201,
-    `Temporary client creation returned HTTP ${String(createResponse.status)}`,
-  );
-
-  const lookupUrl = new URL(clientsUrl);
-  lookupUrl.search = new URLSearchParams({ clientId, exact: "true" }).toString();
-  const clients = await readJson(
-    await request(lookupUrl, { headers: adminHeaders(accessToken) }),
-    "Temporary client lookup",
-  );
-  invariant(Array.isArray(clients) && clients.length === 1, "Temporary client lookup was not exact");
-  const internalId = requiredString(clients[0], "id", "Temporary client lookup");
-  return { clientId, clientSecret, internalId };
+  return server;
 }
 
-async function linkClientScopes(identityBaseUrl, realm, accessToken, clientInternalId, scopeNames) {
-  const scopes = await readJson(
-    await request(new URL(`admin/realms/${encodeURIComponent(realm)}/client-scopes`, identityBaseUrl), {
-      headers: adminHeaders(accessToken),
-    }),
-    "Keycloak client-scope lookup",
-  );
-  invariant(Array.isArray(scopes), "Keycloak client-scope lookup did not return an array");
-  for (const scopeName of scopeNames) {
-    const matches = scopes.filter((scope) => scope?.name === scopeName);
-    invariant(matches.length === 1, `Keycloak is missing the exact ${scopeName} client scope`);
-    const scopeId = requiredString(matches[0], "id", `${scopeName} client scope`);
-    const response = await request(
-      new URL(
-        `admin/realms/${encodeURIComponent(realm)}/clients/${encodeURIComponent(clientInternalId)}/default-client-scopes/${encodeURIComponent(scopeId)}`,
-        identityBaseUrl,
-      ),
-      {
-        body: "{}",
-        headers: { ...adminHeaders(accessToken), "content-type": "application/json" },
-        method: "PUT",
-      },
-    );
-    invariant(
-      response.status === 204,
-      `${scopeName} client-scope linkage returned HTTP ${String(response.status)}`,
-    );
-  }
-}
-
-async function lookupTemporaryClients(identityBaseUrl, realm, accessToken, clientId) {
-  const lookupUrl = new URL(`admin/realms/${encodeURIComponent(realm)}/clients`, identityBaseUrl);
-  lookupUrl.search = new URLSearchParams({ clientId, exact: "true" }).toString();
-  const clients = await readJson(
-    await request(lookupUrl, { headers: adminHeaders(accessToken) }),
-    "Temporary client cleanup lookup",
-  );
-  invariant(Array.isArray(clients) && clients.length <= 1, "Temporary client cleanup lookup was not unique");
-  return clients;
-}
-
-async function deleteTemporaryClient(identityBaseUrl, realm, accessToken, temporaryClient) {
-  let clientInternalId = temporaryClient.internalId;
-  if (clientInternalId === undefined) {
-    const clients = await lookupTemporaryClients(
-      identityBaseUrl,
-      realm,
-      accessToken,
-      temporaryClient.clientId,
-    );
-    if (clients.length === 0) return;
-    clientInternalId = requiredString(clients[0], "id", "Temporary client cleanup lookup");
-  }
-  const response = await request(
-    new URL(
-      `admin/realms/${encodeURIComponent(realm)}/clients/${encodeURIComponent(clientInternalId)}`,
-      identityBaseUrl,
-    ),
-    { headers: adminHeaders(accessToken), method: "DELETE" },
-  );
-  invariant(
-    response.status === 204 || response.status === 404,
-    `Temporary client deletion returned HTTP ${String(response.status)}`,
-  );
-}
-
-async function assertTemporaryClientAbsent(identityBaseUrl, realm, accessToken, temporaryClient) {
-  const clients = await lookupTemporaryClients(identityBaseUrl, realm, accessToken, temporaryClient.clientId);
-  invariant(clients.length === 0, "A temporary smoke-test client remains in Keycloak");
-}
-
-async function issueResourceToken(identityBaseUrl, realm, temporaryClient) {
-  const response = await request(
-    new URL(`realms/${encodeURIComponent(realm)}/protocol/openid-connect/token`, identityBaseUrl),
-    {
-      body: new URLSearchParams({
-        client_id: temporaryClient.clientId,
-        client_secret: temporaryClient.clientSecret,
-        grant_type: "client_credentials",
-      }),
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      method: "POST",
-    },
-  );
-  const body = await readJson(response, "MCP resource-token issuance");
-  return requiredString(body, "access_token", "MCP resource-token issuance");
+async function stopHttpServer(server) {
+  if (server === undefined || !server.listening) return;
+  await new Promise((resolve) => server.close(() => resolve()));
 }
 
 function decodeJwtPayload(token) {
@@ -404,7 +352,7 @@ function normalizeStringClaim(value, label) {
   return values;
 }
 
-function assertResourceClaims(payload, issuer, expectedAudience) {
+export function assertResourceClaims(payload, issuer, expectedAudience) {
   invariant(payload.iss === issuer, "Issued resource token has the wrong issuer");
   const scopes =
     typeof payload.scope === "string" ? payload.scope.trim().split(/\s+/u).filter(Boolean).sort() : [];
@@ -432,12 +380,17 @@ function initializePayload() {
   };
 }
 
-async function invokeMcp(payload, accessToken) {
+async function invokeMcp(payload, { accessToken, key, nonce, proof, scheme = "DPoP" } = {}) {
   const headers = {
     accept: "application/json, text/event-stream",
     "content-type": "application/json",
     "mcp-protocol-version": "2025-03-26",
-    ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
+    ...(accessToken === undefined ? {} : { authorization: `${scheme} ${accessToken}` }),
+    ...(proof === undefined && accessToken !== undefined && key !== undefined
+      ? { dpop: createResourceDpopProof({ accessToken, key, nonce }) }
+      : proof === undefined
+        ? {}
+        : { dpop: proof }),
   };
   return request(mcpResourceUrl, {
     body: JSON.stringify(payload),
@@ -446,7 +399,7 @@ async function invokeMcp(payload, accessToken) {
   });
 }
 
-function assertCampusToolResult(called) {
+export function assertCampusToolResult(called) {
   const structuredContent = called?.result?.structuredContent;
   const campuses = structuredContent?.campuses;
   invariant(Array.isArray(campuses), "MCP campus tool did not return a campus array");
@@ -465,7 +418,7 @@ function assertCampusToolResult(called) {
   );
 }
 
-function assertWorldToolResult(called, campusId) {
+export function assertWorldToolResult(called, campusId) {
   const structuredContent = called?.result?.structuredContent;
   invariant(
     structuredContent?.manifest?.campusId === campusId,
@@ -484,135 +437,140 @@ function assertWorldToolResult(called, campusId) {
 }
 
 export async function runMcpOauthSmoke() {
-  const [adminUsername, adminPassword] = requiredEnvironmentPair("KEYCLOAK_ADMIN", "KEYCLOAK_ADMIN_PASSWORD");
-  const identityBaseUrl = loopbackBaseUrl(process.env.IDENTITY_BASE_URL ?? "http://127.0.0.1:8080/");
-  const realm = process.env.IDENTITY_REALM ?? "gopher-assistant-dev";
-  const issuer = new URL(`realms/${encodeURIComponent(realm)}`, identityBaseUrl).toString();
-  let adminAccessToken;
+  const fixtureIssuer = `http://127.0.0.1:${String(fixtureIssuerPort)}/issuer`;
+  const fixtureJwksUrl = `http://127.0.0.1:${String(fixtureIssuerPort)}/jwks`;
+  const signingKey = createFixtureSigningKey();
+  const proofKey = createDpopKey();
+  const wrongProofKey = createDpopKey();
+  const smokeSubject = `mcp-smoke-${randomUUID()}`;
   let apiRuntime;
   let mcpRuntime;
-  const temporaryClients = [];
+  let issuerRuntime;
   let primaryFailure;
   let result;
-  let cleanupPromise;
 
-  const assertNotShuttingDown = () => {
-    invariant(requestedShutdownSignal === undefined, "MCP OAuth smoke interrupted by a shutdown signal");
-  };
-  const cleanup = () => {
-    cleanupPromise ??= (async () => {
-      const cleanupFailures = [];
-      let cleanupAccessToken = adminAccessToken;
-      if (temporaryClients.length > 0) {
-        try {
-          cleanupAccessToken = await authenticateAdmin(identityBaseUrl, adminUsername, adminPassword);
-        } catch {
-          // The token obtained by the primary path is still a valid bounded fallback.
-        }
-      }
-      await Promise.all(
-        [...temporaryClients].reverse().map(async (temporaryClient) => {
-          try {
-            invariant(cleanupAccessToken !== undefined, "Administrator token is unavailable during cleanup");
-            await deleteTemporaryClient(identityBaseUrl, realm, cleanupAccessToken, temporaryClient);
-            await assertTemporaryClientAbsent(identityBaseUrl, realm, cleanupAccessToken, temporaryClient);
-          } catch {
-            cleanupFailures.push(`temporary client ${temporaryClient.clientId}`);
-          }
-        }),
-      );
-      try {
-        await stopRuntime(mcpRuntime);
-      } catch {
-        cleanupFailures.push("MCP runtime");
-      }
-      try {
-        await stopRuntime(apiRuntime);
-      } catch {
-        cleanupFailures.push("API runtime");
-      }
-      try {
-        await Promise.all([assertPortEventuallyFree(apiPort), assertPortEventuallyFree(mcpPort)]);
-      } catch {
-        cleanupFailures.push("loopback listeners");
-      }
-      invariant(cleanupFailures.length === 0, "MCP OAuth smoke cleanup failed");
-    })();
-    return cleanupPromise;
-  };
   try {
-    assertNotShuttingDown();
-    await Promise.all([assertPortFree(apiPort), assertPortFree(mcpPort)]);
-    apiRuntime = await spawnRuntime("apps/api/dist/main.js", { HOST: "127.0.0.1", PORT: String(apiPort) });
+    invariant(requestedShutdownSignal === undefined, "MCP OAuth smoke interrupted before startup");
+    await Promise.all([apiPort, mcpPort, fixtureIssuerPort].map((port) => assertPortFree(port)));
+    issuerRuntime = await startFixtureIssuer(signingKey.publicJwk);
+    apiRuntime = await spawnRuntime("apps/api/dist/main.js", {
+      HOST: "127.0.0.1",
+      NODE_ENV: "test",
+      PORT: String(apiPort),
+    });
     await waitForHealthy(new URL("v1/health", apiBaseUrl), apiRuntime);
-    assertNotShuttingDown();
     mcpRuntime = await spawnRuntime("apps/mcp-server/dist/index.js", {
       GOPHER_API_BASE_URL: apiBaseUrl.toString(),
+      MCP_ALLOWED_CLIENT_IDS: "gopher-mcp",
       MCP_ALLOWED_ORIGINS: mcpResourceUrl.origin,
       MCP_AUTH_MODE: "oauth",
       MCP_BIND_HOST: "127.0.0.1",
+      MCP_DPOP_REDIS_URL:
+        process.env.MCP_DPOP_REDIS_URL ?? "redis://:local-redis-password-only@127.0.0.1:6379",
       MCP_EXPECTED_HOST: mcpResourceUrl.host,
-      MCP_OAUTH_ISSUER: issuer,
-      MCP_OAUTH_JWKS_URL: `${issuer}/protocol/openid-connect/certs`,
+      MCP_OAUTH_ISSUER: fixtureIssuer,
+      MCP_OAUTH_JWKS_URL: fixtureJwksUrl,
       MCP_PORT: String(mcpPort),
       MCP_RESOURCE_URL: mcpResourceUrl.toString(),
+      NODE_ENV: "test",
     });
     await waitForHealthy(new URL("/readyz", mcpResourceUrl), mcpRuntime);
-    assertNotShuttingDown();
 
-    adminAccessToken = await authenticateAdmin(identityBaseUrl, adminUsername, adminPassword);
-    const mcpClient = temporaryClientIdentity("mcp");
-    temporaryClients.push(mcpClient);
-    Object.assign(
-      mcpClient,
-      await createTemporaryClient(identityBaseUrl, realm, adminAccessToken, mcpClient),
-    );
-    assertNotShuttingDown();
-    await linkClientScopes(identityBaseUrl, realm, adminAccessToken, mcpClient.internalId, [
-      "gopher-mcp-audience",
-      "campus:read",
-    ]);
-    assertNotShuttingDown();
-    const resourceToken = await issueResourceToken(identityBaseUrl, realm, mcpClient);
-    assertResourceClaims(decodeJwtPayload(resourceToken), issuer, mcpResourceUrl.toString());
-    assertNotShuttingDown();
+    const accessToken = createFixtureAccessToken({
+      audience: mcpResourceUrl.toString(),
+      dpopJkt: proofKey.thumbprint,
+      issuer: fixtureIssuer,
+      signingKey,
+      subject: smokeSubject,
+    });
+    const wrongAudienceToken = createFixtureAccessToken({
+      audience: apiAudience,
+      dpopJkt: proofKey.thumbprint,
+      issuer: fixtureIssuer,
+      signingKey,
+      subject: smokeSubject,
+    });
+    assertResourceClaims(decodeJwtPayload(accessToken), fixtureIssuer, mcpResourceUrl.toString());
+    assertResourceClaims(decodeJwtPayload(wrongAudienceToken), fixtureIssuer, apiAudience);
 
-    const apiClient = temporaryClientIdentity("api");
-    temporaryClients.push(apiClient);
-    Object.assign(
-      apiClient,
-      await createTemporaryClient(identityBaseUrl, realm, adminAccessToken, apiClient),
-    );
-    assertNotShuttingDown();
-    await linkClientScopes(identityBaseUrl, realm, adminAccessToken, apiClient.internalId, [
-      "gopher-api-audience",
-      "campus:read",
-    ]);
-    assertNotShuttingDown();
-    const wrongAudienceToken = await issueResourceToken(identityBaseUrl, realm, apiClient);
-    assertResourceClaims(decodeJwtPayload(wrongAudienceToken), issuer, apiAudience);
-    assertNotShuttingDown();
-
-    const unauthenticated = await invokeMcp(initializePayload());
-    invariant(unauthenticated.status === 401, "MCP accepted a request without a token");
-    const confusedAdminToken = await invokeMcp(initializePayload(), adminAccessToken);
-    invariant(confusedAdminToken.status === 401, "MCP accepted a confused administrator token");
-    const confusedApiAudienceToken = await invokeMcp(initializePayload(), wrongAudienceToken);
     invariant(
-      confusedApiAudienceToken.status === 401,
-      "MCP accepted a same-issuer token intended only for the API audience",
+      (await invokeMcp(initializePayload())).status === 401,
+      "MCP accepted a request without a token",
     );
+    invariant(
+      (
+        await invokeMcp(initializePayload(), {
+          accessToken,
+          scheme: "Bearer",
+        })
+      ).status === 401,
+      "MCP accepted Bearer fallback",
+    );
+    invariant(
+      (
+        await invokeMcp(initializePayload(), {
+          accessToken: wrongAudienceToken,
+          key: proofKey,
+        })
+      ).status === 401,
+      "MCP accepted a same-issuer token intended for the Core API",
+    );
+    invariant(
+      (
+        await invokeMcp(initializePayload(), {
+          accessToken,
+          key: wrongProofKey,
+        })
+      ).status === 401,
+      "MCP accepted a proof signed by the wrong key",
+    );
+
+    const challenge = await invokeMcp(initializePayload(), {
+      accessToken,
+      key: proofKey,
+    });
+    invariant(challenge.status === 401, "MCP did not issue an initial nonce challenge");
+    invariant(
+      challenge.headers.get("www-authenticate")?.includes('error="use_dpop_nonce"') === true,
+      "MCP nonce challenge omitted use_dpop_nonce",
+    );
+    const nonce = challenge.headers.get("dpop-nonce");
+    invariant(
+      typeof nonce === "string" && /^[\x21\x23-\x5B\x5D-\x7E]{1,512}$/u.test(nonce),
+      "MCP nonce challenge was missing or malformed",
+    );
+
+    const acceptedProof = createResourceDpopProof({
+      accessToken,
+      key: proofKey,
+      nonce,
+    });
     const initialized = await readJson(
-      await invokeMcp(initializePayload(), resourceToken),
+      await invokeMcp(initializePayload(), {
+        accessToken,
+        proof: acceptedProof,
+      }),
       "Authenticated MCP initialization",
     );
     invariant(
       initialized?.result?.protocolVersion === "2025-03-26",
       "MCP negotiated an unexpected protocol version",
     );
+    invariant(
+      (
+        await invokeMcp(initializePayload(), {
+          accessToken,
+          proof: acceptedProof,
+        })
+      ).status === 401,
+      "MCP accepted a replayed DPoP proof",
+    );
 
     const listed = await readJson(
-      await invokeMcp({ id: 2, jsonrpc: "2.0", method: "tools/list", params: {} }, resourceToken),
+      await invokeMcp(
+        { id: 2, jsonrpc: "2.0", method: "tools/list", params: {} },
+        { accessToken, key: proofKey, nonce },
+      ),
       "Authenticated MCP tool listing",
     );
     const toolNames = listed?.result?.tools?.map((tool) => tool?.name);
@@ -628,7 +586,7 @@ export async function runMcpOauthSmoke() {
           method: "tools/call",
           params: { arguments: {}, name: "campuses_list" },
         },
-        resourceToken,
+        { accessToken, key: proofKey, nonce },
       ),
       "Authenticated MCP campus tool",
     );
@@ -642,31 +600,52 @@ export async function runMcpOauthSmoke() {
             method: "tools/call",
             params: { arguments: { campusId }, name: "world_manifest_get" },
           },
-          resourceToken,
+          { accessToken, key: proofKey, nonce },
         ),
         `Authenticated MCP ${campusId} world tool`,
       );
       assertWorldToolResult(world, campusId);
-      assertNotShuttingDown();
     }
     result = {
       audienceSeparation: true,
+      bearerRejected: true,
       campuses: 5,
-      confusedAdminTokenRejected: true,
-      confusedApiAudienceTokenRejected: true,
       issuerExact: true,
       missingTokenRejected: true,
+      nonceRetry: true,
+      replayRejected: true,
       scopeLeastPrivilege: true,
       status: "passed",
+      strictLocalTokenFixture: true,
       tools: expectedTools.length,
+      wrongProofKeyRejected: true,
     };
   } catch (error) {
     primaryFailure =
       error instanceof SmokeError ? error : new SmokeError("MCP OAuth smoke failed unexpectedly");
   } finally {
+    const cleanupFailures = [];
     try {
-      await cleanup();
+      await stopRuntime(mcpRuntime);
     } catch {
+      cleanupFailures.push("MCP runtime");
+    }
+    try {
+      await stopRuntime(apiRuntime);
+    } catch {
+      cleanupFailures.push("API runtime");
+    }
+    try {
+      await stopHttpServer(issuerRuntime);
+    } catch {
+      cleanupFailures.push("fixture issuer");
+    }
+    try {
+      await Promise.all([apiPort, mcpPort, fixtureIssuerPort].map((port) => assertPortEventuallyFree(port)));
+    } catch {
+      cleanupFailures.push("loopback listeners");
+    }
+    if (cleanupFailures.length > 0) {
       primaryFailure = new SmokeError(
         primaryFailure === undefined
           ? "MCP OAuth smoke cleanup failed"
@@ -677,7 +656,12 @@ export async function runMcpOauthSmoke() {
 
   if (primaryFailure !== undefined) throw primaryFailure;
   invariant(result !== undefined, "MCP OAuth smoke produced no result");
-  return { ...result, listenersClosed: true, temporaryClientsDeleted: 2 };
+  return {
+    ...result,
+    fixtureIssuerClosed: true,
+    listenersClosed: true,
+    temporaryClientsDeleted: 0,
+  };
 }
 
 export const smokeMcpOauthTesting = Object.freeze({
@@ -686,6 +670,10 @@ export const smokeMcpOauthTesting = Object.freeze({
   assertRuntimeRunning,
   assertWorldToolResult,
   childEnvironment,
+  createDpopKey,
+  createFixtureAccessToken,
+  createFixtureSigningKey,
+  createResourceDpopProof,
   mcpAudience: mcpResourceUrl.toString(),
   stopRuntime,
 });

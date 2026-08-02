@@ -5,13 +5,20 @@ import type { FastifyRequest } from "fastify";
 
 import {
   ACCESS_TOKEN_VERIFIER,
+  DPOP_PROOF_VERIFIER,
   IS_AUTHENTICATED_ROUTE,
   IS_PUBLIC_ROUTE,
   REQUIRED_SCOPES,
 } from "./auth.tokens.js";
-import type { AccessTokenVerifier, RequestWithAuthPrincipal } from "./auth.types.js";
-import { BearerAuthenticationException, BearerInsufficientScopeException } from "./bearer-auth.errors.js";
-import { parseBearerToken } from "./oidc-token-verifier.js";
+import type { AccessTokenVerifier, DpopProofVerifier, RequestWithAuthPrincipal } from "./auth.types.js";
+import {
+  DpopAuthenticationException,
+  DpopInsufficientScopeException,
+  DpopRateLimitExceededException,
+  DpopReplayStoreUnavailableException,
+} from "./bearer-auth.errors.js";
+import { DpopNonceRequiredError } from "./dpop-proof-verifier.js";
+import { parseDpopAuthorization } from "./oidc-token-verifier.js";
 
 const ROUTE_POLICY_ERROR = "The route has no valid explicit authorization policy.";
 
@@ -22,10 +29,11 @@ interface RouteAuthPolicy {
 }
 
 @Injectable()
-export class BearerAuthGuard implements CanActivate {
+export class DpopAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @Inject(ACCESS_TOKEN_VERIFIER) private readonly verifier: AccessTokenVerifier,
+    @Inject(DPOP_PROOF_VERIFIER) private readonly proofVerifier: DpopProofVerifier,
   ) {}
 
   private resolvePolicy(context: ExecutionContext): RouteAuthPolicy {
@@ -57,27 +65,58 @@ export class BearerAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<FastifyRequest & RequestWithAuthPrincipal>();
     const authorization = request.headers.authorization;
     if (authorization === undefined) {
-      throw new BearerAuthenticationException("missing");
+      throw new DpopAuthenticationException("missing");
     }
 
     let token: string;
     try {
-      token = parseBearerToken(authorization);
+      token = parseDpopAuthorization(authorization);
     } catch {
-      throw new BearerAuthenticationException("invalid_request");
+      throw new DpopAuthenticationException("invalid_request");
     }
 
-    let principal;
+    let verifiedToken;
     try {
-      principal = await this.verifier.verify(token);
+      verifiedToken = await this.verifier.verify(token);
     } catch {
-      throw new BearerAuthenticationException("invalid_token");
+      throw new DpopAuthenticationException("invalid_token");
     }
 
+    const proof = request.headers["dpop"];
+    if (typeof proof !== "string") {
+      throw new DpopAuthenticationException(proof === undefined ? "invalid_dpop_proof" : "invalid_request");
+    }
+    try {
+      await this.proofVerifier.verify({
+        accessToken: token,
+        authorization: verifiedToken,
+        method: request.method,
+        proof,
+        rawUrl: request.raw.url ?? request.url,
+      });
+    } catch (error) {
+      if (
+        error instanceof DpopReplayStoreUnavailableException ||
+        error instanceof DpopRateLimitExceededException
+      ) {
+        throw error;
+      }
+      if (error instanceof DpopNonceRequiredError) {
+        throw new DpopAuthenticationException("use_dpop_nonce", error.nonce);
+      }
+      throw new DpopAuthenticationException("invalid_dpop_proof");
+    }
+
+    const principal = Object.freeze({
+      clientId: verifiedToken.clientId,
+      issuer: verifiedToken.issuer,
+      scopes: verifiedToken.scopes,
+      subject: verifiedToken.subject,
+    });
     request.authPrincipal = principal;
     const grantedScopes = new Set(principal.scopes);
     if (!policy.requiredScopes.every((scope) => grantedScopes.has(scope))) {
-      throw new BearerInsufficientScopeException(policy.requiredScopes);
+      throw new DpopInsufficientScopeException(policy.requiredScopes);
     }
     return true;
   }

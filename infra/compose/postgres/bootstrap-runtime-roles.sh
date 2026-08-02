@@ -9,6 +9,8 @@ set -eu
 : "${AI_KNOWLEDGE_READER_DB_PASSWORD:?AI_KNOWLEDGE_READER_DB_PASSWORD is required}"
 : "${AI_KNOWLEDGE_SYNC_DB_USER:=gopher_ai_sync}"
 : "${AI_KNOWLEDGE_SYNC_DB_PASSWORD:?AI_KNOWLEDGE_SYNC_DB_PASSWORD is required}"
+: "${API_PERSONAL_DB_USER:=gopher_api_personal}"
+: "${API_PERSONAL_DB_PASSWORD:?API_PERSONAL_DB_PASSWORD is required}"
 : "${KEYCLOAK_DB:=keycloak}"
 : "${KEYCLOAK_DB_USER:=gopher_keycloak}"
 : "${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}"
@@ -32,6 +34,7 @@ validate_identifier POSTGRES_USER "$POSTGRES_USER"
 validate_identifier POSTGRES_DB "$POSTGRES_DB"
 validate_identifier AI_KNOWLEDGE_READER_DB_USER "$AI_KNOWLEDGE_READER_DB_USER"
 validate_identifier AI_KNOWLEDGE_SYNC_DB_USER "$AI_KNOWLEDGE_SYNC_DB_USER"
+validate_identifier API_PERSONAL_DB_USER "$API_PERSONAL_DB_USER"
 validate_identifier KEYCLOAK_DB "$KEYCLOAK_DB"
 validate_identifier KEYCLOAK_DB_USER "$KEYCLOAK_DB_USER"
 
@@ -43,12 +46,16 @@ case "$KEYCLOAK_DB" in
 esac
 
 if [ "$AI_KNOWLEDGE_READER_DB_USER" = "$AI_KNOWLEDGE_SYNC_DB_USER" ] \
+  || [ "$AI_KNOWLEDGE_READER_DB_USER" = "$API_PERSONAL_DB_USER" ] \
   || [ "$AI_KNOWLEDGE_READER_DB_USER" = "$KEYCLOAK_DB_USER" ] \
+  || [ "$AI_KNOWLEDGE_SYNC_DB_USER" = "$API_PERSONAL_DB_USER" ] \
   || [ "$AI_KNOWLEDGE_SYNC_DB_USER" = "$KEYCLOAK_DB_USER" ] \
+  || [ "$API_PERSONAL_DB_USER" = "$KEYCLOAK_DB_USER" ] \
   || [ "$POSTGRES_USER" = "$AI_KNOWLEDGE_READER_DB_USER" ] \
   || [ "$POSTGRES_USER" = "$AI_KNOWLEDGE_SYNC_DB_USER" ] \
+  || [ "$POSTGRES_USER" = "$API_PERSONAL_DB_USER" ] \
   || [ "$POSTGRES_USER" = "$KEYCLOAK_DB_USER" ]; then
-  echo "Migration, AI reader, AI sync, and Keycloak roles must all be distinct" >&2
+  echo "Migration, AI reader, AI sync, personal API, and Keycloak roles must all be distinct" >&2
   exit 1
 fi
 
@@ -79,6 +86,8 @@ bootstrap_psql "$POSTGRES_DB" \
   --set=ai_reader_password="$AI_KNOWLEDGE_READER_DB_PASSWORD" \
   --set=ai_sync_user="$AI_KNOWLEDGE_SYNC_DB_USER" \
   --set=ai_sync_password="$AI_KNOWLEDGE_SYNC_DB_PASSWORD" \
+  --set=api_personal_user="$API_PERSONAL_DB_USER" \
+  --set=api_personal_password="$API_PERSONAL_DB_PASSWORD" \
   --set=keycloak_user="$KEYCLOAK_DB_USER" \
   --set=keycloak_password="$KEYCLOAK_DB_PASSWORD" \
   --set=keycloak_db="$KEYCLOAK_DB" <<'SQL'
@@ -108,6 +117,18 @@ SELECT format(
 
 SELECT format(
   'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  :'api_personal_user', :'api_personal_password'
+)
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'api_personal_user')
+\gexec
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
+  :'api_personal_user', :'api_personal_password'
+)
+\gexec
+
+SELECT format(
+  'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS',
   :'keycloak_user', :'keycloak_password'
 )
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'keycloak_user')
@@ -125,7 +146,12 @@ SELECT format('REVOKE %I FROM %I', granted.rolname, member.rolname)
 FROM pg_auth_members AS membership
 JOIN pg_roles AS granted ON granted.oid = membership.roleid
 JOIN pg_roles AS member ON member.oid = membership.member
-WHERE member.rolname IN (:'ai_reader_user', :'ai_sync_user', :'keycloak_user')
+WHERE member.rolname IN (
+  :'ai_reader_user',
+  :'ai_sync_user',
+  :'api_personal_user',
+  :'keycloak_user'
+)
 \gexec
 
 SELECT format('CREATE DATABASE %I OWNER %I', :'keycloak_db', :'keycloak_user')

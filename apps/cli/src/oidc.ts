@@ -1,3 +1,10 @@
+import {
+  createDpopProof,
+  parseDpopNonce,
+  validateDpopCredential,
+  type DpopPrivateJwk,
+} from "@umn-gopher-assistant/sdk";
+
 import { CliError } from "./errors.js";
 import { ExitCode } from "./exit-codes.js";
 import { fetchNoRedirect, readJson, type HttpDependencies } from "./http.js";
@@ -8,6 +15,7 @@ export const DEVICE_SCOPES = ["openid", "offline_access", "campus:read"] as cons
 
 export interface OidcDiscovery {
   readonly deviceAuthorizationEndpoint: URL;
+  readonly dpopSigningAlgorithms: readonly string[];
   readonly issuer: URL;
   readonly tokenEndpoint: URL;
 }
@@ -23,6 +31,7 @@ export interface DeviceAuthorization {
 
 export interface TokenBundle {
   readonly accessToken: string;
+  readonly authorizationServerDpopNonce?: string;
   readonly expiresAt: number;
   readonly refreshToken?: string;
   readonly scope: readonly string[];
@@ -61,21 +70,37 @@ function canonicalIssuer(url: URL): string {
   return url.toString().replace(/\/+$/u, "");
 }
 
-function parseToken(value: unknown, now: number, previousRefreshToken?: string): TokenBundle {
+async function parseToken(
+  value: unknown,
+  now: number,
+  privateJwk: DpopPrivateJwk,
+  authorizationServerDpopNonce: string | undefined,
+  previousRefreshToken?: string,
+): Promise<TokenBundle> {
   if (!isRecord(value)) {
     throw new CliError(ExitCode.protocol, "invalid-token-response", "The token response was malformed.");
   }
   const accessToken = boundedString(value["access_token"]);
   const tokenType = boundedString(value["token_type"], 32);
   const expiresIn = positiveInteger(value["expires_in"], 86_400);
-  if (accessToken === undefined || tokenType?.toLowerCase() !== "bearer" || expiresIn === undefined) {
+  if (accessToken === undefined || tokenType?.toLowerCase() !== "dpop" || expiresIn === undefined) {
     throw new CliError(ExitCode.protocol, "invalid-token-response", "The token response was malformed.");
+  }
+  try {
+    await validateDpopCredential({ accessToken, privateJwk });
+  } catch {
+    throw new CliError(
+      ExitCode.protocol,
+      "invalid-token-response",
+      "The token response was not bound to the CLI DPoP key.",
+    );
   }
   const newRefreshToken = boundedString(value["refresh_token"]);
   const refreshToken = newRefreshToken ?? previousRefreshToken;
   const scopeValue = boundedString(value["scope"], 4096);
   return {
     accessToken,
+    ...(authorizationServerDpopNonce === undefined ? {} : { authorizationServerDpopNonce }),
     expiresAt: now + expiresIn * 1000,
     ...(refreshToken === undefined ? {} : { refreshToken }),
     scope: scopeValue === undefined ? [] : scopeValue.split(/\s+/u).filter(Boolean),
@@ -114,6 +139,67 @@ export class OidcClient {
     this.#dependencies = dependencies;
   }
 
+  async #tokenRequest(
+    tokenEndpoint: URL,
+    body: URLSearchParams,
+    privateJwk: DpopPrivateJwk,
+    previousNonce: string | undefined,
+    signal?: AbortSignal,
+  ): Promise<{
+    readonly authorizationServerDpopNonce?: string;
+    readonly response: Response;
+    readonly value: unknown;
+  }> {
+    let nonce = previousNonce;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const proof = await createDpopProof({
+        htm: "POST",
+        htu: tokenEndpoint,
+        ...(nonce === undefined ? {} : { nonce }),
+        privateJwk,
+      });
+      const response = await fetchNoRedirect(
+        this.#dependencies,
+        tokenEndpoint,
+        {
+          body: new URLSearchParams(body),
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            DPoP: proof,
+          },
+          method: "POST",
+        },
+        signal,
+      );
+      const value = await readJson(response);
+      const returnedNonce = parseDpopNonce(response.headers.get("dpop-nonce"));
+      if (response.status === 400 && oauthError(value) === "use_dpop_nonce") {
+        if (attempt === 0 && returnedNonce !== undefined) {
+          nonce = returnedNonce;
+          continue;
+        }
+        throw new CliError(
+          ExitCode.protocol,
+          "dpop-nonce-rejected",
+          "The identity provider rejected a fresh DPoP nonce proof.",
+        );
+      }
+      const finalNonce = returnedNonce ?? nonce;
+      return finalNonce === undefined
+        ? {
+            response,
+            value,
+          }
+        : {
+            authorizationServerDpopNonce: finalNonce,
+            response,
+            value,
+          };
+    }
+    throw new CliError(ExitCode.protocol, "dpop-nonce-rejected", "DPoP nonce negotiation failed.");
+  }
+
   async discover(issuer: URL, signal?: AbortSignal): Promise<OidcDiscovery> {
     const normalizedIssuer = normalizeIssuerUrl(issuer.toString());
     const key = canonicalIssuer(normalizedIssuer);
@@ -142,11 +228,24 @@ export class OidcClient {
     if (canonicalIssuer(discoveredIssuer) !== key) {
       throw new CliError(ExitCode.protocol, "issuer-mismatch", "OIDC discovery returned a different issuer.");
     }
+    const dpopSigningAlgorithms = value["dpop_signing_alg_values_supported"];
+    if (
+      !Array.isArray(dpopSigningAlgorithms) ||
+      !dpopSigningAlgorithms.every((algorithm) => typeof algorithm === "string" && algorithm.length <= 64) ||
+      !dpopSigningAlgorithms.includes("ES256")
+    ) {
+      throw new CliError(
+        ExitCode.protocol,
+        "dpop-not-supported",
+        "OIDC discovery does not advertise the required ES256 DPoP algorithm.",
+      );
+    }
     const discovered: OidcDiscovery = {
       deviceAuthorizationEndpoint: endpointFromDiscovery(
         value["device_authorization_endpoint"],
         "device authorization endpoint",
       ),
+      dpopSigningAlgorithms,
       issuer: discoveredIssuer,
       tokenEndpoint: endpointFromDiscovery(value["token_endpoint"], "token endpoint"),
     };
@@ -215,34 +314,33 @@ export class OidcClient {
   async pollDeviceToken(
     issuer: URL,
     authorization: DeviceAuthorization,
+    privateJwk: DpopPrivateJwk,
     signal?: AbortSignal,
   ): Promise<TokenBundle> {
     const discovery = await this.discover(issuer, signal);
     const deadline = this.#dependencies.now() + authorization.expiresIn * 1000;
     let intervalMilliseconds = authorization.interval * 1000;
+    let authorizationServerDpopNonce: string | undefined;
     while (this.#dependencies.now() < deadline) {
       if (signal?.aborted === true) {
         throw new CliError(ExitCode.auth, "device-flow-cancelled", "Device authorization was cancelled.");
       }
-      const response = await fetchNoRedirect(
-        this.#dependencies,
+      const exchange = await this.#tokenRequest(
         discovery.tokenEndpoint,
-        {
-          body: new URLSearchParams({
-            client_id: DEVICE_CLIENT_ID,
-            device_code: authorization.deviceCode,
-            grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-          }),
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          method: "POST",
-        },
+        new URLSearchParams({
+          client_id: DEVICE_CLIENT_ID,
+          device_code: authorization.deviceCode,
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        }),
+        privateJwk,
+        authorizationServerDpopNonce,
         signal,
       );
-      const value = await readJson(response);
-      if (response.ok) return parseToken(value, this.#dependencies.now());
+      const { response, value } = exchange;
+      authorizationServerDpopNonce = exchange.authorizationServerDpopNonce;
+      if (response.ok) {
+        return parseToken(value, this.#dependencies.now(), privateJwk, authorizationServerDpopNonce);
+      }
       const code = oauthError(value);
       if (code === "authorization_pending") {
         await this.#dependencies.sleep(intervalMilliseconds, signal);
@@ -269,26 +367,26 @@ export class OidcClient {
     throw new CliError(ExitCode.auth, "device-code-expired", "The device authorization code expired.");
   }
 
-  async refresh(issuer: URL, refreshToken: string, signal?: AbortSignal): Promise<TokenBundle> {
+  async refresh(
+    issuer: URL,
+    refreshToken: string,
+    privateJwk: DpopPrivateJwk,
+    authorizationServerDpopNonce?: string,
+    signal?: AbortSignal,
+  ): Promise<TokenBundle> {
     const discovery = await this.discover(issuer, signal);
-    const response = await fetchNoRedirect(
-      this.#dependencies,
+    const exchange = await this.#tokenRequest(
       discovery.tokenEndpoint,
-      {
-        body: new URLSearchParams({
-          client_id: DEVICE_CLIENT_ID,
-          grant_type: "refresh_token",
-          refresh_token: refreshToken,
-        }),
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        method: "POST",
-      },
+      new URLSearchParams({
+        client_id: DEVICE_CLIENT_ID,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }),
+      privateJwk,
+      authorizationServerDpopNonce,
       signal,
     );
-    const value = await readJson(response);
+    const { response, value } = exchange;
     if (!response.ok) {
       const code = oauthError(value);
       if (code === "invalid_grant" || code === "invalid_token") {
@@ -301,6 +399,12 @@ export class OidcClient {
         { status: response.status },
       );
     }
-    return parseToken(value, this.#dependencies.now(), refreshToken);
+    return parseToken(
+      value,
+      this.#dependencies.now(),
+      privateJwk,
+      exchange.authorizationServerDpopNonce,
+      refreshToken,
+    );
   }
 }

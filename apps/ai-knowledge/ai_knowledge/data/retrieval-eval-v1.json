@@ -1,0 +1,1538 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "campus-retrieval-quality",
+  "datasetVersion": "1.0.0",
+  "corpusSha256": "0cd2490a5c7287f2ea4d31e6f320f07ce37e3f1618c9ba9b95237b4d221fb832",
+  "evaluationTime": "2026-07-23T00:00:00Z",
+  "thresholds": {
+    "answerPrecision": 1.0,
+    "supportedRecall": 1.0,
+    "top1CategoryAccuracy": 1.0,
+    "abstentionRecall": 1.0,
+    "meanReciprocalRank": 1.0,
+    "maxCampusLeakageRate": 0.0,
+    "evidenceIntegrityRate": 1.0
+  },
+  "cases": [
+    {
+      "id": "answer-tc-en-dining",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Where can I compare meal plans, menus, and dietary choices?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["tc-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-library",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "I need peer-reviewed articles and books for a research paper",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["tc-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-safety",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "How do I report a campus safety concern or emergency?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["tc-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-student-services",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Who can help me understand tuition bills and financial aid?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["tc-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-transportation",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "What bus, shuttle, bicycle, and transit options are available?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["tc-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-dining",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "在哪里查看食堂菜单、餐饮计划和饮食需求选项？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["tc-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-library",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我想找写论文需要的馆藏图书和研究资料",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["tc-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-safety",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "遇到校园紧急情况或安全问题时应该怎样报警？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["tc-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-student-services",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我在哪里办理选课、学籍、学费账单和助学金事务？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["tc-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-transportation",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我想了解公交、校车、接驳车和自行车出行方式",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["tc-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-dining",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "How can I find Duluth food menus and meal plan information?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["duluth-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-library",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Where do I search Kathryn Martin Library books and journal articles?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["duluth-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-safety",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Who handles police reports, emergency alerts, and prevention resources?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["duluth-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-student-services",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "I am looking for academic advising, wellbeing, and student activity support",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["duluth-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-transportation",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "How do I get a parking permit and check local bus routes?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["duluth-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-dining",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "德卢斯校区哪里能查餐厅菜单和餐饮计划？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["duluth-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-library",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "如何在凯瑟琳马丁图书馆查找图书和论文？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["duluth-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-safety",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "发生紧急情况时怎样联系警察并查看安全警报？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["duluth-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-student-services",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "我需要学业咨询、身心健康和校园活动方面的学生支持",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["duluth-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-transportation",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "怎样申请停车许可并查询公交巴士路线？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["duluth-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-dining",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where can I review cafeteria menus, meal plans, and dietary choices?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["crookston-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-library",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "How can I search the collections for books and research articles?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["crookston-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-safety",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where do I report an emergency to public safety or police?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["crookston-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-student-services",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where can I get advising, housing, and student life support?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["crookston-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-transportation",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "I need a vehicle permit and information about visitor parking",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["crookston-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-dining",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "在哪里查询食堂菜单、餐饮计划和饮食需求？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["crookston-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-library",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "我怎样搜索馆藏中的图书、论文和研究资料？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["crookston-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-safety",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "校园发生紧急情况时如何联系公共安全或警察？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["crookston-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-student-services",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "我需要学生生活、住宿和学业咨询方面的帮助",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["crookston-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-transportation",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "车辆许可和访客停车的信息在哪里？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["crookston-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-dining",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "How do I find cafeteria food menus and dietary information?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["morris-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-library",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Where can I use Briggs Library to locate books and articles?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["morris-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-safety",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "I need public safety emergency and incident reporting information",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["morris-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-student-services",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Which One Stop office helps with records, registration, and billing?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["morris-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-transportation",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Where can visitors find parking permits and accessible parking?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["morris-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-dining",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "莫里斯食堂的菜单和餐饮计划在哪里查？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["morris-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-library",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "如何通过布里格斯图书馆查找图书和研究论文？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["morris-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-safety",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "怎样向公共安全部门报告紧急情况？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["morris-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-student-services",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "一站式服务可以办理选课、学籍、账单和助学金吗？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["morris-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-transportation",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "访客停车、车辆许可和无障碍停车在哪里办理？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["morris-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-dining",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where does Raptor Eats list food, menus, and meal plan choices?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["rochester-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-library",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "How can the Information Commons help me find books and articles?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["rochester-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-safety",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where can I see emergency alerts and file a safety concern report?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["rochester-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-student-services",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "I need advising, accessibility, or technology support as a student",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["rochester-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-transportation",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "How do I find transit passes, bus routes, and parking?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["rochester-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-dining",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "怎样通过 Raptor Eats 查看食物菜单和餐饮计划？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["rochester-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-library",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "信息共享空间能帮我查找图书、论文和研究资料吗？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["rochester-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-safety",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "在哪里查看紧急警报并提交校园安全问题报告？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["rochester-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-student-services",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "学生在哪里获得学业咨询、无障碍和技术支持？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["rochester-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-transportation",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "公共交通巴士路线、停车和通行证怎么查？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["rochester-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "abstain-tc-en-accessible-bathroom",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Where can I find an accessible bathroom?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["reproduced-false-positive", "hard-negative"]
+    },
+    {
+      "id": "abstain-tc-en-apartment-food",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Can I bring food to my apartment?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["reproduced-false-positive", "hard-negative"]
+    },
+    {
+      "id": "abstain-tc-en-drop-class",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "How do I drop a class?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["reproduced-false-positive", "unsupported"]
+    },
+    {
+      "id": "abstain-tc-en-vague-help",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "I need help with something on campus",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-tc-zh-cn-accessible-bathroom",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "校园里哪里有无障碍卫生间？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-tc-zh-cn-apartment-food",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我可以把食物带回公寓吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-duluth-en-counseling",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "I need counseling for depression",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["reproduced-false-positive", "hard-negative"]
+    },
+    {
+      "id": "abstain-duluth-en-lab-reservation",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Can I reserve a chemistry laboratory for tomorrow?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-duluth-zh-cn-email-password",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "如何重置我的大学电子邮件密码？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-duluth-zh-cn-laptop-repair",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "校园里哪里可以修理我的笔记本电脑？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-crookston-en-disability-accommodations",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "How can I get disability accommodations?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["reproduced-false-positive", "hard-negative"]
+    },
+    {
+      "id": "abstain-crookston-en-email-password",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where do I reset my student email password?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-crookston-zh-cn-disability-accommodations",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "如何申请残障便利安排？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-crookston-zh-cn-pet-policy",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "我可以在学生宿舍养宠物吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-morris-en-graduate-admission",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "When is the graduate school application deadline?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-morris-en-library-cafe-hours",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "What time does the library cafe close tonight?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative", "ambiguous"]
+    },
+    {
+      "id": "abstain-morris-zh-cn-drop-class",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "我怎样退掉一门课？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-morris-zh-cn-graduate-admission",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "研究生申请的截止日期是什么时候？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-rochester-en-flu-shot",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where can I get a flu vaccination?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-rochester-en-weather",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Will it snow on campus tomorrow morning?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-rochester-zh-cn-vague-help",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "我需要帮助，但不知道应该找谁",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-rochester-zh-cn-weather",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "明天早上校园会下雪吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "answer-tc-en-dining-b",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Which dining resource compares restaurant menus, meal plans, and dietary support?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["tc-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-library-b",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "How do I search the Libraries catalog for books, research articles, and study resources?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["tc-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-safety-b",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Where are Safe Campus emergency alerts, police contacts, and reporting guidance?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["tc-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-student-services-b",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Does One Stop handle registration, student records, tuition billing, and financial aid?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["tc-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-en-transportation-b",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Where can I check transit buses, campus shuttles, bike options, parking, and accessible travel?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["tc-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-dining-b",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "哪个餐饮页面能查餐厅菜单、餐饮计划和饮食需求安排？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["tc-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-library-b",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我想通过图书馆目录搜索馆藏图书、研究论文和学习资源。",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["tc-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-safety-b",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "在哪里查看校园安全警报、警察联系方式和紧急情况报告入口？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["tc-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-student-services-b",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "一站式服务在哪里办理选课、学籍、学费账单和助学金？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["tc-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-tc-zh-cn-transportation-b",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "怎样查询公交、校车、接驳车、停车和自行车出行信息？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["tc-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-dining-b",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Which dining page covers restaurant menus, meal plans, food options, and dietary needs?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["duluth-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-library-b",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "How do I use Kathryn Martin Library's catalog for books, articles, research, and study help?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["duluth-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-safety-b",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Where are police contacts, safety alerts, emergency reporting, and prevention resources?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["duluth-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-student-services-b",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Which student support directory covers advising, wellbeing, campus activities, and resources?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["duluth-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-en-transportation-b",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Where can I check bus routes, parking permits, transportation, and accessible travel?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["duluth-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-dining-b",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "在哪里查看餐饮服务的餐厅菜单、餐饮计划和饮食需求说明？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["duluth-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-library-b",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "怎样用凯瑟琳马丁图书馆目录查找图书、论文和研究资料？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["duluth-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-safety-b",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "如何查找警察联系方式、安全警报、紧急情况报告和预防信息？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["duluth-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-student-services-b",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "学生支持目录是否包括学业咨询、身心健康、校园活动和相关资源？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["duluth-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-duluth-zh-cn-transportation-b",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "公交巴士路线、停车许可、交通安排和无障碍出行信息在哪里？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["duluth-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-dining-b",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where does dining services list cafeteria menus, meal plans, food choices, and dietary accommodations?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["crookston-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-library-b",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "How can I search the library catalog for collections, books, research articles, and study materials?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["crookston-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-safety-b",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where can I find Public Safety emergency contacts, police reporting, and prevention guidance?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["crookston-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-student-services-b",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Which student life directory covers advising, housing, wellbeing, activities, and support?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["crookston-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-en-transportation-b",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Where can I verify parking permits, vehicle rules, visitor parking, and travel routes?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["crookston-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-dining-b",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "餐饮页面在哪里提供食堂菜单、餐饮计划、食物选择和饮食需求信息？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["crookston-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-library-b",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "如何在图书馆目录搜索馆藏图书、研究论文和学习资料？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["crookston-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-safety-b",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "公共安全页面在哪里提供警察、紧急情况报告和预防指南？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["crookston-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-student-services-b",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "学生生活目录能否查到学业咨询、住宿、身心健康和校园活动支持？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["crookston-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-crookston-zh-cn-transportation-b",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "停车许可、车辆规定、访客停车和出行路线在哪里查询？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["crookston-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-dining-b",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Where can I find cafeteria menus, meal-plan guidance, food options, and dietary information?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["morris-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-library-b",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "How do I use Briggs Library's catalog to find books, research articles, and study support?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["morris-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-safety-b",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Where is Public Safety information for police contacts, emergency reporting, and prevention?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["morris-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-student-services-b",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Can One Stop help with registration, records, tuition, billing, and financial aid?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["morris-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-en-transportation-b",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Where do I check parking permits, visitor parking, accessible parking, and vehicle rules?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["morris-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-dining-b",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "哪里列出食堂菜单、餐饮计划、食物选择和饮食需求？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["morris-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-library-b",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "怎样用布里格斯图书馆目录查找图书、研究论文和学习资源？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["morris-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-safety-b",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "公共安全页面如何提供警察联系方式、紧急情况报告和预防指南？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["morris-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-student-services-b",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "一站式学生服务是否办理选课、学籍、学费账单和助学金事务？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["morris-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-morris-zh-cn-transportation-b",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "在哪里查询停车许可、访客停车、无障碍停车和车辆规定？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["morris-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-dining-b",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Which Raptor Eats dining page has restaurant menus, meal plans, food resources, and dietary support?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["rochester-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-library-b",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where can I search the Library and Information Commons for books, research articles, and study resources?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["rochester-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-safety-b",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where are safety alerts, concern reporting, emergency preparedness, and police contacts listed?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["rochester-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-student-services-b",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Which student services directory covers advising, wellbeing, accessibility, and technology help?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["rochester-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-en-transportation-b",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Where can I check bus routes, transit passes, parking, transportation, and travel options?",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["rochester-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-dining-b",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "Raptor Eats 餐饮页面在哪里提供餐厅菜单、餐饮计划和饮食需求支持？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "dining",
+      "relevantDocumentIds": ["rochester-dining-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-library-b",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "如何通过图书馆与信息共享空间查找图书、研究论文和学习资源？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "library",
+      "relevantDocumentIds": ["rochester-library-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-safety-b",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "校园安全页面在哪里查看警报、问题报告、应急准备和警察联系方式？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "safety",
+      "relevantDocumentIds": ["rochester-safety-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-student-services-b",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "学生服务目录是否提供学业咨询、身心健康、无障碍和技术帮助？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "student-services",
+      "relevantDocumentIds": ["rochester-student-services-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "answer-rochester-zh-cn-transportation-b",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "怎样查询公交巴士路线、通行证、停车、交通和出行选择？",
+      "expectedDisposition": "answer",
+      "expectedCategory": "transportation",
+      "relevantDocumentIds": ["rochester-transportation-overview"],
+      "tags": ["paraphrase"]
+    },
+    {
+      "id": "abstain-tc-en-course-withdrawal-deadline",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "What is the deadline for withdrawing from my chemistry course?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-tc-en-residence-hall-cat-policy",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "May my roommate keep a cat in a residence hall room?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-tc-en-unclear-office-owner",
+      "campusId": "tc",
+      "locale": "en",
+      "query": "Which office owns a campus problem I cannot describe?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-tc-zh-cn-audit-course-change",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "选课以后还能改成旁听吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-tc-zh-cn-residence-hall-cat-policy",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "宿舍房间允许养猫吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-tc-zh-cn-unclear-department",
+      "campusId": "tc",
+      "locale": "zh-CN",
+      "query": "我遇到一件事，但不知道应该联系哪个部门。",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-duluth-en-library-overdue-laptop-fine",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "Can the library waive an overdue laptop fine?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-duluth-en-organic-chemistry-prerequisite",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "What prerequisites are required for organic chemistry next fall?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-duluth-en-unclear-department",
+      "campusId": "duluth",
+      "locale": "en",
+      "query": "I have an issue but cannot identify the right department.",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-duluth-zh-cn-library-overdue-fine",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "图书馆的逾期罚款可以免除吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-duluth-zh-cn-organic-chemistry-instructor",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "下学期有机化学由哪位老师授课？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-duluth-zh-cn-unclear-department",
+      "campusId": "duluth",
+      "locale": "zh-CN",
+      "query": "我的情况很难说明，不清楚该找哪个部门。",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-crookston-en-parking-citation-payment",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Can I pay a parking citation online?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-crookston-en-residence-hall-rabbit-policy",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "May I keep a rabbit in my residence hall room?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-crookston-en-major-choice",
+      "campusId": "crookston",
+      "locale": "en",
+      "query": "Which academic major would suit me best?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-crookston-zh-cn-parking-fine-appeal",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "停车罚单可以在网上申诉吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-crookston-zh-cn-residence-hall-rabbit-policy",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "宿舍房间能不能养兔子？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-crookston-zh-cn-major-choice",
+      "campusId": "crookston",
+      "locale": "zh-CN",
+      "query": "我应该选择哪个专业方向？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-morris-en-library-cafe-catering",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Can the library cafe cater a club meeting?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-morris-en-parking-ticket-appeal",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "How do I appeal a parking ticket?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-morris-en-unclear-resolver",
+      "campusId": "morris",
+      "locale": "en",
+      "query": "Who should resolve an issue I cannot explain?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-morris-zh-cn-library-cafe-club-event",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "图书馆咖啡店能预订社团活动吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-morris-zh-cn-parking-fine-cancellation",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "能帮我取消一张停车罚单吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-morris-zh-cn-unclear-owner",
+      "campusId": "morris",
+      "locale": "zh-CN",
+      "query": "这个问题说不清楚，应该由谁处理？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-rochester-en-personal-laptop-repair",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "Does campus IT repair a water-damaged personal laptop?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-rochester-en-nursing-gpa",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "What minimum GPA is required for the nursing program?",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-rochester-en-unclear-office-owner",
+      "campusId": "rochester",
+      "locale": "en",
+      "query": "I have a question but cannot tell which office owns it.",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    },
+    {
+      "id": "abstain-rochester-zh-cn-personal-laptop-repair",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "个人笔记本进水以后能在这里维修吗？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["hard-negative"]
+    },
+    {
+      "id": "abstain-rochester-zh-cn-nursing-gpa",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "护理专业要求的最低绩点是多少？",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["unsupported"]
+    },
+    {
+      "id": "abstain-rochester-zh-cn-unclear-owner",
+      "campusId": "rochester",
+      "locale": "zh-CN",
+      "query": "我有个问题，但不清楚应该问谁。",
+      "expectedDisposition": "abstain",
+      "expectedCategory": null,
+      "relevantDocumentIds": [],
+      "tags": ["ambiguous"]
+    }
+  ]
+}

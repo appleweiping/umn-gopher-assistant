@@ -36,7 +36,8 @@ HTTPS is mandatory except for the explicit loopback hosts `localhost`, `127.0.0.
 - `--profile` / `UGA_PROFILE`
 - `--api-base-url` / `UGA_API_BASE_URL`
 - `--issuer` / `UGA_ISSUER`
-- `UGA_ACCESS_TOKEN` for an explicit process-scoped access token
+- `UGA_ACCESS_TOKEN` together with `UGA_DPOP_PRIVATE_JWK` for one explicit,
+  process-scoped DPoP credential
 
 Configuration contains only `apiBaseUrl` and `issuer`. Any token-, password-, secret-, authorization-, cookie-, or API-key-shaped field makes the entire file invalid. Profile files are stored at:
 
@@ -54,11 +55,49 @@ uga --profile local auth logout
 
 Login uses RFC 8628 device authorization discovered from the configured OIDC issuer. There is no password grant and the CLI never asks for a UMN password. Scopes are fixed to `openid offline_access campus:read`; the CLI does not accept arbitrary scope escalation.
 
-Each authenticated profile stores its access and refresh token together in one OS-keychain entry through optional `@napi-rs/keyring` 1.3.0. If its native backend is absent or refuses a write, login fails closed with exit code 4 and error code `secure-storage-unavailable`: no authenticated success is emitted, no process-local authentication fallback is retained, and nothing is written in plaintext. Install or repair the platform credential-store backend and retry. `UGA_ACCESS_TOKEN` is read directly from the environment and is never copied into config or keychain. PAT support is planned and reported as such; it is not simulated.
+Each authenticated profile stores one version-2 envelope in the OS keychain
+through optional `@napi-rs/keyring` 1.3.0. It contains the access token,
+optional rotating refresh token, private P-256 DPoP key, issuer, scopes,
+expiry, and the latest authorization-server nonce. Version-1 entries lack a
+proof key and fail closed with `dpop-key-missing`; run `uga auth login` again
+to replace one. If the native backend is absent or refuses a write, login
+fails closed with exit code 4 and error code `secure-storage-unavailable`: no
+authenticated success is emitted, no process-local authentication fallback is
+retained, and nothing is written in plaintext. Install or repair the platform
+credential-store backend and retry. Environment credentials are read directly
+and never copied into config or keychain; both `UGA_ACCESS_TOKEN` and a
+canonical JSON `UGA_DPOP_PRIVATE_JWK` are mandatory and their cryptographic
+binding is verified. PAT support is planned and reported as such; it is not
+simulated.
 
-`auth logout` deletes the profile's entire keychain entry, including both tokens. The keychain result distinguishes `deleted`, `absent`, and `backend-error`. Only the first two are successful outcomes; a native exception, unavailable module, or unconfirmed deletion fails closed with exit code 4 and `secure-storage-unavailable`, because credentials may still remain. There is no separate CLI session to remove; an explicitly supplied `UGA_ACCESS_TOKEN` remains in the caller's environment and is reported separately.
+`auth logout` deletes the profile's entire keychain entry, including tokens,
+the DPoP private key, and the saved authorization-server nonce. The keychain
+result distinguishes `deleted`, `absent`, and `backend-error`. Only the first
+two are successful outcomes; a native exception, unavailable module, or
+unconfirmed deletion fails closed with exit code 4 and
+`secure-storage-unavailable`, because credentials may still remain. There is
+no separate CLI session to remove; explicitly supplied environment credentials
+remain in the caller's environment and are reported separately.
 
-Device polling handles `authorization_pending`, RFC 8628 `slow_down`, denial, expiry, Ctrl-C cancellation, refresh rotation, timeouts, and malformed identity-provider responses. Redirects are never followed.
+Device polling handles `authorization_pending`, RFC 8628 `slow_down`, denial,
+expiry, Ctrl-C cancellation, refresh rotation, timeouts, and malformed
+identity-provider responses. Token and refresh requests carry fresh ES256
+DPoP proofs and perform at most one RFC 9449 authorization-server nonce retry.
+API requests use the `DPoP` authorization scheme, bind each proof to the exact
+method, URL, and access token, and perform at most one independent
+resource-server nonce retry. A raw command keeps that resource nonce only for
+its short-lived process; it is not persisted across invocations. Bearer
+fallback is never used. Redirects are never followed.
+
+Login persistence, refresh rotation, and logout share an OS-owned,
+cross-process loopback-socket mutex for each profile. A waiter re-reads the
+keychain only after it owns the mutex, preventing reuse of a rotated refresh
+token and preventing logout races from restoring credentials. The kernel
+releases the mutex on normal exit, kill, or crash. Its port is derived from a
+hash of the user namespace, profile, and credential-mutation scope; a rare
+collision with another profile or local listener can only conservatively
+serialize the operation or make it fail after the bounded wait. It cannot
+allow concurrent refresh.
 
 ## Commands
 
@@ -122,8 +161,10 @@ Response bodies are bounded to 1 MiB. Machine output may include safe status, ET
 ## Security boundaries
 
 - Native fetch uses `redirect: "error"`, bounded responses, explicit JSON media types, request timeouts, and caller cancellation.
-- The SDK controls typed request methods, paths, query fields, protocol headers, RFC 9457 errors, and bearer attachment.
-- Public operations do not receive a bearer token. The raw client consults the generated operation's `public` flag before resolving auth.
+- The SDK controls typed request methods, paths, query fields, protocol
+  headers, RFC 9457 errors, and DPoP proof attachment.
+- Public operations receive no authorization credential. The raw client
+  consults the generated operation's `public` flag before resolving auth.
 - Identity discovery must return the exact configured issuer. Device, token, verification, API, and issuer URLs require HTTPS except loopback.
 - Errors are normalized and credential patterns are redacted. Unknown exceptions never expose their original message.
 - Config files reject symlinks and oversized content, and are atomically replaced with user-only modes where the platform supports them.

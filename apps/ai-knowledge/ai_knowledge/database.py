@@ -12,11 +12,11 @@ import psycopg
 from psycopg.rows import dict_row
 from pydantic import ValidationError
 
-from .corpus import CorpusIntegrityError, CorpusSnapshot
-from .models import FreshnessState, KnowledgeDocument
+from .corpus import CorpusIntegrityError, CorpusSnapshot, KnowledgeSourceSnapshot
+from .models import FreshnessState, KnowledgeDocument, KnowledgeSourceDescriptor
 from .projection import ProjectionIntegrityError, ProjectionMetadata, verify_projection_metadata
 from .revision_cache import IngestionRevision, RevisionAwareSnapshotCache
-from .url_policy import is_official_umn_url
+from .url_policy import PROJECT_SUMMARY_URL, is_official_umn_url
 
 _SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 _EXPECTED_CAMPUSES = frozenset({"tc", "duluth", "crookston", "morris", "rochester"})
@@ -94,6 +94,32 @@ SELECT
 FROM knowledge_ingestion_runs
 ORDER BY started_at DESC, created_at DESC, id DESC
 LIMIT 1
+"""
+
+ACTIVE_SOURCES_SQL = """
+SELECT
+  external_id,
+  campus_ids::text[] AS campus_ids,
+  role::text AS role,
+  source_url,
+  license_status::text AS license_status,
+  license_evidence_url,
+  enabled
+FROM knowledge_sources
+WHERE external_id IN (
+  SELECT summary_source_id
+  FROM knowledge_documents
+  WHERE enabled IS TRUE
+    AND retired_at IS NULL
+    AND verification_state <> 'retired'
+  UNION
+  SELECT verification_source_id
+  FROM knowledge_documents
+  WHERE enabled IS TRUE
+    AND retired_at IS NULL
+    AND verification_state <> 'retired'
+)
+ORDER BY external_id
 """
 
 ACTIVE_DOCUMENTS_SQL = """
@@ -225,12 +251,45 @@ def _validate_license_evidence_url(value: object) -> None:
 def _build_snapshot(
     *,
     corpus_version: object,
+    source_rows: Sequence[Mapping[str, Any]],
     document_rows: Sequence[Mapping[str, Any]],
     chunk_rows: Sequence[Mapping[str, Any]],
     citation_rows: Sequence[Mapping[str, Any]],
 ) -> CorpusSnapshot:
     if not isinstance(corpus_version, str) or not _SHA256_RE.fullmatch(corpus_version):
         raise CorpusIntegrityError("knowledge ingestion revision is invalid")
+
+    source_registry: dict[str, KnowledgeSourceSnapshot] = {}
+    for row in source_rows:
+        source_id = row.get("external_id")
+        role = row.get("role")
+        enabled = row.get("enabled")
+        if (
+            not isinstance(source_id, str)
+            or source_id in source_registry
+            or role not in {"PROJECT_SUMMARY", "OFFICIAL_VERIFICATION"}
+            or not isinstance(enabled, bool)
+        ):
+            raise CorpusIntegrityError("knowledge source identity is invalid")
+        resource_kind = (
+            "AI_KNOWLEDGE_SUMMARY" if role == "PROJECT_SUMMARY" else "AI_VERIFICATION_LINK"
+        )
+        try:
+            descriptor = KnowledgeSourceDescriptor(
+                id=source_id,
+                campusIds=row.get("campus_ids"),
+                resourceKinds=[resource_kind],
+                sourceUrl=row.get("source_url"),
+                licenseStatus=row.get("license_status"),
+                licenseEvidenceUrl=row.get("license_evidence_url"),
+                killSwitch={
+                    "key": f"source.{source_id}.enabled",
+                    "defaultState": "ENABLED" if enabled else "DISABLED",
+                },
+            )
+        except (TypeError, ValueError, ValidationError) as error:
+            raise CorpusIntegrityError("knowledge source validation failed") from error
+        source_registry[source_id] = KnowledgeSourceSnapshot.from_descriptor(descriptor)
 
     chunks_by_document: dict[str, dict[tuple[str, int], Mapping[str, Any]]] = defaultdict(dict)
     chunks_by_id: dict[str, Mapping[str, Any]] = {}
@@ -325,8 +384,7 @@ def _build_snapshot(
             or row.get("summary_license_status") != "OPEN_REUSE"
             or row.get("summary_source_enabled") is not True
             or set(row.get("summary_source_campus_ids") or ()) != _EXPECTED_CAMPUSES
-            or row.get("summary_source_url")
-            != "https://github.com/appleweiping/umn-gopher-assistant/blob/main/apps/ai-knowledge/ai_knowledge/data/corpus.json"
+            or row.get("summary_source_url") != PROJECT_SUMMARY_URL
         ):
             raise CorpusIntegrityError("knowledge summary source governance is invalid")
         _validate_license_evidence_url(row.get("summary_license_evidence_url"))
@@ -390,7 +448,11 @@ def _build_snapshot(
         or set(citations_by_document) != seen_document_ids
     ):
         raise CorpusIntegrityError("orphaned active knowledge evidence was loaded")
-    return CorpusSnapshot(documents=tuple(documents), corpus_sha256=corpus_version)
+    return CorpusSnapshot(
+        documents=tuple(documents),
+        source_registry=source_registry,
+        corpus_sha256=corpus_version,
+    )
 
 
 class PostgreSQLKnowledgeRepository:
@@ -527,11 +589,13 @@ class PostgreSQLKnowledgeRepository:
                         "knowledge ingestion revision changed during snapshot loading"
                     )
                 _verify_committed_projection(connection, ingestion)
+                source_rows = connection.execute(ACTIVE_SOURCES_SQL).fetchall()
                 document_rows = connection.execute(ACTIVE_DOCUMENTS_SQL).fetchall()
                 chunk_rows = connection.execute(ACTIVE_CHUNKS_SQL).fetchall()
                 citation_rows = connection.execute(ACTIVE_CITATIONS_SQL).fetchall()
             return _build_snapshot(
                 corpus_version=expected_revision,
+                source_rows=source_rows,
                 document_rows=document_rows,
                 chunk_rows=chunk_rows,
                 citation_rows=citation_rows,

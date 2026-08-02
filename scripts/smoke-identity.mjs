@@ -41,6 +41,11 @@ async function verifyDiscoveryAndDeviceFlow() {
       discovery.code_challenge_methods_supported.includes("S256"),
     "OIDC discovery does not advertise PKCE S256",
   );
+  invariant(
+    Array.isArray(discovery.dpop_signing_alg_values_supported) &&
+      discovery.dpop_signing_alg_values_supported.includes("ES256"),
+    "OIDC discovery does not advertise ES256 DPoP proofs",
+  );
 
   const deviceEndpoint = requiredString(discovery, "device_authorization_endpoint", "OIDC discovery");
   const tokenEndpoint = requiredString(discovery, "token_endpoint", "OIDC discovery");
@@ -67,7 +72,7 @@ async function verifyDiscoveryAndDeviceFlow() {
     "RFC 8628 response has an invalid expiry",
   );
 
-  return { deviceAuthorization: true, issuer, pkceS256: true };
+  return { deviceAuthorization: true, dpopEs256: true, issuer, pkceS256: true };
 }
 
 async function adminGet(path, accessToken) {
@@ -103,21 +108,45 @@ async function verifyAdminConfiguration() {
   );
   const accessToken = requiredString(tokenResponse, "access_token", "local Keycloak admin authentication");
   const encodedRealm = encodeURIComponent(realm);
+  const serverInfo = await adminGet("admin/serverinfo", accessToken);
+  invariant(serverInfo?.systemInfo?.version === "26.7.0", "Keycloak is not the reviewed 26.7.0 release");
+  const realmConfiguration = await adminGet(`admin/realms/${encodedRealm}`, accessToken);
+  invariant(
+    realmConfiguration?.revokeRefreshToken === true && realmConfiguration?.refreshTokenMaxReuse === 0,
+    "Keycloak does not rotate refresh tokens with zero reuse",
+  );
   const clients = await adminGet(`admin/realms/${encodedRealm}/clients`, accessToken);
   invariant(Array.isArray(clients), "Keycloak clients response is not an array");
 
   const expectations = new Map([
-    ["gopher-web", { audience: "gopher-api-audience", optionalScopes: [], publicClient: true }],
+    [
+      "gopher-web",
+      {
+        audience: "gopher-api-audience",
+        defaultScopes: ["campus:read", "gopher-api-audience", "gopher-platform-roles"],
+        optionalScopes: ["personal:read", "personal:write"],
+        publicClient: true,
+      },
+    ],
     [
       "gopher-cli",
       {
         audience: "gopher-api-audience",
+        defaultScopes: ["campus:read", "gopher-api-audience", "gopher-platform-roles"],
         optionalScopes: ["offline_access"],
         publicClient: true,
       },
     ],
-    ["gopher-mcp", { audience: "gopher-mcp-audience", optionalScopes: [], publicClient: true }],
-    ["gopher-api", { audience: undefined, optionalScopes: [], publicClient: false }],
+    [
+      "gopher-mcp",
+      {
+        audience: "gopher-mcp-audience",
+        defaultScopes: ["campus:read", "gopher-mcp-audience", "gopher-platform-roles"],
+        optionalScopes: [],
+        publicClient: true,
+      },
+    ],
+    ["gopher-api", { audience: undefined, defaultScopes: [], optionalScopes: [], publicClient: false }],
   ]);
 
   for (const [clientId, expectation] of expectations) {
@@ -131,6 +160,15 @@ async function verifyAdminConfiguration() {
         client.attributes?.["access.token.header.type.rfc9068"] === "true",
         `${clientId} does not issue RFC 9068 at+jwt access tokens`,
       );
+      invariant(
+        client.attributes?.["dpop.bound.access.tokens"] === "true",
+        `${clientId} does not require DPoP-bound access tokens`,
+      );
+    } else {
+      invariant(
+        client.attributes?.["dpop.bound.access.tokens"] === undefined,
+        `${clientId} is a bearer-only resource client but has a token-issuance DPoP setting`,
+      );
     }
     const defaultScopes = await adminGet(
       `admin/realms/${encodedRealm}/clients/${encodeURIComponent(client.id)}/default-client-scopes`,
@@ -138,6 +176,10 @@ async function verifyAdminConfiguration() {
     );
     invariant(Array.isArray(defaultScopes), `${clientId} default scopes response is not an array`);
     const scopeNames = new Set(defaultScopes.map((scope) => scope.name));
+    invariant(
+      JSON.stringify([...scopeNames].sort()) === JSON.stringify([...expectation.defaultScopes].sort()),
+      `${clientId} has unexpected default scopes`,
+    );
     const optionalScopes = await adminGet(
       `admin/realms/${encodedRealm}/clients/${encodeURIComponent(client.id)}/optional-client-scopes`,
       accessToken,
@@ -190,11 +232,39 @@ async function verifyAdminConfiguration() {
     "MCP audience mapper is not bound to the exact local resource URL",
   );
 
+  const profiles = await adminGet(`admin/realms/${encodedRealm}/client-policies/profiles`, accessToken);
+  const strictProfile = profiles?.profiles?.find(
+    (profile) => profile?.name === "gopher-strict-dpop-code-binding",
+  );
+  const dpopExecutor = strictProfile?.executors?.find(
+    (executor) => executor?.executor === "dpop-bind-enforcer",
+  );
+  invariant(
+    dpopExecutor?.configuration?.["auto-configure"] === "false" &&
+      dpopExecutor?.configuration?.["allow-only-refresh-token-binding"] === "false" &&
+      dpopExecutor?.configuration?.["enforce-authorization-code-binding-to-dpop"] === "true",
+    "Keycloak strict dpop_jkt client-policy executor is not active",
+  );
+  const policies = await adminGet(`admin/realms/${encodedRealm}/client-policies/policies`, accessToken);
+  const strictPolicy = policies?.policies?.find(
+    (policy) => policy?.name === "Gopher public OIDC DPoP binding",
+  );
+  invariant(
+    strictPolicy?.enabled === true &&
+      Array.isArray(strictPolicy?.profiles) &&
+      strictPolicy.profiles.includes("gopher-strict-dpop-code-binding"),
+    "Keycloak strict public-client DPoP policy is not enabled",
+  );
+
   return {
     audienceSeparation: true,
     clients: expectations.size,
+    dpopAuthorizationCodeBinding: true,
+    dpopBoundPublicClients: 3,
     performed: true,
+    refreshTokenMaxReuse: 0,
     scopeEscalationPreventedByClientLinkage: true,
+    version: serverInfo.systemInfo.version,
   };
 }
 
