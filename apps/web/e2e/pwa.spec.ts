@@ -142,7 +142,7 @@ test("keeps sensitive Plan requests and malformed vault-like messages outside Ca
 }) => {
   await page.goto("/today");
   await page.evaluate(async () => navigator.serviceWorker.ready);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
 
   const result = await page.evaluate(async () => {
@@ -189,7 +189,7 @@ test("never caches visited HTML and keeps the Chinese offline shell available of
   const app = new CampusFieldGuidePage(page);
   await app.open("/explore");
   await page.evaluate(async () => navigator.serviceWorker.ready);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
   await expect(app.mainHeading).toHaveText("查找地点、服务、活动或课程");
 
@@ -242,7 +242,7 @@ test("never caches visited HTML and keeps the Chinese offline shell available of
 test("uses the English offline shell for an unvisited page", async ({ context, page }) => {
   await page.goto("/today");
   await page.evaluate(async () => navigator.serviceWorker.ready);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
 
   await context.setOffline(true);
@@ -260,7 +260,7 @@ test("does not reuse an English page after switching to Chinese offline", async 
   const app = new CampusFieldGuidePage(page);
   await app.open("/explore");
   await page.evaluate(async () => navigator.serviceWorker.ready);
-  await page.reload({ waitUntil: "networkidle" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
   await expect(app.mainHeading).toHaveText("Find a place, service, event, or course");
 
