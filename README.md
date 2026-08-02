@@ -1,429 +1,607 @@
 # UMN Gopher Assistant
 
-An independent, student-built foundation for a bilingual campus assistant and
-digital campus platform covering the University of Minnesota campuses at Twin
-Cities, Duluth, Crookston, Morris, and Rochester.
+An independent, bilingual campus companion for the University of Minnesota's
+Twin Cities, Duluth, Crookston, Morris, and Rochester campuses. The platform
+combines a provenance-first public field guide, deterministic campus knowledge
+retrieval, an end-to-end encrypted personal planner, and secure developer
+interfaces in one schema-first monorepo.
 
-> **Independent and unofficial.** This project is not operated, sponsored,
-> endorsed, or approved by the University of Minnesota. University names are
-> used only to identify the campuses the software is designed to support.
-> Institutional connectors, branding, and safety-critical features stay
-> disabled until the required authorization, licensing, and verification
-> evidence has been reviewed.
+> **Independent and unofficial.** UMN Gopher Assistant is not operated,
+> sponsored, endorsed, or approved by the University of Minnesota. University
+> names identify the campuses this software is designed to support. Do not use
+> this project for emergencies, evacuation, accessible-route guarantees, or any
+> decision where incorrect information could cause harm. Follow current
+> University and emergency-service guidance instead.
 
-## Foundation status
+## Release posture
 
-This repository is an engineering foundation, not a production campus service.
-The current API implementation includes health, campus/source metadata,
-schematic world manifests, an evidence-gated public catalog, and a public
-evidence-first campus knowledge query. Academic
-sessions for all five campuses and public events for Twin Cities and Duluth are
-retrieved live with no content cache; unsupported event campuses fall back to
-official links. The no-key AI mode retrieves project-authored bilingual summaries,
-cites every paragraph, and never reads the personal vault or calls a model provider.
-OpenAPI and AsyncAPI also describe intended contract surfaces, so a documented
-operation or event is not proof that its backing connector or workflow is enabled.
+This repository is a production-oriented **pre-production platform**, not a
+deployed campus service. Its implemented paths are tested and fail closed, but
+production promotion still requires a composite readiness probe, live
+infrastructure rehearsal, operator ownership, approved connectors, and the
+deployment controls described below.
 
-The platform is designed around:
+The current release provides:
 
-- English and Simplified Chinese content using the locale keys **en** and
-  **zh-CN**;
-- provenance-bearing records for all five campuses;
-- a NestJS 11 and Fastify API plus a Next.js 16.2 web application;
-- shared contracts, configuration, database, and testing packages;
-- PostgreSQL with PostGIS and pgvector, with optional supporting services for
-  identity, cache, messaging, search, object storage, live media, and secrets;
-- a schema-first modular monolith whose modules can be selectively extracted
-  into services when measured operational needs justify it.
+- English and Simplified Chinese (`en` and `zh-CN`) experiences for all five
+  campuses;
+- live-only academic sessions for all five campuses and live-only public event
+  feeds for Twin Cities and Duluth;
+- official-link event fallbacks for Crookston, Morris, and Rochester;
+- deterministic, evidence-gated campus answers from a reviewed project-authored
+  bilingual corpus;
+- a local-first encrypted task vault with optional account-bound ciphertext
+  synchronization, device pairing, recovery, and root-key rotation;
+- OIDC, PKCE, RFC 8628 device authorization, audience separation, and DPoP for
+  protected personal workflows;
+- a generated TypeScript SDK, guarded CLI, and OAuth-protected remote MCP
+  server; and
+- a migration-led PostgreSQL design, restricted runtime roles, RLS, Redis-backed
+  security state, a trusted edge gateway, and reproducible verification gates.
 
-All current campus and source records have an official status of **UNVERIFIED**.
-That flag must not be rewritten, hidden, or interpreted as institutional
-approval.
+All current campus and source records remain **UNVERIFIED**. World content is
+**schematic**. Those labels are product invariants, not temporary UI copy.
 
-## Trust labels
+## Product walkthrough
 
-The platform keeps three different concepts separate:
+These screenshots were captured from the production Next.js build. The Ask
+examples use actual output from the checked-in reviewed corpus and deterministic
+hybrid retriever, supplied to the browser through an isolated intercepted HTTP
+handoff because Docker/Redis was unavailable on the capture host. They verify
+the production UI, response schema, and provenance rendering rather than claim
+a full browser-to-Core integration run. Separate compiled API and runtime smoke
+tests passed. No language-model provider, private-vault content, or
+official-page body was used.
 
-| Label          | Meaning                                                                                                                                                 |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Schematic**  | An internally authored approximation, such as a placeholder 3D world. It is not a survey, official map, accessible-route guarantee, or emergency route. |
-| **Unverified** | A source or fact has provenance, but its rights, freshness, or accuracy have not completed the required review.                                         |
-| **Verified**   | Evidence for the specific claim, version, and intended use has been reviewed. Verification never implies University endorsement.                        |
+### Evidence-first Ask — English
 
-At this stage, 3D worlds are schematic and safety-critical route guidance is
-disabled. Do not use this software for emergencies, evacuation, accessibility
-guarantees, or other decisions where an incorrect answer could cause harm.
-Follow current official University and emergency-service guidance instead.
+![English evidence-first Ask workflow](docs/screenshots/ask-evidence-en.png)
+
+Each paragraph identifies the project-authored summary it came from. The
+official UMN page is displayed separately as a verification entrance, with an
+explicit statement that its content was not retrieved.
+
+### Evidence-first Ask — Simplified Chinese and Rochester
+
+![Chinese Rochester evidence-first Ask workflow in dark mode](docs/screenshots/ask-evidence-zh-dark.png)
+
+Campus scope, locale, provenance, and safe-abstention behavior are preserved in
+both languages. Retrieval filters by campus before ranking candidates.
+
+### Fail-closed live-source behavior
+
+![Today dashboard when a live public source is unavailable](docs/screenshots/today-fail-closed-en.png)
+
+This capture deliberately made the Core/live-source path unavailable. Today
+shows the outage and a governed official deep link; it does not silently
+substitute cached, synthetic, or cross-campus events.
+
+## What works today
+
+| User workflow         | Implemented behavior                                                                                                                                        | Trust boundary                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Today and Explore** | Five-campus field guide, academic sessions, TC/Duluth events, source metadata, ETags, and explicit fallback states                                          | Live responses are `LIVE_ONLY`, `no-store`, and provenance-bearing; unsupported campuses deep-link instead of scraping                                                                      |
+| **Ask**               | Bilingual deterministic retrieval with `answered`, `stale`, `conflict`, and `no-results` outcomes                                                           | Only reviewed project-authored summaries are answer evidence; official pages are link-only verification entrances                                                                           |
+| **Plan**              | Offline-first encrypted tasks, explicit unlock, inactivity/background lock, local recovery, optional signed account sync, device pairing, and root rotation | Raw key material and persistent vault state stay Worker-side; sanitized decrypted task views exist transiently in the page; the service stores ciphertext and public protocol metadata only |
+| **World**             | Five-campus manifests and text alternatives                                                                                                                 | Geometry is visibly schematic and is never presented as official navigation or an accessible route                                                                                          |
+| **Identity**          | Browser PKCE, CLI device flow, exact API/MCP audiences, least-privilege scopes, and DPoP-bound protected requests                                           | The checked-in Keycloak realm is synthetic and local-only; UMN SAML and institutional credentials are not enabled                                                                           |
+| **Developers**        | OpenAPI/AsyncAPI contracts, generated SDK, CLI doctor/read commands, and three read-only MCP tools                                                          | Every OpenAPI operation declares `x-runtime-status`; contract-only operations cannot masquerade as implemented features                                                                     |
+| **Operations**        | Ordered migrations, checksum ledger, RLS, exact runtime grants, account-HMAC rotation, retention maintenance, Keycloak reconciliation, and smoke tooling    | Missing approvals, invalid configuration, stale proofs, conflicting commits, and unverifiable state fail closed                                                                             |
+
+Contracted community, messaging, courses, media, moderation, routing, and
+administrative write surfaces remain `contract-only`. Their presence in
+OpenAPI or AsyncAPI is not evidence that they are running.
+
+## Architecture
+
+The default application boundary is a modular monolith. The Python retrieval
+service and public edge gateway are isolated because they have distinct trust
+and network boundaries; further service extraction requires measured security,
+scaling, availability, or ownership evidence.
+
+```mermaid
+flowchart TB
+  user["Student browser"]
+  cli["uga CLI"]
+  mcpclient["MCP clients"]
+  mcp["Remote MCP server"]
+  edge["Trusted edge gateway"]
+  web["Next.js Web and same-origin BFFs"]
+  worker["Vault Worker and WebCrypto"]
+  idb["Encrypted IndexedDB"]
+  api["NestJS / Fastify Core API"]
+  oidc["OIDC / Keycloak"]
+  redis["Redis replay, nonce, and quota state"]
+  db["PostgreSQL 17, RLS, PostGIS, pgvector schema"]
+  retrieval["Deterministic AI knowledge service"]
+  public["Reviewed public UMN endpoints"]
+
+  user -->|"HTTPS"| edge
+  edge -->|"private Web origin + AI network assertion"| web
+  web -->|"public BFF or DPoP-bound personal call"| api
+  web -->|"encrypted OIDC session and resource nonce"| redis
+  user --> worker --> idb
+  worker -->|"ciphertext and signed protocol state"| web
+  user -->|"PKCE"| oidc
+  cli -->|"RFC 8628 + DPoP"| oidc
+  cli -->|"audience-bound protected calls"| api
+  mcpclient -->|"MCP-audience DPoP"| mcp
+  mcp -->|"issuer and JWKS verification"| oidc
+  mcp -->|"three public GETs; inbound token discarded"| api
+  api --> redis
+  api --> db
+  api -->|"fresh service HMAC"| retrieval --> db
+  api -->|"gated live-only reads"| public
+```
+
+In local development and managed browser tests, Web can bind directly to
+loopback. A public deployment must put the Web/BFF origin behind the trusted
+edge gateway and its private-origin policy. The retrieval service is private;
+browsers never call it directly.
+
+### Core design rules
+
+1. **Schema before coupling.** Shared Zod schemas and OpenAPI are the
+   compatibility authority. The SDK's types and runtime operation map are
+   generated from that contract.
+2. **Campus scope is explicit.** Every campus-scoped record carries one of
+   `tc`, `duluth`, `crookston`, `morris`, or `rochester`; an institution code or
+   calendar mapping is never treated as a campus ID.
+3. **Evidence travels with data.** Source, license, freshness, verification,
+   and cache policy remain attached to derived records.
+4. **Personal plaintext stays client-side.** The browser Worker owns vault keys
+   and decrypted task state. Server APIs accept only authenticated encrypted
+   protocol objects.
+5. **Unavailable is a valid outcome.** A connector, corpus revision, proof,
+   account mapping, or dependency that cannot be validated makes its workflow
+   unavailable rather than triggering an unsafe fallback.
+
+See [Architecture](docs/architecture.md) for component ownership, connector
+lifecycle, deployment boundaries, and service-extraction criteria.
+
+## Evidence and AI contract
+
+The Ask workflow is intentionally not a general chatbot. In its current
+`no-key-hybrid` mode it performs deterministic lexical and character n-gram
+retrieval over a versioned bilingual corpus:
+
+1. the Core API accepts only campus, locale, and bounded query text;
+2. the private retrieval boundary validates a fresh HMAC-signed request;
+3. candidates are campus-filtered before an absolute topical evidence gate;
+4. weak overlap returns `no-results` rather than a plausible guess;
+5. accepted paragraphs cite the exact project-authored record; and
+6. a separate governed `https://*.umn.edu` URL is offered for current official
+   verification without claiming its body was fetched, quoted, or licensed.
+
+Each citation therefore separates two objects:
+
+| Citation object    | What it means                                                           | What it does not mean                                                                          |
+| ------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `summarySource`    | The Apache-2.0, project-authored record that supplied the answer text   | University authorship, approval, or live official data                                         |
+| `verificationLink` | A governed official page the user can open to check current information | Retrieved evidence, permission to republish the page, or proof the page is currently reachable |
+
+Production retrieval requires a successfully synchronized PostgreSQL corpus,
+TLS-validated database transport, a private Core-to-retrieval HMAC, and
+Redis-backed Core abuse control. Development and tests may explicitly select
+the reviewed file backend. Production cannot fall back to that file. pgvector
+storage is present for future review, but vector search and embeddings are not
+enabled.
+
+The release gate contains 152 bilingual, corpus-bound supported, unsupported,
+ambiguous, and hard-negative cases across all five campuses. It checks answer
+correctness, citation integrity, safe abstention, and zero cross-campus
+leakage. See [Campus knowledge operations](docs/ai-knowledge-operations.md),
+[ADR 0005](docs/adr/0005-evidence-first-campus-ai.md), and
+[ADR 0006](docs/adr/0006-explicit-ai-citation-provenance.md).
+
+## End-to-end encrypted personal vault
+
+Plan works locally without an account. A user explicitly creates a vault, saves
+a shown-once recovery code, acknowledges it, and unlocks the vault for each
+browser session. The code remains valid until recovery/root rotation replaces
+it. The vault locks on demand, after 15 minutes without activity, and when the
+page is hidden or unloaded.
+
+The browser security boundary has four important properties:
+
+- a dedicated module Worker owns live vault and device-key handles, IndexedDB
+  operations, encryption, signing, and the canonical decrypted task state;
+- the page receives only sanitized task view models, clears them when the vault
+  locks, and never receives raw vault-key bytes;
+- the X25519 device private key is sealed by an origin-bound, non-extractable
+  AES-256-GCM `CryptoKey`; and
+- malformed legacy plaintext is retained for explicit user action, while a
+  valid legacy value is removed only after encrypted write and exact decrypt
+  read-back verification.
+
+After OIDC sign-in, the user can explicitly enable account-bound ciphertext
+synchronization. Protected API requests require DPoP; Redis atomically enforces
+nonce, replay, and rate state. The server resolves a stable HMAC-derived account
+identity and persists only encrypted snapshots, public authorization
+descriptors, signed commits, trusted-device metadata, and bounded
+idempotency/replay records under row-level security.
+
+Signed parent/child commits make ordinary update, pairing, recovery, and
+rotation transitions serial and auditable. A recovery flow verifies the
+recovery-derived public key, registers a replacement device, then requires root
+and recovery rotation plus an exact server read-back before normal sync resumes.
+Forked, rolled-back, stale, malformed, incorrectly signed, or
+cross-account state fails closed.
+
+The service cannot decrypt a vault, reset a lost recovery code, or recover a
+local-only vault after browser storage is lost. This E2EE boundary does not
+protect an unlocked vault from compromised same-origin Web/PWA assets, XSS, a
+malicious Service Worker or browser extension, or a compromised endpoint: such
+code can invoke the Worker or read rendered task views. Non-extractable browser
+keys reduce accidental export but are not hardware-enclave guarantees.
+Rollback detection is anchored to trusted local state; global fork transparency
+against a malicious storage service is not yet implemented. See
+[Personal-vault operations](docs/personal-vault-operations.md),
+[ADR 0007](docs/adr/0007-account-bound-e2ee-sync.md), and
+[ADR 0008](docs/adr/0008-dpop-proof-of-possession.md).
 
 ## Quick start
 
-Prerequisites:
+### Prerequisites
 
-- Node.js `>=24 <25` (CI and local evidence use 24.11.1);
-- pnpm 10 through Corepack, using the exact packageManager version in
-  package.json;
-- Docker with Compose only when running the local infrastructure stack.
+- Node.js `>=24 <25` — CI and the latest local evidence use `24.11.1`;
+- pnpm `10.34.5` through Corepack, matching `packageManager` exactly;
+- Python `>=3.13 <3.15` for the retrieval service and Python verification; and
+- Docker with Compose for the full PostgreSQL, Redis, Keycloak, and supporting
+  integration topology.
 
-From the repository root:
+The repository sets `engine-strict=true`, so unsupported Node versions fail at
+install time.
 
-    corepack enable
-    pnpm install
-    pnpm verify
-    pnpm dev
+### Install and verify
 
-The repository sets `engine-strict=true`; installation fails outside the
-supported Node 24 line. `pnpm verify:node-policy` checks the root and every
-workspace manifest, and the published `uga` binary repeats this check before it
-loads configuration or credentials.
+```bash
+corepack enable
+corepack install --global pnpm@10.34.5
+pnpm install --frozen-lockfile
+```
 
-Local infrastructure binds published ports to `127.0.0.1` by default. Copy
-`infra/compose/.env.example` only for local development, then run Compose from
-the repository root. The database image is built from a digest-pinned PostGIS
-base with checksum-pinned pgvector source. A dedicated one-shot migration
-service applies every ordered SQL migration transactionally, records a
-checksum ledger, and upgrades existing foundation-only volumes before dependent
-services start. Its privilege convergence transaction first revokes existing
-runtime function access, then grants only the reviewed personal-API function
-allowlist under bounded statement and lock timeouts.
+Install the hash-pinned Python development environment from
+`apps/ai-knowledge`, then run the core local source/test/build gate:
 
-    docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up --build --wait
+```bash
+cd apps/ai-knowledge
+python -m venv .venv
+# Linux/macOS: . .venv/bin/activate
+# PowerShell:  .venv\Scripts\Activate.ps1
+python -m pip install --require-hashes -r requirements-dev.txt
+cd ../..
+pnpm verify
+pnpm build
+```
 
-Keycloak startup import creates a missing local realm but cannot update a realm
-already retained in PostgreSQL. The `keycloak-reconcile` one-shot therefore
-runs after Keycloak is healthy and idempotently converges the versioned DPoP
-policy, DPoP-bound public-client attributes, and exact `personal:read` /
-`personal:write` links. A reconciliation failure makes Compose startup fail
-closed; neither administrator credentials nor access tokens are printed.
+Useful narrower gates are:
 
-`pnpm smoke:db` creates an isolated temporary Compose project, reproduces a
-foundation-only legacy volume, runs the migration service, verifies preserved
-data, PostGIS, pgvector, the migration ledger, the knowledge tables, and both
-HNSW indexes, then removes its volumes. It requires an available Docker engine
-and is intended for CI or a local runtime with Docker enabled.
+```bash
+pnpm verify:node
+pnpm verify:python
+pnpm check:generated
+pnpm smoke:api
+```
 
-The default smoke rebuilds the checksum-pinned database recipe. If a registry is
-temporarily unavailable and the locally tagged development image was already
-built from that recipe, set `SMOKE_DB_REUSE_IMAGE=true` to use `--no-build`;
-this recovery mode verifies the required tag exists but does not claim remote
-digest provenance. The command fails rather than silently substituting an
-absent image.
+### Run the Web field guide
 
-With Keycloak running, `pnpm smoke:identity` verifies OIDC discovery, mandatory
-PKCE S256 support, and a real RFC 8628 device-authorization response without
-printing the device or user codes. Set both `KEYCLOAK_ADMIN` and
-`KEYCLOAK_ADMIN_PASSWORD` to additionally verify the four imported clients,
-password-grant and service-account denial, API/MCP audience separation, and the
-exact local MCP audience mapper through the Keycloak Admin API. The script never
-prints the administrator or access tokens.
+For UI-only work:
 
-For explicit token-level DPoP and negative-escalation checks, export the same
-two administrator variables and run `pnpm smoke:identity:device`. It creates
-and deletes one synthetic complete-profile user, drives the real Web and MCP
-authorization-code flows plus the CLI device flow headlessly, and verifies
-proof-bound token and refresh requests for all three public clients. It also
-proves that requested `admin:write` does not enter the tokens and that API and
-MCP audiences remain exact and separate. Signatures, issuers, authorized-client
-claims, token types, and `cnf.jkt` are checked against the discovery JWKS.
-Sensitive values are never printed or inherited by the browser process, and
-exact-username cleanup is audited.
+```bash
+pnpm --filter @umn-gopher-assistant/web dev
+```
 
-After building the API and MCP server and starting local Compose Redis,
-`pnpm smoke:mcp:oauth` starts both runtimes plus an ephemeral loopback
-issuer/JWKS fixture. It issues a DPoP-bound `at+jwt` solely for the strict
-resource test and proves API/MCP audience isolation, the nonce
-challenge/retry, proof replay rejection, and rejection of missing credentials,
-Bearer fallback, and a proof signed by the wrong key. A valid MCP proof can
-call the three read-only tools and retrieve the exact five-campus data. The API,
-MCP, and issuer listeners are audited as closed; the fixture creates no
-Keycloak client or persistent credential and never prints a token or key.
+For public catalog BFFs, start the API first and point Web at its loopback
+origin:
 
-After `pnpm build`, `pnpm smoke:api` starts the compiled API on an ephemeral
-loopback port and verifies health, all five campus records, source filtering,
-schematic world labeling, ETags, and the fail-closed disabled-campus event
-fallback. Live Sessions and event feeds have a separate deliberately
-low-frequency smoke procedure so the ordinary build never polls UMN systems.
-This specifically checks that workspace package runtime exports work after
-compilation; typechecking alone is not accepted as runtime evidence.
+```powershell
+# Terminal 1
+$env:PORT = "4000"
+pnpm --filter @umn-gopher-assistant/api dev
 
-Setting `COMPOSE_BIND_ADDRESS=0.0.0.0` is an explicit remote-exposure opt-in.
-Do not do so with repository default credentials or without a host firewall and
-a reviewed network boundary.
+# Terminal 2
+$env:GOPHER_API_BASE_URL = "http://127.0.0.1:4000"
+pnpm --filter @umn-gopher-assistant/web dev
+```
 
-The development command starts workspace development tasks. Consult package
-scripts and the API contracts before assuming a planned endpoint is backed by a
-runtime implementation.
+Open `http://localhost:3000`. Development permits plain HTTP only for a
+loopback API origin; production requires an explicit HTTPS origin.
 
-### Live public catalog
+Ask additionally requires the fail-closed Redis abuse limiter. Start the local
+passworded Redis service, then run the reviewed retrieval file backend on
+Core's development default port (`8100`):
 
-Run the API and web app together to use live public Sessions data for all five
-campuses and live Twin Cities/Duluth event feeds. Set
-`GOPHER_API_BASE_URL=http://127.0.0.1:4000` for the local web development
-process; production requires an explicit HTTPS origin. Responses are
-`LIVE_ONLY`, carry source observations and coverage, and use
-`Cache-Control: no-store`. Rochester academic data uses the reviewed `UMNTC`
-mapping. Morris events remain approval-required and disabled, while Crookston
-and Rochester events remain official deep links.
+```bash
+docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up -d --wait redis
+```
 
-See the [public catalog operations runbook](docs/public-catalog-operations.md)
-for copyable startup and low-frequency smoke commands, cursor-key deployment,
-source switches, review expiry, pagination semantics, and incident fallback.
+In a third terminal:
 
-### Evidence-first campus AI
+```powershell
+Set-Location apps/ai-knowledge
+$env:NODE_ENV = "development"
+$env:AI_KNOWLEDGE_BACKEND = "file"
+python -m uvicorn ai_knowledge.app:app --host 127.0.0.1 --port 8100
+```
 
-The Ask page now uses the implemented `POST /v1/ai/query` surface through a
-same-origin, credential-free BFF. The initial mode is deterministic retrieval,
-not a general chatbot: it returns `answered`, `stale`, `conflict`, or
-`no-results`, retains campus and evidence metadata, and links only to governed
-official UMN verification entrances. BYOK and local-model inputs remain visibly
-disabled until their provider, secret, privacy, and output-validation boundaries
-are implemented and tested.
+The Core development defaults now match both local endpoints:
+`API_AI_KNOWLEDGE_URL=http://127.0.0.1:8100` and
+`API_AI_REDIS_URL=redis://:local-redis-password-only@127.0.0.1:6379`. Core and
+retrieval also share a fixed development-only HMAC default. Shared environments
+must explicitly inject independently generated connection credentials and one
+canonical base64url HMAC key into both services. Never expose the retrieval
+port to browsers.
 
-Development can run the reviewed file corpus explicitly. Production requires
-PostgreSQL 17, a successful transactional corpus synchronization, Redis-backed
-distributed abuse control, and no file fallback. pgvector storage is present,
-but the current implementation truthfully reports that vector search is off.
-Weak lexical overlap now fails closed: a candidate needs absolute topical
-evidence and sufficient query coverage before it can become an answer. A
-corpus-bound, versioned bilingual release gate exercises at least 150 supported,
-unsupported, ambiguous, and hard-negative cases across every campus and locale;
-it is required by both local verification and CI.
-See the [campus knowledge operations runbook](docs/ai-knowledge-operations.md)
-and [ADR 0005](docs/adr/0005-evidence-first-campus-ai.md).
+### Run the local integration topology
 
-## Identity and developer tools
+Copy values from `infra/compose/.env.example` only for local development, then:
 
-The imported Keycloak realm is synthetic and local-only. It provides PKCE
-browser login, RFC 8628 CLI device authorization, separate API/MCP audiences,
-least-privilege scopes, and empty test personas without enabling UMN SAML. See
-the [identity boundary and production enablement gate](docs/identity.md).
+```bash
+docker compose --env-file infra/compose/.env.example -f infra/compose/docker-compose.yml up --build --wait
+```
 
-The `@umn-gopher-assistant/sdk` package derives both its TypeScript types and
-runtime operation map from `openapi/openapi.yaml`. Regenerate and verify the
-committed artifacts with:
+Compose binds published ports to `127.0.0.1` by default. Its one-shot migration
+service applies ordered SQL transactionally, verifies a checksum ledger, and
+converges exact personal-API runtime grants. A second one-shot reconciler
+updates retained Keycloak realms so startup cannot silently keep an obsolete
+DPoP or audience policy.
 
-    pnpm generate
-    pnpm check:generated
+Useful integration checks include:
 
-Every OpenAPI operation has an `x-runtime-status`. Health, campus metadata,
-source metadata, schematic world manifests, academic sessions, and public
-events, and the no-key campus assistant are currently implemented; the other
-public contract surfaces remain `contract-only`.
+```bash
+pnpm smoke:db
+pnpm smoke:identity
+pnpm smoke:identity:device
+pnpm smoke:mcp:oauth
+pnpm smoke:personal-vault-maintenance
+```
 
-The `uga` CLI uses the same implemented operation catalog, RFC 8628 device
-authorization, exact exit codes, JSON envelopes, and operating-system keychain
-storage with no plaintext token fallback. The remote Streamable HTTP MCP server
-verifies the exact MCP audience and currently registers only
-`campuses_list`, `sources_list`, and `world_manifest_get`; it never forwards an
-inbound MCP token to the Core API.
+Some identity checks require the local Keycloak administrator variables; the
+scripts do not print administrator credentials, access tokens, device codes,
+recovery codes, or private keys. Consult the linked runbooks before enabling
+remote exposure or injecting secrets.
 
-    pnpm --filter @umn-gopher-assistant/cli build
-    node apps/cli/dist/bin.js --json doctor
-    pnpm --filter @umn-gopher-assistant/mcp-server dev
+## Public catalog and PWA behavior
 
-See the package READMEs for endpoint and OAuth configuration. No live CLI or
-MCP write tool is registered. Future writes must first become implemented API
-operations and pass the preview, explicit-confirmation, idempotency, and
-authorization gates.
+The public catalog fetches reviewed UMN Sessions data for all five campus
+selections and reviewed event feeds for Twin Cities and Duluth. Responses carry
+source observations and coverage, set `Cache-Control: no-store`, and do not use
+a content cache. Rochester academic queries use the explicit reviewed `UMNTC`
+mapping. Morris events remain approval-required; Crookston and Rochester use
+official deep links.
 
-## Web field guide and PWA
+The installable Web app precaches only project-owned shells, icons, and
+same-origin static assets. It does not cache University content, runtime
+navigation HTML, authenticated responses, vault records, task plaintext,
+ciphertext, keyrings, trusted devices, or recovery codes. Normal `/plan`,
+`/api/`, and `/v1/` traffic stays outside the Service Worker response cache.
 
-The web app is an installable, responsive field guide for all five campuses. It
-provides English and Simplified Chinese interfaces for Today, Explore, Plan,
-Community, World, Ask, Operations, and Developer routes. Campus, language, and
-theme preferences are stored in first-party cookies so the initial server render
-matches the browser state. The Plan task board is a separate local encrypted
-vault; it never uses the old plaintext task `localStorage` value.
+Build and exercise the production PWA locally with:
 
-### End-to-end encrypted personal task vault
+```bash
+pnpm --filter @umn-gopher-assistant/web build
+pnpm --filter @umn-gopher-assistant/web start
+```
 
-The Plan page offers an offline-first encrypted task vault. It works entirely
-locally without an account; after sign-in, a user can explicitly enable
-account-bound ciphertext synchronization. The API stores only strict encrypted
-snapshots, public authorization descriptors, signed commits, and bounded
-replay/idempotency records. It never receives task plaintext, a vault root key,
-a recovery code, or a device private key.
+See [Public catalog operations](docs/public-catalog-operations.md) for source
+switches, review expiry, pagination, cursor-key rotation, low-frequency live
+smoke tests, and incident fallback.
 
-- First use requires an explicit **Create private vault** action. A recovery
-  code is shown once and must be acknowledged before the encrypted records are
-  written.
-- The page requires an explicit unlock for every browser session. It locks on
-  demand, after 15 minutes without activity, and immediately when the page is
-  hidden or unloaded.
-- A module Worker owns live vault/device-key handles and IndexedDB operations.
-  The page receives task view models only; it never receives vault-key bytes.
-- The X25519 device private key is sealed with an origin-bound,
-  non-extractable AES-256-GCM `CryptoKey`; encrypted task payloads and keyring
-  records live in IndexedDB. Legacy `uga.tasks` values are only removed after
-  strict validation, encrypted write, and exact decrypt/read-back verification.
-- If a legacy value is malformed or a migration fails, it remains available for
-  explicit export or deletion. The application does not fall back to plaintext
-  task storage.
-- While the vault is marked **Local only**, clearing site data or losing the
-  local ciphertext makes its tasks unrecoverable. Cross-device recovery becomes
-  possible only after account-bound synchronization has completed and the
-  current recovery code has been saved offline.
-- Remote recovery verifies the recovery-derived public authorization key before
-  downloading encrypted state, registers a replacement device through a signed
-  pairing transition, then blocks ordinary reads/writes until it rotates the
-  root key and recovery credential, revokes old devices, and independently
-  reads back the exact committed head. The replacement recovery code is shown
-  once and is never sent to the server.
-- Sync, pairing, and rotation commands are durably staged before transmission.
-  They replay exactly while their proof is current; after expiry, a fresh
-  signed read must prove either the exact applied successor or the exact
-  unchanged parent before an atomic proof-only renewal. Conflicting, forked,
-  stale, rolled-back, malformed, or incorrectly signed server state fails
-  closed instead of overwriting local data.
-- Store every current recovery code offline. Do not upload, screenshot-share,
-  or send it to another person. The service cannot recover a lost code or
-  decrypt a vault on the user's behalf.
-- Browsers without Worker, IndexedDB, WebCrypto, or non-extractable `CryptoKey`
-  persistence are shown an unavailable/read-only state; existing legacy data is
-  retained without a plaintext fallback.
-- The encrypted vault requires Safari/iOS 26 or newer. Older Apple WebKit
-  releases are disabled because WebKit bug 288682 can partially commit an
-  IndexedDB transaction when a Worker is terminated; the rest of the public
-  field guide remains available and legacy plaintext is retained untouched.
+## Identity, SDK, CLI, and MCP
 
-The vault is intentionally isolated from the AI page, API, logs, Service
-Worker, and response caches. The Service Worker never caches a normal `/plan`
-response and never accepts vault messages. It may cache only an internally
-marked, credentials-omitted anonymous Plan shell plus the project-owned Vault
-Worker bootstrap and its SHA-256 content-addressed artifact. The artifact is
-verified before publication; task plaintext, recovery codes, ciphertext,
-keyrings, and trusted-device records remain outside Cache Storage.
+The local Keycloak realm contains empty synthetic personas and no UMN SAML
+integration. Browser login uses authorization code plus PKCE. The CLI uses RFC
+8628 device authorization. API and MCP audiences are exact and separate;
+protected personal calls require proofs bound to the access token's DPoP key.
 
-Run the web app alone from the repository root with:
+The generated SDK combines OpenAPI-derived types, an operation catalog, a
+native fetch client, and DPoP-aware request behavior. Regenerate it only from
+the contract:
 
-    pnpm --filter @umn-gopher-assistant/web dev
+```bash
+pnpm generate
+pnpm check:generated
+```
 
-The service worker is registered only by a production build. It precaches the
-offline shell and project-owned icons, then caches same-origin Next.js static
-assets as they are used. It does not intercept cross-origin requests or paths
-under `/api/` and `/v1/`. To exercise the production PWA locally:
+The `uga` CLI stores tokens in the operating-system keychain with no plaintext
+fallback and uses stable JSON envelopes and exit codes. The remote Streamable
+HTTP MCP server currently registers only:
 
-    pnpm --filter @umn-gopher-assistant/web build
-    pnpm --filter @umn-gopher-assistant/web start
+- `campuses_list`;
+- `sources_list`; and
+- `world_manifest_get`.
 
-The PWA preserves a bilingual, project-authored offline status shell and the
-anonymous Plan vault shell. It deliberately does not cache runtime navigation
-HTML—even for a page that is public today—so a later authenticated or
-personalized response cannot be replayed on a shared browser. External official
-sources, live schedules, safety alerts, registration, and campus systems are not
-made available offline.
+It verifies the exact MCP audience and never forwards the inbound MCP token to
+Core. No live write tool is registered.
 
-## Web tests
+```bash
+pnpm --filter @umn-gopher-assistant/cli build
+node apps/cli/dist/bin.js --json doctor
+pnpm --filter @umn-gopher-assistant/mcp-server dev
+```
 
-Component and domain tests run in Vitest:
+## Security model
 
-    pnpm --filter @umn-gopher-assistant/web test
+The repository treats public availability, verification, and institutional
+authorization as separate concepts:
 
-Playwright covers English-to-Chinese switching, all five persisted campus
-choices, the Today-to-Explore-to-Plan journey, local vault setup/migration,
-recovery, background lock, offline writes, production Worker/CSP behavior,
-mobile and keyboard navigation, the production offline fallback, manifest and
-service-worker policy, and automated WCAG A/AA checks. The Vault suite runs on
-desktop Firefox/WebKit and Pixel 5/iPhone 13 profiles as well as Chromium.
-The same serial five-project Vault matrix—including an iPhone 13 layout on the
-supported iOS/WebKit 26 path—is a required GitHub Actions job;
-failures retain the browser trace, screenshot, video, and HTML report as a
-short-lived CI artifact.
-Install the pinned browser binaries once, then run:
+| Label          | Meaning                                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **Schematic**  | Project-authored approximation, such as a world manifest; never an official map, survey, accessible route, or emergency route |
+| **Unverified** | Provenance exists, but rights, freshness, or accuracy review is incomplete                                                    |
+| **Verified**   | Evidence for a particular claim, artifact version, and use was reviewed; this never implies University endorsement            |
 
-    pnpm --filter @umn-gopher-assistant/web exec playwright install chromium firefox webkit
-    pnpm --filter @umn-gopher-assistant/web test:e2e
+Additional invariants include:
 
-The Playwright configuration builds and serves the production app when
-`PLAYWRIGHT_BASE_URL` is not set. Set that variable to test an already running
-instance. Failed runs retain a trace, screenshot, and video under the ignored
-`apps/web/test-results` directory; the HTML report is written to the ignored
-`apps/web/playwright-report` directory. Tests rely on browser events and web
-assertions rather than fixed sleeps.
+- no UMN password, institutional connector secret, production key, recovery
+  code, or personal plaintext belongs in source control or logs;
+- authorization and account isolation are enforced server-side; campus IDs are
+  never authorization decisions;
+- DPoP nonces and proofs on implemented protected personal routes are bounded,
+  replay-checked, and audience-bound;
+- account identity HMAC rotations preserve continuity and reject split
+  mappings, including dormant-account activation barriers;
+- PostgreSQL personal-vault tables require restricted runtime roles and RLS;
+- source HTML, connector responses, documents, and any future model output are
+  untrusted input; and
+- dependency and generated-artifact checks are part of the release gate.
 
-The full offline-vault reload test intentionally stops and restores the local
-Next.js process, so it is enabled only in its serial managed-server gate. CI
-runs this command (PowerShell users can set the variable with
-`$env:PLAYWRIGHT_MANAGED_OFFLINE='1'` first):
+The current dependency override pins `find-my-way` to patched release `9.7.0`
+for the affected `<=9.6.0` graph. `pnpm audit --prod --audit-level high`
+currently reports no known production vulnerabilities.
 
-    PLAYWRIGHT_MANAGED_OFFLINE=1 pnpm --filter @umn-gopher-assistant/web test:e2e e2e/vault.spec.ts --workers=1
+See [Threat model](docs/threat-model.md),
+[Security and supply-chain evidence](docs/security-supply-chain.md), and
+[Security policy](SECURITY.md).
 
-The launcher binds its stop/start control endpoint to loopback, authenticates
-each request with a per-run random token, and automatically restores the app
-after a bounded offline lease if a test worker crashes. Ordinary parallel E2E
-runs leave this destructive-origin test skipped.
+## Verification snapshot
 
-### Current web limitations
+The integrated branch was reproduced on 2026-08-03 with Node `24.11.1` and
+pnpm `10.34.5`:
 
-- Weather, routes, personal class schedules, community posts, and moderation
-  items are authored demonstrations unless a provenance link says otherwise.
-  Public Sessions and TC/Duluth events are live-only views; assistant answers
-  come from the project-authored corpus. Citations separate the summary source
-  from the link-only official page supplied for verification. Both retain provenance and
-  are unavailable offline.
-- Official links leave the app and require a network connection. Their content,
-  availability, accessibility, and licensing remain the source owner's
-  responsibility.
-- The schematic map is paired with a text list and is not an official map,
-  accessible-route guarantee, emergency route, or live navigation system.
-- The personal task vault is not an institutional record or an escrowed backup.
-  Local-only vaults cannot be recovered after site data is lost. Synced vaults
-  still require the current recovery code and authenticated account boundary;
-  the service cannot decrypt or reset them. The protocol detects rollback only
-  against a trusted local anchor and does not yet provide global fork
-  transparency against a malicious storage service.
-- Installability and offline behavior require a supported browser and a secure
-  context (localhost is accepted for development).
+| Gate                                  |                                                                                                          Result |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------: |
+| Fresh workspace lint                  |                                                                                              15/15 tasks passed |
+| Fresh workspace typecheck             |                                                                                              15/15 tasks passed |
+| Production build                      |                                                                                     11/11 build packages passed |
+| Node unit/contract/smoke assertions   |                                                                                         1,052 passed, 3 skipped |
+| Python tests                          |                                                                       381 passed, 1 deselected, 96.32% coverage |
+| Bilingual retrieval release cases     |                                                        152/152 passed; all scored metrics 1.0; campus leakage 0 |
+| Accessibility browser matrix          |                                                                         32/32 passed across Chromium and WebKit |
+| Compiled API smoke                    | Passed across health, five campuses, source filtering, schematic world, ETags, and fail-closed catalog fallback |
+| Production dependency audit           |                                                                     No known vulnerabilities at `high` or above |
+| Compose configuration                 |                                                                                                           Valid |
+| Offline retained-realm reconciliation |                                                       First run converged 11 changes; second run made 0 changes |
+
+The 1,052 Node assertions include API (342), Web (254), contracts (95), SDK
+(80), CLI (80), MCP (77), config (11), crypto (30), database (38), edge gateway
+(20), shared testing (2), foundation verification (5), and root smoke/unit
+(18). API and MCP each retain one intentional skip in their applicable
+environment, and the API retains one additional intentional skip.
+
+The host used for this snapshot did not have an available Docker daemon, so the
+live PostgreSQL/Redis/Keycloak Compose rehearsal was not rerun locally. Static
+Compose validation, offline realm convergence, database policy tests, API
+runtime smoke, production builds, and browser gates passed; a real disposable
+Compose run remains a required CI/release step.
 
 ## Repository map
 
-| Path               | Purpose                                                   |
-| ------------------ | --------------------------------------------------------- |
-| apps/web           | Next.js web client                                        |
-| apps/api           | NestJS/Fastify API                                        |
-| apps/cli           | RFC 8628 command-line client and guarded read commands    |
-| apps/mcp-server    | OAuth-protected remote Streamable HTTP MCP server         |
-| apps/ai-knowledge  | Isolated deterministic campus knowledge retrieval service |
-| packages/contracts | Shared schemas and public contract types                  |
-| packages/crypto    | Browser-friendly E2EE primitives and local key envelopes  |
-| packages/config    | Campus and source registries with provenance              |
-| packages/db        | Database schema, migrations, and persistence adapters     |
-| packages/testing   | Shared test configuration and utilities                   |
-| packages/sdk       | OpenAPI-generated TypeScript SDK and native fetch client  |
-| openapi            | HTTP API contract                                         |
-| asyncapi           | Event contract                                            |
-| infra/compose      | Local-only supporting infrastructure                      |
-| docs               | Architecture, source policy, threat model, and decisions  |
+| Path                 | Responsibility                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| `apps/web`           | Next.js field guide, PWA, BFFs, OIDC session boundary, and browser Vault Worker                 |
+| `apps/api`           | NestJS/Fastify Core API, catalog adapters, AI proxy, and DPoP-protected personal routes         |
+| `apps/ai-knowledge`  | Private deterministic retrieval service, governed corpus, synchronization, and evaluation       |
+| `apps/edge-gateway`  | Trusted public ingress, private-origin enforcement, and privacy-preserving AI network assertion |
+| `apps/cli`           | RFC 8628 CLI with keychain-backed credentials and guarded read operations                       |
+| `apps/mcp-server`    | OAuth/DPoP-protected remote MCP resource with three read-only tools                             |
+| `packages/contracts` | Shared schemas, identifiers, DTOs, and public error shapes                                      |
+| `packages/crypto`    | Browser E2EE primitives, envelopes, commit signatures, pairing, and recovery artifacts          |
+| `packages/config`    | Five-campus and governed-source registries with provenance                                      |
+| `packages/db`        | Ordered migrations, knowledge storage, encrypted-vault persistence, RLS, and maintenance        |
+| `packages/sdk`       | OpenAPI-generated TypeScript types, operation map, and fetch client                             |
+| `packages/testing`   | Shared test configuration and helpers                                                           |
+| `openapi`            | OpenAPI 3.1 HTTP compatibility contract                                                         |
+| `asyncapi`           | Versioned event compatibility contract; channels do not imply running producers                 |
+| `infra/compose`      | Loopback-only local integration topology, migrations, and identity reconciliation               |
+| `docs`               | Architecture, policies, runbooks, threat model, and ADRs                                        |
+
+## Deployment and operations
+
+Local Compose is an integration environment, not a production prescription.
+Production requires explicit choices for network segmentation, managed data
+services, TLS, backups, recovery objectives, regional availability, secret and
+key management, monitoring, privacy notices, incident ownership, and connector
+approval.
+
+The anonymous `GET /v1/health` endpoint is **liveness only**. It proves that the
+Core process and HTTP stack can answer; it does not probe Redis, the restricted
+PostgreSQL role and RLS, OIDC/JWKS, retrieval, or live sources. Do not attach a
+load balancer or deployment promotion check to it as readiness. Implement the
+bounded fail-closed composite probe specified in
+[API health and production readiness](docs/health.md) first.
+
+Operational references:
+
+- [Architecture](docs/architecture.md)
+- [Public catalog operations](docs/public-catalog-operations.md)
+- [Campus knowledge operations](docs/ai-knowledge-operations.md)
+- [Personal-vault operations](docs/personal-vault-operations.md)
+- [Account identity HMAC continuity and rotation](docs/account-hmac-operations.md)
+- [Identity and authorization boundary](docs/identity.md)
+- [Data source policy](docs/data-source-policy.md)
+- [Dependency risk register](docs/dependency-risk-register.md)
+
+## Known limitations and next release gates
+
+- This project has no University production authorization, branding license, or
+  protected-data connector. All current official-status values are
+  `UNVERIFIED`.
+- Composite dependency readiness is not implemented; `/v1/health` is liveness
+  only, so the platform is not production-ready.
+- A disposable live Compose migration/identity/replay rehearsal must pass in CI
+  or a release environment with Docker before promotion.
+- Public Core and MCP ingress still need a reviewed deployment topology and a
+  distributed invalid-token/global pre-authentication limiter. The edge
+  gateway's `/readyz` checks only its Web upstream and does not fill that role.
+- Core-to-retrieval HMAC replay memory and public-catalog connector protection
+  remain process-local, so replica-wide enforcement is still a production
+  hardening gate.
+- There is no production Web container, private-origin network policy, managed
+  TLS/secret wiring, or target-environment source-IP preservation proof yet.
+- Initial account-HMAC registry bootstrap requires a one-time known-good key.
+  Rotation finalization deliberately waits for every mapped account, including
+  dormant accounts, to converge.
+- Automated account erasure and production scheduling/alerting for the personal
+  retention maintainer still require an operator-owned lifecycle.
+- Pairing expiration currently relies on application-clock validation in part;
+  production hardening should consolidate expiry authority at the database
+  boundary.
+- Vault rollback detection uses a trusted local anchor; there is no global fork
+  transparency against a malicious storage service.
+- Local-model and BYOK generation controls are visible but disabled. The
+  current Ask flow is deterministic retrieval only and never reads the vault.
+- pgvector columns and HNSW indexes exist, but embeddings/vector search are not
+  enabled.
+- The local Keycloak 26.7 profile does not implement the MCP RFC 8707
+  `resource` parameter. The checked-in strict MCP client/server profile is
+  tested, but generic MCP client interoperability is not claimed.
+- Live public events currently cover Twin Cities and Duluth. The other campuses
+  fail closed to reviewed official links; sessions cover all five campuses.
+- Weather, routes, personal class schedules, community content, media, and
+  moderation remain authored UI states or contract-only surfaces unless a
+  provenance-bearing runtime response says otherwise.
+- The personal vault requires browser Worker, IndexedDB, WebCrypto, and
+  persistent non-extractable `CryptoKey` support. The vault requires Safari/iOS
+  26 or newer because older WebKit versions can partially commit a Worker-owned
+  IndexedDB transaction during termination.
 
 ## Data and connector policy
 
 Public availability does not grant permission to copy, cache, translate, or
-redistribute content. Every source must be registered with a licensing state,
-attribution, cache policy, verification state, and source URL before use.
-Connector credentials belong in an approved runtime secret store and never in
-the repository. See the [data source policy](docs/data-source-policy.md).
+redistribute content. Every source requires a registry entry containing its
+purpose, campus scope, publisher, HTTPS URL, license state, attribution, cache
+policy, freshness, and verification evidence before use. Connector credentials
+belong in an approved runtime secret store.
 
 No University logo, Goldy Gopher artwork, proprietary map, building model,
-photograph, menu, directory dump, or other unlicensed asset is bundled merely
-because it is visible on a public website. Deep links remain links; they are not
-permission to republish the target.
+photograph, directory dump, or other unlicensed asset is bundled merely because
+it is visible on a public site. Deep links remain links; they are not permission
+to republish their targets. See [Data source policy](docs/data-source-policy.md).
 
-## Documentation
+## Decision records and project documentation
 
 - [HDUHelp product study and UMN adaptation principles](docs/research/hduhelp-product-study.md)
-- [Architecture](docs/architecture.md)
-- [Data source policy](docs/data-source-policy.md)
-- [Public catalog operations](docs/public-catalog-operations.md)
-- [Campus knowledge operations](docs/ai-knowledge-operations.md)
-- [Personal-vault operations and ephemeral retention](docs/personal-vault-operations.md)
-- [Account identity HMAC continuity and rotation](docs/account-hmac-operations.md)
-- [API health and production-readiness gate](docs/health.md)
-- [Threat model](docs/threat-model.md)
-- [Security and supply-chain evidence](docs/security-supply-chain.md)
-- [Identity and authorization boundary](docs/identity.md)
-- [Selective service architecture decision](docs/adr/0001-selective-service-architecture.md)
-- [Evidence-first campus AI decision](docs/adr/0005-evidence-first-campus-ai.md)
+- [ADR 0001 — selective service architecture](docs/adr/0001-selective-service-architecture.md)
+- [ADR 0002 — client-side E2EE vault](docs/adr/0002-client-side-e2ee-vault.md)
+- [ADR 0003 — browser Vault Worker and trusted-device storage](docs/adr/0003-browser-vault-worker-and-trusted-device-storage.md)
+- [ADR 0004 — live-only public catalog](docs/adr/0004-live-only-public-catalog.md)
+- [ADR 0005 — evidence-first campus AI](docs/adr/0005-evidence-first-campus-ai.md)
+- [ADR 0006 — explicit AI citation provenance](docs/adr/0006-explicit-ai-citation-provenance.md)
+- [ADR 0007 — account-bound E2EE synchronization](docs/adr/0007-account-bound-e2ee-sync.md)
+- [ADR 0008 — DPoP proof of possession](docs/adr/0008-dpop-proof-of-possession.md)
 - [Contributing](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## License and notices

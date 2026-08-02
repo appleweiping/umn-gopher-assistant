@@ -39,7 +39,7 @@ python -m venv .venv
 . .venv/bin/activate
 python -m pip install --require-hashes -r requirements-dev.txt
 pytest
-AI_KNOWLEDGE_BACKEND=file NODE_ENV=development python -m uvicorn ai_knowledge.app:app --host 127.0.0.1 --port 8081
+AI_KNOWLEDGE_BACKEND=file NODE_ENV=development python -m uvicorn ai_knowledge.app:app --host 127.0.0.1 --port 8100
 ```
 
 On PowerShell, activate with `.venv\Scripts\Activate.ps1`.
@@ -47,10 +47,17 @@ On PowerShell, activate with `.venv\Scripts\Activate.ps1`.
 ```powershell
 $env:NODE_ENV = "development"
 $env:AI_KNOWLEDGE_BACKEND = "file"
-python -m uvicorn ai_knowledge.app:app --host 127.0.0.1 --port 8081
+python -m uvicorn ai_knowledge.app:app --host 127.0.0.1 --port 8100
 ```
 
-Local Core and retrieval processes use the same fixed development-only HMAC key. Exercise queries through the Core API; do not expose the retrieval port as a browser-facing endpoint. Shared environments must inject one independently generated canonical base64url key (32–64 bytes) as `API_AI_KNOWLEDGE_HMAC_KEY` in Core and `AI_KNOWLEDGE_SERVICE_HMAC_KEY` here.
+Port `8100` matches Core's local `API_AI_KNOWLEDGE_URL` default. Ask also
+requires Core's fail-closed Redis limiter; start the passworded local Redis
+service described in the root README before exercising queries through Core.
+Local Core and retrieval processes use the same fixed development-only HMAC
+key. Do not expose the retrieval port as a browser-facing endpoint. Shared
+environments must inject one independently generated canonical base64url key
+(32–64 bytes) as `API_AI_KNOWLEDGE_HMAC_KEY` in Core and
+`AI_KNOWLEDGE_SERVICE_HMAC_KEY` here.
 
 ## Endpoints
 
@@ -134,7 +141,7 @@ The Docker image uses Python 3.13, installs only pinned runtime dependencies, an
 
 ```bash
 docker build -t umn-gopher-ai-knowledge .
-docker run --rm -p 127.0.0.1:8081:8081 umn-gopher-ai-knowledge
+docker run --rm -p 127.0.0.1:8100:8081 umn-gopher-ai-knowledge
 ```
 
 For the explicit development file backend, mount a reviewed corpus read-only and set `AI_KNOWLEDGE_CORPUS_PATH`. Production containers must receive `DATABASE_URL` through the platform secret mechanism and use `AI_KNOWLEDGE_BACKEND=postgres`; do not mount private vault data or provider keys into this container.
