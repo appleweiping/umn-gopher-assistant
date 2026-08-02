@@ -322,12 +322,23 @@ BEGIN
     FROM pg_proc AS procedure
     JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
     WHERE namespace.nspname = 'public'
-      AND (
-        has_function_privilege('gopher_ai_reader', procedure.oid, 'EXECUTE')
-        OR has_function_privilege('gopher_ai_sync', procedure.oid, 'EXECUTE')
-      )
+      AND has_function_privilege('gopher_ai_reader', procedure.oid, 'EXECUTE')
   ) THEN
-    RAISE EXCEPTION 'AI runtime role retained public-schema function execution';
+    RAISE EXCEPTION 'AI reader retained public-schema function execution';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM pg_proc AS procedure
+    JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname = 'public'
+      AND has_function_privilege('gopher_ai_sync', procedure.oid, 'EXECUTE')
+  ) <> 1
+    OR NOT has_function_privilege(
+      'gopher_ai_sync',
+      'public.vector(public.vector,integer,boolean)'::regprocedure,
+      'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'AI sync function allowlist did not converge exactly';
   END IF;
   IF NOT EXISTS (
     SELECT 1

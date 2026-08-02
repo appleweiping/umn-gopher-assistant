@@ -421,7 +421,8 @@ repository checksum of every applied migration and transactionally upgrades
 both empty and retained volumes before data-dependent services start. A second
 one-shot service idempotently reconciles the retained Keycloak realm because
 startup import alone cannot update an existing realm. Database runtime grants
-are converged to the reviewed account/personal-vault function allowlist.
+are converged to the reviewed AI pgvector typmod-cast and
+account/personal-vault function allowlists.
 
 `pnpm smoke:db` reproduces and verifies the foundation-only to current-schema
 upgrade when a Docker engine is available. Separate identity, DPoP, MCP OAuth,

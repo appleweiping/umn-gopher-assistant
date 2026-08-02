@@ -94,6 +94,14 @@ SELECT format(
   :'ai_sync_user'
 )
 \gexec
+-- Assigning into vector(384) invokes pgvector's implicit self-cast even when the
+-- supplied embedding is NULL. The sync role needs only that typmod coercion;
+-- vector search, distance, and output functions remain unavailable.
+SELECT format(
+  'GRANT EXECUTE ON FUNCTION public.vector(public.vector, integer, boolean) TO %I',
+  :'ai_sync_user'
+)
+\gexec
 
 SELECT format(
   'GRANT EXECUTE ON FUNCTION resolve_personal_account(bytea, smallint, bytea, smallint) TO %I',
