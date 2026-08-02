@@ -133,12 +133,26 @@ describe("local infrastructure contract", () => {
       );
     }
     expect(grants.indexOf("REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public")).toBeLessThan(
+      grants.indexOf("GRANT EXECUTE ON FUNCTION public.vector(public.vector, integer, boolean)"),
+    );
+    expect(grants.indexOf("REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public")).toBeLessThan(
       grants.indexOf("GRANT EXECUTE ON FUNCTION resolve_personal_account"),
     );
     expect(grants).toContain(
+      "GRANT EXECUTE ON FUNCTION public.vector(public.vector, integer, boolean) TO %I",
+    );
+    expect(grants).toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.vector\(public\.vector, integer, boolean\) TO %I',\s*:'ai_sync_user'\s*\)\s*\\gexec/u,
+    );
+    expect(grants).not.toMatch(
+      /GRANT EXECUTE ON FUNCTION public\.vector\(public\.vector, integer, boolean\) TO %I',\s*:'(?:ai_reader|api_personal)_user'/u,
+    );
+    expect(grants).not.toContain("GRANT EXECUTE ON FUNCTION public.vector_out(public.vector)");
+    expect(grants).not.toContain("knowledge_source_role, public.vector TO %I");
+    expect(grants).toContain(
       "GRANT EXECUTE ON FUNCTION assert_account_hmac_key_continuity(smallint, bytea, smallint, bytea, boolean, boolean)",
     );
-    expect(grants.match(/GRANT EXECUTE ON FUNCTION/gu)).toHaveLength(2);
+    expect(grants.match(/GRANT EXECUTE ON FUNCTION/gu)).toHaveLength(3);
     expect(grants).toContain(
       "ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC",
     );

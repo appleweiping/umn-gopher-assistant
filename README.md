@@ -343,9 +343,9 @@ docker compose --env-file infra/compose/.env.example -f infra/compose/docker-com
 
 Compose binds published ports to `127.0.0.1` by default. Its one-shot migration
 service applies ordered SQL transactionally, verifies a checksum ledger, and
-converges exact personal-API runtime grants. A second one-shot reconciler
-updates retained Keycloak realms so startup cannot silently keep an obsolete
-DPoP or audience policy.
+converges the exact AI pgvector typmod-cast and personal-API runtime grants. A
+second one-shot reconciler updates retained Keycloak realms so startup cannot
+silently keep an obsolete DPoP or audience policy.
 
 Useful integration checks include:
 
