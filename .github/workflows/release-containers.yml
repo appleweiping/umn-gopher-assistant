@@ -34,7 +34,7 @@ jobs:
       release_sha: ${{ steps.source.outputs.release_sha }}
     steps:
       - name: Check out the complete tagged history without persisted credentials
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -69,13 +69,13 @@ jobs:
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
 
       - name: Install pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
           run_install: false
           version: 10.34.5
 
       - name: Install Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           cache: pnpm
           node-version: 24.11.1
@@ -152,7 +152,7 @@ jobs:
       STAGING_SUFFIX: staging-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out the tagged source without persisted credentials
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -171,7 +171,7 @@ jobs:
           git tag --points-at HEAD | grep -Fx "$RELEASE_VERSION"
 
       - name: Log in to GHCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
@@ -179,7 +179,7 @@ jobs:
 
       - name: Build and publish the knowledge service by staging digest
         id: ai
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: apps/ai-knowledge
           file: apps/ai-knowledge/Dockerfile
@@ -193,7 +193,7 @@ jobs:
 
       - name: Build and publish the PostgreSQL platform image by staging digest
         id: postgres
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: infra/compose/postgres
           file: infra/compose/postgres/Dockerfile
@@ -207,7 +207,7 @@ jobs:
 
       - name: Build and publish the trusted edge gateway by staging digest
         id: edge
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: apps/edge-gateway/Dockerfile
@@ -316,7 +316,7 @@ jobs:
           test "$postgres_promoted" = "${{ steps.postgres.outputs.digest }}"
 
       - name: Upload signed-release SBOM evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           if-no-files-found: error
           name: release-sboms-${{ env.RELEASE_VERSION }}
