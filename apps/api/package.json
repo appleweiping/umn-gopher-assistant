@@ -16,15 +16,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@noble/hashes": "1.8.0",
+    "@noble/hashes": "2.2.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/platform-fastify": "11.1.28",
     "@umn-gopher-assistant/config": "workspace:*",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "@umn-gopher-assistant/crypto": "workspace:*",
-    "fastify": "5.10.0",
-    "jose": "6.2.3",
+    "fastify": "5.11.0",
+    "jose": "6.2.5",
     "postgres": "3.4.9",
     "redis": "6.1.0",
     "reflect-metadata": "0.2.2",

@@ -18,10 +18,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "@umn-gopher-assistant/sdk": "workspace:*",
-    "jose": "6.2.3",
+    "jose": "6.2.5",
     "redis": "6.1.0",
     "zod": "4.4.3"
   },
