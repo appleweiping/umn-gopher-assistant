@@ -24,8 +24,9 @@ e6f26adf27510454cfbd9a7408aae518a4de5a99:packages/contracts/test/contracts.test.
 
 # Reviewed synthetic UUID/key/idempotency fixtures and explicit fake access
 # tokens introduced by the encrypted-vault protocol tests. The first group is
-# the preserved development commit; the second is its byte-identical linear
-# release commit. Keep every exception fingerprint-bound.
+# the preserved development commit; the second is its byte-identical review
+# commit; the third is GitHub's byte-identical rebase-merge commit. Keep every
+# exception fingerprint-bound.
 034d87e103b153ad9de81d45b64263217608e58e:apps/api/test/personal-vault.e2e.test.ts:generic-api-key:756
 034d87e103b153ad9de81d45b64263217608e58e:apps/web/test/personal-vault-sync-bff.test.ts:generic-api-key:278
 034d87e103b153ad9de81d45b64263217608e58e:apps/web/test/personal-vault-sync-bff.test.ts:generic-api-key:294
@@ -52,3 +53,16 @@ e6f26adf27510454cfbd9a7408aae518a4de5a99:packages/contracts/test/contracts.test.
 21945ab31ddee39d4b8518c6e17ce180057449e1:packages/sdk/test/client.test.ts:generic-api-key:1113
 21945ab31ddee39d4b8518c6e17ce180057449e1:packages/sdk/test/client.test.ts:generic-api-key:1122
 21945ab31ddee39d4b8518c6e17ce180057449e1:packages/sdk/test/client.test.ts:generic-api-key:1598
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:apps/api/test/personal-vault.e2e.test.ts:generic-api-key:756
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:apps/web/test/personal-vault-sync-bff.test.ts:generic-api-key:278
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:apps/web/test/personal-vault-sync-bff.test.ts:generic-api-key:294
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/contracts/test/vault-sync.test.ts:generic-api-key:25
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/contracts/test/vault-sync.test.ts:generic-api-key:27
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/contracts/test/vault-sync.test.ts:generic-api-key:29
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:192
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:194
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:196
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:1003
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:1113
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:1122
+1d4f19dd5e5b838b3a27f202105aa83668a94a28:packages/sdk/test/client.test.ts:generic-api-key:1598
