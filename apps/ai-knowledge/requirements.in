@@ -1,9 +1,9 @@
 # Runtime dependency roots. Compile with the documented uv command; do not
 # hand-edit requirements.txt or remove its hashes.
-fastapi==0.136.3
+fastapi==0.141.1
 psycopg[binary]==3.3.4
 psycopg-pool==3.3.1
-pydantic==2.12.5
+pydantic==2.13.4
 starlette==1.3.1
 tzdata==2026.3; sys_platform == "win32"
-uvicorn==0.48.0
+uvicorn==0.52.0
