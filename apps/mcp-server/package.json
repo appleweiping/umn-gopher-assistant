@@ -18,16 +18,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@umn-gopher-assistant/contracts": "workspace:*",
     "@umn-gopher-assistant/sdk": "workspace:*",
-    "jose": "6.2.3",
-    "redis": "6.1.0",
+    "jose": "6.2.8",
+    "redis": "6.2.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "24.10.4",
-    "tsx": "4.23.1",
+    "tsx": "4.23.11",
     "typescript": "5.9.3",
     "vitest": "4.1.10"
   }
