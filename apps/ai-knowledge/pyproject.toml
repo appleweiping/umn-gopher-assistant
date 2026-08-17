@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,12 +10,12 @@ readme = "README.md"
 requires-python = ">=3.13,<3.15"
 license = "Apache-2.0"
 dependencies = [
-  "fastapi==0.136.3",
+  "fastapi==0.141.1",
   "psycopg[binary]==3.3.4",
   "psycopg-pool==3.3.1",
-  "pydantic==2.12.5",
+  "pydantic==2.13.4",
   "tzdata==2026.3; sys_platform == 'win32'",
-  "uvicorn==0.48.0",
+  "uvicorn==0.52.3",
 ]
 
 [project.scripts]
@@ -24,9 +24,9 @@ ai-knowledge-sync = "ai_knowledge.sync:main"
 [project.optional-dependencies]
 test = [
   "httpx==0.28.1",
-  "pytest==9.0.3",
+  "pytest==9.1.1",
   "pytest-cov==7.1.0",
-  "ruff==0.15.22",
+  "ruff==0.16.3",
 ]
 
 [tool.setuptools.packages.find]
