@@ -35,6 +35,6 @@
     "@types/node": "24.10.4",
     "drizzle-kit": "0.31.10",
     "typescript": "5.9.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

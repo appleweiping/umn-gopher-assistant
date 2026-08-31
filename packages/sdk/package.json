@@ -33,7 +33,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "jose": "6.2.3",
+    "jose": "6.2.10",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -41,7 +41,7 @@
     "openapi-typescript": "7.13.0",
     "prettier": "3.7.4",
     "typescript": "5.9.3",
-    "vitest": "4.1.10",
+    "vitest": "4.1.11",
     "yaml": "2.9.0"
   }
 }
